@@ -2,7 +2,7 @@
 # Basado en frappe_docker compose.yaml - spec docs/spec.md
 services:
   backend:
-    image: ghcr.io/frappe/crm:stable@sha256:117a9e0be778ecdb59a6a855a5bfe78919d3f83f10d3e902f8b86a05b7728ac6
+    image: crm-mb:15
     restart: unless-stopped
     command:
       - /home/frappe/frappe-bench/env/bin/gunicorn
@@ -29,7 +29,7 @@ services:
       - crm-net
 
   websocket:
-    image: ghcr.io/frappe/crm:stable@sha256:117a9e0be778ecdb59a6a855a5bfe78919d3f83f10d3e902f8b86a05b7728ac6
+    image: crm-mb:15
     restart: unless-stopped
     command:
       - node
@@ -45,7 +45,7 @@ services:
       - crm-net
 
   worker:
-    image: ghcr.io/frappe/crm:stable@sha256:117a9e0be778ecdb59a6a855a5bfe78919d3f83f10d3e902f8b86a05b7728ac6
+    image: crm-mb:15
     restart: unless-stopped
     command: bench worker --queue short,default,long
     volumes:
@@ -59,7 +59,7 @@ services:
       - crm-net
 
   scheduler:
-    image: ghcr.io/frappe/crm:stable@sha256:117a9e0be778ecdb59a6a855a5bfe78919d3f83f10d3e902f8b86a05b7728ac6
+    image: crm-mb:15
     restart: unless-stopped
     command: bench schedule
     volumes:
@@ -73,7 +73,7 @@ services:
       - crm-net
 
   frontend:
-    image: ghcr.io/frappe/crm:stable@sha256:117a9e0be778ecdb59a6a855a5bfe78919d3f83f10d3e902f8b86a05b7728ac6
+    image: crm-mb:15
     restart: unless-stopped
     command: nginx-entrypoint.sh
     environment:
@@ -94,7 +94,7 @@ services:
       - "8080"
 
   configurator:
-    image: ghcr.io/frappe/crm:stable@sha256:117a9e0be778ecdb59a6a855a5bfe78919d3f83f10d3e902f8b86a05b7728ac6
+    image: crm-mb:15
     restart: "no"
     entrypoint: >
       bash -c
