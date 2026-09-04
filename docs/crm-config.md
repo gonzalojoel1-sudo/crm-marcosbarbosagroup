@@ -25,8 +25,12 @@ Language: es · Timezone: America/Argentina/Cordoba · Country: Argentina
 - Env del servicio web en Dokploy: `NEXT_PUBLIC_CRM_URL` + `CRM_API_KEY` + `CRM_API_SECRET`
 - Smoke test: CRM-LEAD-2026-00001 creado (borrar de la UI cuando se quiera)
 
+## Campos custom (creados 2026-09-04)
+- `custom_plan_interes`: Select (Plan 1-4) ✅
+- `notes`: Data (Notas del formulario) ✅
+
 ## Pendientes fase 2
-- Campos custom: `custom_plan_interes` (Plan 1-4), `custom_facturacion_anual`
+- `custom_facturacion_anual` (si Marcos lo pide)
 - SMTP saliente para welcome emails y notificaciones
 - WhatsApp Business (frappe_whatsapp app)
 - Backups offsite (S3/B2 vía restic — el Containerfile ya trae restic)
