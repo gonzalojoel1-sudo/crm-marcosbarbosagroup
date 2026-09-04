@@ -35,3 +35,10 @@
 - Login CRM: `https://crm.marcosbarbosagroup.com` → Administrator / password en `.env` (ADMIN_PASSWORD)
 - SSH VPS: `ssh root@2.28.121.92` · Stack dir: `/opt/crm-marcosbarbosagroup`
 - Logs: `docker service logs crm_backend --since 10m`
+
+## 2026-09-04 — Sync Google Calendar → CRM (en curso, falta autorización de la cuenta de agenda)
+
+- Estado: scripts listos y desplegados (`sync-gcal-crm.py` + cron cada 1 min), Calendar API habilitada
+- Hallazgo: el refresh token actual es de gonzalojoel1@gmail.com, pero las reservas caen en el calendar de Agenda.personal.mb@gmail.com (dueña de la agenda)
+- Pendiente mañana: ejecutar `python3 scripts/sync/authorize-gcal.py <client_id> <client_secret>` logueándose con **Agenda.personal.mb@gmail.com** → actualizar `refresh_token` en `/etc/crm-gcal-sync/config.json` → `rm /var/lib/crm-gcal-sync/processed.json` (reset del estado, era del calendar equivocado) → `python3 scripts/sync/sync-gcal-crm.py` → verificar lead con source "Agenda Reunión"
+- Nota: el primer test (lead de prueba del propio gonzalojoel1) no se creó porque su evento tiene self/organizer=True — filtro correcto
