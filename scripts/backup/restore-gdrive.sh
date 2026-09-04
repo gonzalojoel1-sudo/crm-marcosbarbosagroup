@@ -9,10 +9,11 @@ BACKEND_CID=$(docker ps -qf name=crm_backend)
 TMP=/tmp/crm-restore-$$
 mkdir -p "$TMP"
 
-echo "[1/4] descargando ${RCLONE_REMOTE}:CRM-MarcosBarbosa-Backups/${DATE}"
+echo "[1/4] descargando ${RCLONE_REMOTE}:CRM-MarcosBarbosa-Backups/${DATE} (todas las horas)"
 rclone copy "${RCLONE_REMOTE}:CRM-MarcosBarbosa-Backups/${DATE}" "$TMP"
-SQL=$(ls "$TMP"/*.sql.gz | head -n1)
-FILES=$(ls "$TMP"/*files*.tar 2>/dev/null | head -n1 || true)
+SQL=$(ls -t "$TMP"/*.sql.gz | head -n1)
+FILES=$(ls -t "$TMP"/*files*.tar 2>/dev/null | head -n1 || true)
+echo "usando: $(basename "$SQL")"
 
 echo "[2/4] copiando al contenedor"
 SQLC=$(basename "$SQL"); docker cp "$SQL" "$BACKEND_CID:/tmp/$SQLC"

@@ -9,7 +9,7 @@ GDRIVE_ROOT="CRM-MarcosBarbosa-Backups"
 RETENTION_DAYS=30
 BACKEND_CID=$(docker ps -qf name=crm_backend)
 DATE=$(date +%F)
-DEST="${RCLONE_REMOTE}:${GDRIVE_ROOT}/${DATE}"
+DEST="${RCLONE_REMOTE}:${GDRIVE_ROOT}/${DATE}/$(date +%H)"
 LOCK=/tmp/crm-backup.lock
 
 exec 9>"$LOCK"
