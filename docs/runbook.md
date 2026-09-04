@@ -48,7 +48,7 @@ bench --site crm.marcosbarbosagroup.com restore <archivo-sql.gz> --with-private-
 - Destino Drive: `CRM-MarcosBarbosa-Backups/YYYY-MM-DD/` (cuenta gonzalojoel1@gmail.com) · retención 30 días
 - Contiene: BD (`.sql.gz`) + archivos (`*-private-files.tar`)
 - Ver backups: `rclone lsf gdrive:CRM-MarcosBarbosa-Backups/` · Restaurar: `scripts/backup/restore-gdrive.sh YYYY-MM-DD`
-- **⚠️ PENDIENTE ANTES DE FIN 2026:** crear client_id propio de Google Cloud (el compartido de rclone se retira). Pasos: console.cloud.google.com → proyecto → habilitar Drive API → OAuth Desktop → client_id/secret → agregar a `~/.config/rclone/rclone.conf` [gdrive] → `rclone config reconnect gdrive:` (headless: re-autorizar desde Mac). Guía: rclone.org/drive/#making-your-own-client-id
+- ✅ **Client_id propio configurado (2026-09-04):** proyecto Google Cloud `rclone-backup` (Drive API habilitada, OAuth Desktop, gonzalojoel1@gmail.com como test user). Credenciales en `~/.config/rclone/rclone.conf` — sin dependencia del client_id compartido de rclone que se retira.
 
 ## Actualizar versión (CRM/Framework)
 1. NO hacerlo directo en prod. Orden:
