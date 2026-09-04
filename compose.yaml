@@ -17,7 +17,10 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-    mem_limit: 512m
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     networks:
       - crm-net
 
@@ -28,7 +31,10 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-    mem_limit: 192m
+    deploy:
+      resources:
+        limits:
+          memory: 192M
     networks:
       - crm-net
 
@@ -39,7 +45,10 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-    mem_limit: 400m
+    deploy:
+      resources:
+        limits:
+          memory: 400M
     networks:
       - crm-net
     <<: *depends_on_configurator
@@ -51,7 +60,10 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-    mem_limit: 400m
+    deploy:
+      resources:
+        limits:
+          memory: 400M
     networks:
       - crm-net
     <<: *depends_on_configurator
@@ -68,7 +80,10 @@ services:
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
-    mem_limit: 64m
+    deploy:
+      resources:
+        limits:
+          memory: 64M
     networks:
       - crm-net
     ports:
@@ -113,7 +128,10 @@ services:
       - MARIADB_ROOT_PASSWORD=${DB_PASSWORD}
     volumes:
       - mariadb-data:/var/lib/mysql
-    mem_limit: 1g
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     healthcheck:
       test: mysqladmin ping -h localhost -p$$MARIADB_ROOT_PASSWORD
       interval: 10s
@@ -128,7 +146,10 @@ services:
     command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --appendonly no
     volumes:
       - redis-cache-data:/data
-    mem_limit: 160m
+    deploy:
+      resources:
+        limits:
+          memory: 160M
     networks:
       - crm-net
 
@@ -138,7 +159,10 @@ services:
     command: redis-server --maxmemory 96mb --appendonly yes
     volumes:
       - redis-queue-data:/data
-    mem_limit: 160m
+    deploy:
+      resources:
+        limits:
+          memory: 160M
     networks:
       - crm-net
 
@@ -152,3 +176,5 @@ volumes:
 networks:
   crm-net:
     driver: overlay
+  dokploy-network:
+    external: true

@@ -1,0 +1,38 @@
+# Routing CRM — mismo patrón que Dokploy genera para los demás servicios
+# WebSocket (/socket.io) tiene prioridad por regla más específica
+http:
+  routers:
+    crm-frontend-router-1:
+      rule: Host(`crm.marcosbarbosagroup.com`)
+      service: crm-frontend-service-1
+      middlewares:
+        - redirect-to-https
+      entryPoints:
+        - web
+    crm-frontend-router-websecure-1:
+      rule: Host(`crm.marcosbarbosagroup.com`)
+      service: crm-frontend-service-1
+      middlewares: []
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+    crm-websocket-router-websecure:
+      rule: "Host(`crm.marcosbarbosagroup.com`) && PathPrefix(`/socket.io`)"
+      service: crm-websocket-service
+      middlewares: []
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+  services:
+    crm-frontend-service-1:
+      loadBalancer:
+        servers:
+          - url: http://crm_frontend:8080
+        passHostHeader: true
+    crm-websocket-service:
+      loadBalancer:
+        servers:
+          - url: http://crm_websocket:9000
+        passHostHeader: true
