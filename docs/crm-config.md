@@ -20,7 +20,7 @@ Website · WhatsApp · Referido · Conferencia · LinkedIn · **Agenda Reunión*
 - Config: `/etc/crm-gcal-sync/config.json` (client_id web + refresh token de **Agenda.personal.mb@gmail.com**)
 - Solo crea leads de eventos CON invitados (eventos personales del calendar se ignoran)
 - Campos: `custom_meeting_datetime` (fecha/hora reserva) + `custom_event_id` (dedupe)
-- **⚠️ Refrescar token expira en 7 días si la app está en "Testing"** → publicar a producción: Google Auth Platform → Público → Publishing status → "In production" (sin verificación, los usuarios siguen viendo warning pero el token no expira)
+- ✅ **App publicada a producción (2026-09-04)** — marca verificada (dominio marcosbarbosagroup.com via Search Console) y tokens permanentes. Sin expiración de tokens ni mantenimiento.
 
 ## Config regional
 Language: es · Timezone: America/Argentina/Cordoba · Country: Argentina

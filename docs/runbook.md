@@ -48,7 +48,7 @@ bench --site crm.marcosbarbosagroup.com restore <archivo-sql.gz> --with-private-
 - Destino Drive: `CRM-MarcosBarbosa-Backups/YYYY-MM-DD/` (cuenta gonzalojoel1@gmail.com) · retención 30 días
 - Contiene: BD (`.sql.gz`) + archivos (`*-private-files.tar`)
 - Ver backups: `rclone lsf gdrive:CRM-MarcosBarbosa-Backups/` · Restaurar: `scripts/backup/restore-gdrive.sh YYYY-MM-DD`
-- ✅ **Client_id propio configurado (2026-09-04):** proyecto Google Cloud `rclone-backup` (Drive API habilitada, OAuth Desktop, gonzalojoel1@gmail.com como test user). Credenciales en `~/.config/rclone/rclone.conf` — sin dependencia del client_id compartido de rclone que se retira.
+- ✅ **Client_id propio + app en producción (2026-09-04) — tokens permanentes:** proyecto Google Cloud `rclone-backup` (Drive API habilitada, OAuth Desktop, gonzalojoel1@gmail.com como test user). Credenciales en `~/.config/rclone/rclone.conf` — sin dependencia del client_id compartido de rclone que se retira.
 
 ## Actualizar versión (CRM/Framework)
 1. NO hacerlo directo en prod. Orden:
