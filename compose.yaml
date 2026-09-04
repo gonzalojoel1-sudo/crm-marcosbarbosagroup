@@ -4,8 +4,17 @@ services:
   backend:
     image: ghcr.io/frappe/crm:stable
     restart: unless-stopped
-    command: >-
-      bench serve --port 8000 --proxy-ssl-headers
+    command:
+      - /home/frappe/frappe-bench/env/bin/gunicorn
+      - --chdir=/home/frappe/frappe-bench/sites
+      - --bind=0.0.0.0:8000
+      - --threads=4
+      - --workers=2
+      - --worker-class=gthread
+      - --worker-tmp-dir=/dev/shm
+      - --timeout=120
+      - --limit-request-line=8190
+      - frappe.app:application
     environment:
       - GUNICORN_WORKERS=2
       - GUNICORN_TIMEOUT=120
@@ -22,7 +31,9 @@ services:
   websocket:
     image: ghcr.io/frappe/crm:stable
     restart: unless-stopped
-    command: node socketio.js
+    command:
+      - node
+      - /home/frappe/frappe-bench/apps/frappe/socketio.js
     volumes:
       - sites:/home/frappe/frappe-bench/sites
       - logs:/home/frappe/frappe-bench/logs
@@ -66,9 +77,9 @@ services:
     restart: unless-stopped
     command: nginx-entrypoint.sh
     environment:
-      - BACKEND=backend:8000
+      - BACKEND=crm_backend:8000
       - FRAPPE_SITE_NAME_HEADER=crm.marcosbarbosagroup.com
-      - SOCKETIO=websocket:9000
+      - SOCKETIO=crm_websocket:9000
       - UPSTREAM_REAL_IP_HEADER=X-Forwarded-For
     volumes:
       - sites:/home/frappe/frappe-bench/sites
