@@ -1,10 +1,5 @@
 # CRM Grupo Marcos Barbosa - Frappe CRM tuneado CX23 (4GB)
 # Basado en frappe_docker compose.yaml - spec docs/spec.md
-x-depends-on-configurator: &depends_on_configurator
-  depends_on:
-    configurator:
-      condition: service_completed_successfully
-
 services:
   backend:
     image: ghcr.io/frappe/crm:stable
@@ -51,7 +46,6 @@ services:
           memory: 400M
     networks:
       - crm-net
-    <<: *depends_on_configurator
 
   scheduler:
     image: ghcr.io/frappe/crm:stable
@@ -66,7 +60,6 @@ services:
           memory: 400M
     networks:
       - crm-net
-    <<: *depends_on_configurator
 
   frontend:
     image: ghcr.io/frappe/crm:stable
