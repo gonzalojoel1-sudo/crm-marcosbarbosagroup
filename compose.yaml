@@ -43,6 +43,7 @@ services:
           memory: 192M
     networks:
       - crm-net
+      - dokploy-network
 
   worker:
     image: crm-mb:15
@@ -90,6 +91,7 @@ services:
           memory: 64M
     networks:
       - crm-net
+      - dokploy-network
     ports:
       - "8080"
 
