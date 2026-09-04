@@ -13,7 +13,14 @@
 Qualification (Open) → Diagnóstico (Open) → Análisis (Open) → Estrategia (Ongoing) → Implementación (Ongoing) → Seguimiento (Ongoing) → Escalamiento (Ongoing) → Won / Lost
 
 ## Lead Sources (CRM Lead Source)
-Website · WhatsApp · Referido · Conferencia · LinkedIn (+ defaults de la app)
+Website · WhatsApp · Referido · Conferencia · LinkedIn · **Agenda Reunión** (+ defaults de la app)
+
+## Sync Google Calendar → CRM (activo 2026-09-04)
+- Cron cada 1 min: `sync-gcal-crm.py` → log `/var/log/crm-gcal-sync.log`
+- Config: `/etc/crm-gcal-sync/config.json` (client_id web + refresh token de **Agenda.personal.mb@gmail.com**)
+- Solo crea leads de eventos CON invitados (eventos personales del calendar se ignoran)
+- Campos: `custom_meeting_datetime` (fecha/hora reserva) + `custom_event_id` (dedupe)
+- **⚠️ Refrescar token expira en 7 días si la app está en "Testing"** → publicar a producción: Google Auth Platform → Público → Publishing status → "In production" (sin verificación, los usuarios siguen viendo warning pero el token no expira)
 
 ## Config regional
 Language: es · Timezone: America/Argentina/Cordoba · Country: Argentina
