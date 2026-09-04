@@ -1,0 +1,154 @@
+# CRM Grupo Marcos Barbosa - Frappe CRM tuneado CX23 (4GB)
+# Basado en frappe_docker compose.yaml - spec docs/spec.md
+x-depends-on-configurator: &depends_on_configurator
+  depends_on:
+    configurator:
+      condition: service_completed_successfully
+
+services:
+  backend:
+    image: ghcr.io/frappe/crm:stable
+    restart: unless-stopped
+    command: >-
+      bench serve --port 8000 --proxy-ssl-headers
+    environment:
+      - GUNICORN_WORKERS=2
+      - GUNICORN_TIMEOUT=120
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    mem_limit: 512m
+    networks:
+      - crm-net
+
+  websocket:
+    image: ghcr.io/frappe/crm:stable
+    restart: unless-stopped
+    command: node socketio.js
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    mem_limit: 192m
+    networks:
+      - crm-net
+
+  worker:
+    image: ghcr.io/frappe/crm:stable
+    restart: unless-stopped
+    command: bench worker --queue short,default,long
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    mem_limit: 400m
+    networks:
+      - crm-net
+    <<: *depends_on_configurator
+
+  scheduler:
+    image: ghcr.io/frappe/crm:stable
+    restart: unless-stopped
+    command: bench schedule
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    mem_limit: 400m
+    networks:
+      - crm-net
+    <<: *depends_on_configurator
+
+  frontend:
+    image: ghcr.io/frappe/crm:stable
+    restart: unless-stopped
+    command: nginx-entrypoint.sh
+    environment:
+      - BACKEND=backend:8000
+      - FRAPPE_SITE_NAME_HEADER=crm.marcosbarbosagroup.com
+      - SOCKETIO=websocket:9000
+      - UPSTREAM_REAL_IP_HEADER=X-Forwarded-For
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    mem_limit: 64m
+    networks:
+      - crm-net
+    ports:
+      - "8080"
+
+  configurator:
+    image: ghcr.io/frappe/crm:stable
+    restart: "no"
+    entrypoint: >
+      bash -c
+      "wait-for-it -t 120 redis-cache:6379;
+       wait-for-it -t 120 redis-queue:6379;
+       wait-for-it -t 120 mariadb:3306;
+       export start=`date +%s`;
+       until [[ -n `ls -1 /home/frappe/frappe-bench/sites/*/*.site 2>/dev/null | grep -vc common` ]] || [ $((`date +%s`-start)) -le 180 ];
+       do sleep 5; done;
+       bench set-config -g db_host $$DB_HOST;
+       bench set-config -gp db_port $$DB_PORT;
+       bench set-config -g redis_cache redis://redis-cache:6379;
+       bench set-config -g redis_queue redis://redis-queue:6379;
+       bench set-config -g redis_socketio redis://redis-queue:6379;
+       bench set-config -gp socketio_port 9000;"
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+    volumes:
+      - sites:/home/frappe/frappe-bench/sites
+      - logs:/home/frappe/frappe-bench/logs
+    networks:
+      - crm-net
+
+  mariadb:
+    image: mariadb:10.6
+    restart: unless-stopped
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+      - --skip-innodb-read-only-compressed
+      - --innodb-buffer-pool-size=536870912
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    mem_limit: 1g
+    healthcheck:
+      test: mysqladmin ping -h localhost -p$$MARIADB_ROOT_PASSWORD
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - crm-net
+
+  redis-cache:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --appendonly no
+    volumes:
+      - redis-cache-data:/data
+    mem_limit: 160m
+    networks:
+      - crm-net
+
+  redis-queue:
+    image: redis:6.2-alpine
+    restart: unless-stopped
+    command: redis-server --maxmemory 96mb --appendonly yes
+    volumes:
+      - redis-queue-data:/data
+    mem_limit: 160m
+    networks:
+      - crm-net
+
+volumes:
+  sites:
+  logs:
+  mariadb-data:
+  redis-cache-data:
+  redis-queue-data:
+
+networks:
+  crm-net:
+    driver: overlay
