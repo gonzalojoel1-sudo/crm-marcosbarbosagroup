@@ -26,7 +26,7 @@ def crm_create_lead(payload):
 
 # lock simple para no solapar corridas
 try:
-    fd = os.open(LOCK, os.O_CREAT | os.O_EXCL)
+    fd = os.open(LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     os.write(fd, str(os.getpid()).encode())
 except FileExistsError:
     sys.exit(0)
