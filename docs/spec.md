@@ -27,16 +27,18 @@ Medido el 2026-09-03 00:55 UTC en el CX23:
 | Sistema + buff/cache | ~450 MB |
 | **Disponible para el CRM** | **~1.8 GB** (+ 4 GB swap de emergencia) |
 
-Presupuesto Frappe CRM con tuning (§5): **~1.7 GB** real. Headroom ~100MB + swap. Viable para 2 usuarios; si el swap sostenido supera 500 MB o se suma ERPNext → resize CX33 (4 vCPU/8 GB, +€4/mes, sin perder datos).
+Presupuesto Frappe CRM con tuning (§5): **~1.75–1.95 GB** real (audit 2026-09-03) vs 1.8 GB disponibles → **headroom ≈ 0 en RAM, viability sostenida por el swap de 4 GB** (cushion real, no decorativo). Consecuencia operativa: picos (migraciones, imports masivos, redeploys de la web simultáneos) van a swap y se sienten lentos — aceptado; monitoreo semanal de swap. Si swap sostenido supera 500 MB, se suma ERPNext o un 3er usuario → resize CX33 (4 vCPU/8 GB, +€4/mes, sin perder datos).
 
 ## 3. Decisión de stack
 
-**Frappe CRM v15** (app `crm` sobre Frappe Framework v15), imágenes oficiales prebuild — sin builds custom:
+**Frappe CRM (main, v1.x — estable)** sobre Frappe Framework v15, con la **imagen oficial prebuild `ghcr.io/frappe/crm:stable`** (frappe framework + app `crm` ya incluidos en el bench — sin builds custom). Verificada en ghcr, amd64.
 
-- Imagen de apps: `frappe/erpnext:v15` (contiene el framework; tener erpnext en la imagen NO lo instala en el site — las apps se instalan por-site con `--install-apps crm` solo)
-- Infra: `mariadb:10.6`, `redis:6.2-alpine` (x2: cache y queue), nginx incluido en imagen `frappe/erpnext` (frontend target `configure.py` no necesario — usamos el compose oficial de `frappe_docker` como base)
+- Infra: `mariadb:10.6`, `redis:6.2-alpine` (x2: cache y queue), nginx frontend incluido en la imagen (puerto 8080)
+- Compatibilidad real (README frappe/crm): `CRM main (v1.x) | stable | Frappe v15.x & v16.x` — no existe branch "version-15" del CRM; `bench get-app crm` trae `main`
+- Verificación post-pull: `bench version` dentro del contenedor para registrar qué frappe pincha la imagen (la tag stable no documenta el pin exacto)
+- Pin de imagen por digest en el compose (evita drift en redeploys)
 
-Por qué v15 y no v16: la tabla de compatibilidad oficial de Frappe CRM (docs.frappe.io/crm) lista pares estables `CRM version-15 ↔ Frappe version-15`. v16 es reciente; migramos después si hace falta.
+Por qué v15 de framework y no v16: CRM stable declara soporte para ambos; v15 es la rama con más rodaje y la que usa el compose oficial de referencia.
 
 Por qué no otras: EspoCRM (UI rechazada), Twenty (AGPL + UI aprobada pero Frappe gana por plataforma: WhatsApp nativo, portal, y camino a ERPNext), BottleCRM (producto más joven).
 
@@ -47,16 +49,16 @@ Traefik (Dokploy) ──SSL──► crm.marcosbarbosagroup.com
    ├── /            → frontend (nginx :8080)
    └── /socket.io   → websocket (:9000)   [websocket upgrade]
 
-compose (8 servicios, red interna `crm-net`):
-├── backend      frappe/erpnext:v15  gunicorn 2 workers
-├── websocket    frappe/erpnext:v15  node socketio :9000
-├── worker       frappe/erpnext:v15  bench worker --queue short,default,long
-├── scheduler    frappe/erpnext:v15  bench schedule
-├── frontend     frappe/erpnext:v15  nginx serve -c nginx-entrypoint
+compose (8 servicios, red interna `crm-net`), imagen base ghcr.io/frappe/crm:stable:
+├── backend      gunicorn 2 workers :8000
+├── websocket    node socketio :9000
+├── worker       bench worker --queue short,default,long
+├── scheduler    bench schedule
+├── frontend     nginx serve :8080
 ├── configurator (one-shot: inyecta site_config a redis) [restart: no]
 ├── mariadb      mariadb:10.6  + volumen
 ├── redis-cache  redis:6.2-alpine  maxmemory 128mb allkeys-lru
-└── redis-queue  redis:6.2-alpine  maxmemory 96mb
+└── redis-queue  redis:6.2-alpine  maxmemory 96mb noeviction (default)
 ```
 
 Volúmenes Docker nombrados (sobreviven redeploy): `mariadb-data`, `sites`, `logs`.
@@ -67,9 +69,8 @@ Volúmenes Docker nombrados (sobreviven redeploy): `mariadb-data`, `sites`, `log
 |---|---|---|
 | Gunicorn workers | 2 (timeout 120) | `GUNICORN_WORKERS=2` env backend |
 | MariaDB innodb_buffer_pool | 512M | compose command `--innodb-buffer-pool-size=536870912` |
-| MariaDB performance_schema | OFF | `--performance-schema=OFF` (ahorra ~100MB, safe en prod chica) |
 | Redis cache maxmemory | 128mb allkeys-lru | command redis-cache |
-| Redis queue maxmemory | 96mb | command redis-queue |
+| Redis queue maxmemory | 96mb, **noeviction** (default; sin eviction policy — si se llena los jobs fallan y se reintentan, es el comportamiento correcto para colas) | command redis-queue |
 | Memory limits Docker (red de seguridad anti-cascada OOM) | mariadb 1g · backend 512m · worker 400m · scheduler 400m · websocket 192m · frontend 64m · redis x2 160m | `deploy.resources.limits` / `mem_limit` |
 
 Prohibido tocar (rompería): <2 gunicorn workers, eliminar redis-queue, mariadb <512M buffer, SQLite.
@@ -78,7 +79,7 @@ Prohibido tocar (rompería): <2 gunicorn workers, eliminar redis-queue, mariadb 
 
 1. Repo GitHub `gonzalojoel1-sudo/crm-marcosbarbosagroup` con `compose.yaml` + `.env.example` + `docs/`
 2. Dokploy → proyecto `Grupo Marcos Barbosa` → servicio **Compose** apuntando al repo → deploy
-3. **Site creation one-shot** (servicio temporal o ejec SSH): `bench new-site crm.marcosbarbosagroup.com --mariadb-root-password … --install-app crm --admin-password …`
+3. **Site creation one-shot** (servicio temporal o exec SSH): `bench new-site crm.marcosbarbosagroup.com --db-root-password … --admin-password … --install-app crm --mariadb-user-host-login-scope='%'` (flag singular `--install-app`, repetible; el app `crm` ya viene en la imagen `ghcr.io/frappe/crm:stable`)
 4. Env secrets (Dokploy, nunca en git): `DB_PASSWORD`, `ADMIN_PASSWORD`, `SECRET_KEY`
 5. Traefik labels (o Dokploy domain UI): dominio + router websocket `/socket.io`
 6. Healthcheck: backend `curl -f http://localhost:8000/api/method/ping` (o `/api/method/frappe.ping`); frontend wget `/api/method/ping`
@@ -130,3 +131,9 @@ Criterio de éxito fase 1: sitio accesible con SSL en `crm.marcosbarbosagroup.co
 - **F1 (este plan):** compose + deploy + site + usuarios + pipeline + SSL
 - **F2:** integración `/api/lead` de la web + campos custom + backups offsite
 - **F3 (futuro):** WhatsApp Business, staging site, ERPNext (con resize CX33), multitenant para clientes
+
+## 12. Auditoría
+
+Audit completo con verificación de hechos contra fuentes oficiales: `docs/audit-2026-09-03.md`.
+Correcciones incorporadas: imagen `ghcr.io/frappe/crm:stable` (resuelve S1), compatibilidad real CRM main v1.x ↔ Frappe v15/v16 (S2), claim performance-schema eliminado (era no-op), presupuesto RAM honesto con headroom ≈ 0 + swap como cushion, flag `--install-app` singular, redis-queue noeviction explícito.
+Pendiente de verificar al deploy: pin exacto de frappe dentro de la imagen (con `bench version`) y digest de la imagen para pin.
