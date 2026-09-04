@@ -59,11 +59,12 @@ try:
         email = guest.get("email", "")
         name = guest.get("displayName") or email.split("@")[0].replace(".", " ").title()
         start = ev.get("start", {}).get("dateTime", ev.get("start", {}).get("date", ""))
+        start_dt = start[:19].replace("T", " ") if start else ""  # frappe datetime: YYYY-MM-DD HH:MM:SS
         lead = {
             "first_name": name.split(" ")[0], "last_name": " ".join(name.split(" ")[1:]) or "-",
             "email": email, "mobile_no": guest.get("phoneNumber", "") or "",
             "source": "Agenda Reunión", "notes": f"Reunión agendada: {summary}\nCuando: {start}\nEventId: {eid}",
-            "custom_meeting_datetime": start, "custom_event_id": eid,
+            "custom_meeting_datetime": start_dt, "custom_event_id": eid,
         }
         crm_create_lead(lead)
         created += 1
