@@ -98,7 +98,7 @@ services:
        wait-for-it -t 120 redis-queue:6379;
        wait-for-it -t 120 mariadb:3306;
        export start=`date +%s`;
-       until [[ -n `ls -1 /home/frappe/frappe-bench/sites/*/*.site 2>/dev/null | grep -vc common` ]] || [ $((`date +%s`-start)) -le 180 ];
+       until [[ -n `ls -1 /home/frappe/frappe-bench/sites/*/*.site 2>/dev/null | grep -vc common` ]] || [ $$((`date +%s`-start)) -le 180 ];
        do sleep 5; done;
        bench set-config -g db_host $$DB_HOST;
        bench set-config -gp db_port $$DB_PORT;
