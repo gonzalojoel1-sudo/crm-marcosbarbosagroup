@@ -76,3 +76,21 @@ Necesita: Meta Business + WhatsApp Cloud API (gratis hasta cierto volumen, requi
 - Multitenancy, ERPNext, portal de clientes: requieren decisiones de negocio, no son "mejoras técnicas"
 - Cambios al frontend del CRM (fork de Vue): rompería actualizaciones, prohibido por este spec
 - Migrar CRM a gestión por Dokploy UI: funciona por SSH, el cambio no aporta valor real
+
+---
+
+## F4 — Guía paso a paso (guardada para próxima sesión, no ejecutada)
+
+**Paso 1 (usuario):** Activar 2FA en `consultora.marcosbarbosa@gmail.com`
+→ myaccount.google.com → Seguridad → Verificación en 2 pasos → activar
+
+**Paso 2 (usuario):** Crear contraseña de aplicación
+→ myaccount.google.com/apppasswords → nombre "CRM" → copiar las 16 letras
+
+**Paso 3 (Opencode):** Configurar por backend en el CRM:
+- Email Account saliente: SMTP `smtp.gmail.com:587` TLS, user consultora.marcosbarbosa@gmail.com + app password, Default Outgoing ✓
+- Email Account entrante: IMAP `imap.gmail.com:993` SSL, misma cuenta + app password, opción "Crear Lead desde emails entrantes" ✓
+- Notificación a joel@ y marcos@ cuando entra lead nuevo (Notification Configuration del CRM)
+- Test de envío real + verificación de recepción
+
+**Criterio de éxito:** un lead de prueba dispara email a joel@ y marcos@; email enviado desde el CRM llega a una casilla externa.
