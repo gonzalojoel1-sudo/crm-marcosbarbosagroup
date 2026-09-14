@@ -24,7 +24,7 @@
   {"fieldname": "company_section", "fieldtype": "Section Break", "label": "Company"},
   {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Account"},
   {"fieldname": "title", "fieldtype": "Data", "label": "Job Title"},
-  {"fieldname": "avatar", "fieldtype": "Data", "label": "Avatar URL", "read_only": 1}
+  {"fieldname": "avatar", "fieldtype": "Attach Image", "label": "Avatar"}
  ],
  "image_field": "avatar",
  "istable": 0,
