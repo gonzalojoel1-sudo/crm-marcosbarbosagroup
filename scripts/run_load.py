@@ -66,6 +66,7 @@ ORDER = [
 ]
 
 loaded, failed = 0, []
+debug = []
 for name in ORDER:
     jp = f"{DD}/{name}/{name}.json"
     if not os.path.exists(jp):
@@ -76,6 +77,8 @@ for name in ORDER:
     try:
         if frappe.db.exists("DocType", spec["name"]):
             existing = frappe.get_doc("DocType", spec["name"])
+            existing.load_from_db()
+            debug.append((spec["name"], "exists", len(existing.fields), len(spec.get("fields", []))))
             if len(existing.fields) >= len(spec.get("fields", [])):
                 print(f"  SKIP {spec['name']}: already loaded ({len(existing.fields)} fields)")
                 loaded += 1
@@ -98,6 +101,9 @@ for name in ORDER:
         print(f"FAIL {name}: {type(e).__name__}: {str(e)[:120]}")
 
 frappe.db.commit()
+print("=== DEBUG (existing-vs-spec)===")
+for d in debug:
+    print(d)
 
 dts = frappe.db.get_all("DocType", filters={"module": "crm_core"}, pluck="name")
 print()
