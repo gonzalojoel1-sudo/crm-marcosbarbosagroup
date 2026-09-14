@@ -18,11 +18,11 @@ COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
 
 USER root
 
-# Ensure writability in case base image tightened perms unexpectedly
+# Ensure writability
 RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
     chown -R frappe:frappe /home/frappe/frappe-bench/apps/crm_core
 
-# Bench expects apps to be git repos for get-app / migrate paths.
+# Bench expects apps to be git repos for migrate paths.
 # Initialize a local-only repo so `bench --site X install-app crm_core` succeeds.
 RUN cd /home/frappe/frappe-bench/apps/crm_core && \
     git init -q . && \
@@ -30,14 +30,18 @@ RUN cd /home/frappe/frappe-bench/apps/crm_core && \
     git config user.name "crm-mb-bot" && \
     git config commit.gpgsign false && \
     git add -A && \
-    git commit -q -m "crm_core: initial bake ($(date -u +%Y-%m-%dT%H:%M:%SZ))" || true
+    git commit -q -m "crm_core initial bake" || true
+
+# Register crm_core in apps.txt (one entry per line; de-duped). Idempotent.
+RUN cd /home/frappe/frappe-bench && \
+    if grep -q "^crm_core$" sites/apps.txt; then \
+        echo "crm_core already in apps.txt"; \
+    else \
+        echo "crm_core" >> sites/apps.txt && \
+        echo "added crm_core to apps.txt"; \
+    fi
 
 USER frappe
 
 # Workdir canonical
 WORKDIR /home/frappe/frappe-bench
-
-# Sanity: app registered
-RUN cd /home/frappe/frappe-bench && \
-    grep -q "crm_core" sites/apps.txt || echo "crm_core" >> sites/apps.txt && \
-    cat sites/apps.txt
