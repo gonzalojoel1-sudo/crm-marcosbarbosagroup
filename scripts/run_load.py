@@ -73,21 +73,12 @@ for name in ORDER:
         print(f"SKIP {name}")
         continue
     spec = json.load(open(jp))
-    # Cleanup: if already exists AND complete, skip to make this idempotent
     try:
+        # Always delete + recreate (idempotent for fresh schema)
         if frappe.db.exists("DocType", spec["name"]):
-            existing = frappe.get_doc("DocType", spec["name"])
-            existing.load_from_db()
-            debug.append((spec["name"], "exists", len(existing.fields), len(spec.get("fields", []))))
-            if len(existing.fields) >= len(spec.get("fields", [])):
-                print(f"  SKIP {spec['name']}: already loaded ({len(existing.fields)} fields)")
-                loaded += 1
-                continue
-            # incomplete — delete and recreate
-            print(f"  RECREATE {spec['name']}: existing has {len(existing.fields)} vs spec {len(spec.get('fields', []))}")
+            print(f"  DELETE {spec['name']} (forcing recreate)")
             frappe.delete_doc("DocType", spec["name"], force=True)
         d = frappe.new_doc("DocType")
-        # Defensive: rename reserved field names
         reserved = {"owner", "name", "modified", "creation", "docstatus"}
         for fld in spec.get("fields", []):
             if fld.get("fieldname") in reserved and fld.get("fieldtype") in ("Data", "Select"):
@@ -101,9 +92,6 @@ for name in ORDER:
         print(f"FAIL {name}: {type(e).__name__}: {str(e)[:120]}")
 
 frappe.db.commit()
-print("=== DEBUG (existing-vs-spec)===")
-for d in debug:
-    print(d)
 
 dts = frappe.db.get_all("DocType", filters={"module": "crm_core"}, pluck="name")
 print()
