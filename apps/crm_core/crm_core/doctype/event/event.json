@@ -1,0 +1,144 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-09-14 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "title",
+  "time_section",
+  "start_utc",
+  "end_utc",
+  "timezone",
+  "attendees",
+  "location_section",
+  "meet_link",
+  "source",
+  "gcal_integration_section",
+  "gcal_id",
+  "gcal_etag",
+  "gcal_calendar_id",
+  "cal_integration_section",
+  "booking_uid"
+ ],
+ "fields": [
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Title",
+   "reqd": 1
+  },
+  {
+   "fieldname": "time_section",
+   "fieldtype": "Section Break",
+   "label": "Time"
+  },
+  {
+   "fieldname": "start_utc",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start (UTC)"
+  },
+  {
+   "fieldname": "end_utc",
+   "fieldtype": "Datetime",
+   "label": "End (UTC)"
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Data",
+   "label": "Timezone",
+   "placeholder": "America/Argentina/Buenos_Aires"
+  },
+  {
+   "fieldname": "attendees",
+   "fieldtype": "Table MultiSelect",
+   "label": "Attendees",
+   "options": "Event Attendee"
+  },
+  {
+   "fieldname": "location_section",
+   "fieldtype": "Section Break",
+   "label": "Location"
+  },
+  {
+   "fieldname": "meet_link",
+   "fieldtype": "Data",
+   "label": "Meet Link"
+  },
+  {
+   "default": "manual",
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Source",
+   "options": "manual\ngcal\ncal_sidecar",
+   "reqd": 1
+  },
+  {
+   "fieldname": "gcal_integration_section",
+   "fieldtype": "Section Break",
+   "label": "Google Calendar"
+  },
+  {
+   "fieldname": "gcal_id",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "GCal Event ID",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "gcal_etag",
+   "fieldtype": "Data",
+   "label": "GCal ETag",
+   "read_only": 1
+  },
+  {
+   "fieldname": "gcal_calendar_id",
+   "fieldtype": "Data",
+   "label": "GCal Calendar ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cal_integration_section",
+   "fieldtype": "Section Break",
+   "label": "Cal.com"
+  },
+  {
+   "fieldname": "booking_uid",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Booking UID",
+   "read_only": 1,
+   "unique": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 0,
+ "links": [],
+ "modified": "2026-09-14 12:00:00.000000",
+ "module": "crm_core",
+ "name": "Event",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "start_utc",
+ "sort_order": "DESC",
+ "title_field": "title",
+ "track_changes": 1
+}
