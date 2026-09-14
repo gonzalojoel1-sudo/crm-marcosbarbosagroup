@@ -1,0 +1,33 @@
+# Backend efímero clon del CRM existente, red aislada del prod.
+# Imagen crm-mb:17 ya existe localmente en el VPS (verificada via `docker ps`).
+# Sin volúmenes prod; sin acceso a crm-net; MariaDB propia del spike.
+
+services:
+  backend-spike:
+    image: crm-mb:17
+    command: ["sleep", "infinity"]
+    networks:
+      - spike-net
+      - pgnet
+    # No restart — debe morir con down -v
+  ws-spike:
+    image: crm-mb:17
+    command: ["sleep", "infinity"]
+    networks:
+      - spike-net
+    depends_on:
+      - backend-spike
+  mariadb-spare:
+    image: mariadb:10.6
+    environment:
+      MARIADB_ROOT_PASSWORD: spike-admin
+    networks:
+      - spike-net
+
+networks:
+  spike-net:
+    driver: bridge
+    name: crm-spike-net
+  pgnet:
+    external: true
+    name: crm-pg-spike-net
