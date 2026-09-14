@@ -942,3 +942,49 @@ El spike **cumple su propósito**: descubrió en 12 minutos que Frappe v15 + PG1
 1. **Restore drill se cancela** (no aplicable mientras `new-site` no completa contra PG).
 2. **Nueva fase de upgrade Frappe** se añade al roadmap de Fase 3, mencionada en `pg-veredicto.md`.
 3. El plan `2026-09-14-premium-crm-fase0.md` no cambia estructuralmente; sigue sobre MariaDB.
+
+---
+
+## Ejecutado — T3 (2026-09-14)
+
+### T3.A — Archivos commiteados (local)
+
+- `pyproject.toml` + `modules.txt` + `crm_core/__init__.py` + `hooks.py` + `config/desktop.py` → estructura oficial Frappe (bug C2 fix).
+- 10 DocTypes JSON: Task, Event (`booking_uid UNIQUE`), Contact, Account, Lead, Deal, Activity (append-only), GCalConnection (token `read_only`), GCalSyncState, SyncConflict.
+- Tests: `conftest.py` (form-urlencoded login, bug m1/m7), `test_rest_smoke.py` (CRUD Task/Event parametrized + 10 DocType metas), `test_doctypes_offline.py` (**23/23 verde**).
+
+### T3.B — Resultado real de verificación E2E
+
+**23/23 tests offline PASAN** (en local contra JSON, sin red):
+
+```
+apps/crm_core/tests/test_doctypes_offline.py::test_event_has_booking_uid_unique PASSED
+apps/crm_core/tests/test_doctypes_offline.py::test_gcal_connection_tokens_are_readonly PASSED
+apps/crm_core/tests/test_doctypes_offline.py::test_activity_append_only PASSED
+... 23 passed in 0.02s
+```
+
+### T3.C — Bloqueo detectado (requerido remontaje / build) 🟡
+
+Los **tests de integración contra el backend real (REST v2)** requieren `crm_core` corriendo en `/home/frappe/frappe-bench/apps/crm_core` del contenedor backend. La imagen `crm-mb:17` actual (con la que se construye el `crm_backend.1.*` en Dokploy) **NO** trae `crm_core` porque se bake-ó con `frappe/crm` sin custom apps.
+
+**Síntomas encontrados en el intento de install-app:**
+1. `bench get-app crm_core` (con directorio pre-existente como frappe): pide confirmación, luego `git clone https://github.com/./apps/crm_core.git` (bug de resolución de URL local en bench 5.31.0).
+2. `bench get-app crm_core --soft-link`: cae en `_setup_details_from_name_tag` → busca crm_core en GitHub frappe/erpnext orgs → 404.
+3. `chown` sobre lo copiado con root a `frappe` es complejo porque el binario `shutil.rmtree` de bench intenta renombrar antes de borrar y falla por permisos.
+4. El site_prod (`crm.marcosbarbosagroup.com`) ya está corriendo y NO se puede tocar en este task (constraint global del plan: "Prohibido instalar/migrar en site productivo").
+
+### T3.D — Solución correcta (Fase 0.5 / pre-T4)
+
+Para que T3 se cierre end-to-end, **se requiere un Dockerfile custom que bake-e `crm_core` en la imagen** del CRM. Esto NO estaba contemplado en el plan original y se descubre ahora. Plan:
+
+1. Crear `docker/Dockerfile.crm-mb` basado en la imagen `crm-mb:17` que añada `COPY apps/crm_core /home/frappe/frappe-bench/apps/crm_core` y corra `pip install -e` / `bench setup requirements`.
+2. Build de imagen nueva: `docker build -t crm-mb:18 ...`.
+3. Actualizar `compose.yaml` (compose real) para usar `crm-mb:18` en `backend`/`worker`/`scheduler`.
+4. Redeploy en Dokploy. **NO toca el site prod** porque Frappe detecta `crm_core` automáticamente como app disponible; el `install-app` se ejecuta después en `crm-test` (site de prueba separado).
+
+### T3.E — Decisión del coordinador
+
+- **T3 cierre parcial**: estructura + 10 DocTypes + 23/23 tests offline verde. **Es entregable de calidad**: cualquier otro dev puede hacer build de imagen custom y `install-app` en `crm-test` con estos archivos en minutos.
+- **T3 cierre end-to-end**: bloqueado hasta Dockerfile custom. Se añaden como **Task 3.6: Dockerfile + build imagen + install-app + test_rest_smoke on VPS** a continuación.
+

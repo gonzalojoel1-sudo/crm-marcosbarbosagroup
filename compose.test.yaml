@@ -1,0 +1,13 @@
+# compose.test.yaml — overlay sobre compose.yaml para Fase 0/1.
+# MONTA apps/crm_core al backend de frappe-bench en /home/frappe/frappe-bench/apps/crm_core.
+# NO se usa para producción (compose.yaml original sigue intacto).
+#
+# Uso:
+#   DOCKER_COMPOSE_FILE=compose.test.yaml docker compose up -d
+#   docker exec $(docker ps -qf name=backend) bench get-app /home/frappe/frappe-bench/apps/crm_core
+#   docker exec $(docker ps -qf name=backend) bench --site crm-test install-app crm_core
+
+services:
+  backend:
+    volumes:
+      - ./apps/crm_core:/home/frappe/frappe-bench/apps/crm_core
