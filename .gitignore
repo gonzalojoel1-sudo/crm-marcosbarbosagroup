@@ -1,2 +1,31 @@
+# env
 .env
+.env.local
 *.log
+
+# Node / monorepo
+node_modules/
+.turbo/
+*.tsbuildinfo
+
+# Next.js (apps/web)
+apps/web/.next/
+apps/web/out/
+
+# Auth state (Playwright storageState) — bug C7 fix
+apps/web/e2e/.auth.json
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+
+# Cal.com sidecar runtime
+deploy/cal-data/
+deploy/pg-data/
+deploy/redis-data/
+deploy/cal-sidecar/.secrets
+
+# Lighthouse CI
+.lighthouseci/
+
+# OS
+.DS_Store

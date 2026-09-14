@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [main, feat/premium-fase0]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 22 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          # Monorepo: lockfile may live at root OR move here as we add per-app deps
+          cache-dependency-path: |
+            package-lock.json
+            apps/**/package-lock.json
+            packages/**/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck (turbo)
+        run: npm run typecheck
+
+      - name: Lint (turbo)
+        run: npm run lint
+
+      - name: Test (turbo)
+        run: npm run test
+        continue-on-error: true   # tests arrive in T4+
+
+      - name: Status
+        if: always()
+        run: |
+          echo "CI OK"

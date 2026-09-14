@@ -1,0 +1,24 @@
+/*
+ * Premium CRM — design tokens (Fase 0, dark-first).
+ * Will move to Tailwind theme + shadcn override in Phase 0 steps 5+.
+ * Source of truth for colors, spacing, typography until then.
+ */
+
+:root {
+  --bg-0: #0a0a0b;
+  --bg-1: #141416;
+  --bg-2: #1c1c20;
+  --fg-0: #fafafa;
+  --fg-1: #d4d4d8;
+  --fg-2: #a1a1aa;
+  --accent: #6366f1;
+  --accent-hover: #818cf8;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --border: #27272a;
+  --radius: 6px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter Variable", "Inter",
+    "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "Roboto Mono", monospace;
+}

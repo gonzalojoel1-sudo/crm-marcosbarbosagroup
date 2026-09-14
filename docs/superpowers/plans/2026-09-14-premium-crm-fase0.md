@@ -868,3 +868,50 @@ git commit -m "feat(fase0): PWA + deploy + migracion + gate dogfood"
    - **C9** `Event.booking_uid UNIQUE` movido a T3 Step 2 (no migrate en T7) ✅.
    - **M2** Rate-limit defensivo en webhook ✅; **M3** `lhci` ejecutable en T8 ✅; **M4** icono generado por `convert` ✅; **M5** filtro focus para atajo `t` ✅; **M7** creación de `crm-test` en T8 ✅; **M8** bind mount en `compose.test.yaml`, NO `compose.yaml` ✅.
 5. **Riesgos abiertos documentados:** bench v15 + postgres (resuelto vía spike T2 si falla → MariaDB); rate-limit `frappe.cache()` puede no estar configurado en sites críticos (mitigación: revisión antes de T7); Lighthouse en CI es non-trivial → presupuesto 1 día extra para tuning.
+
+---
+
+## Ejecutado — T1 (2026-09-14)
+
+**Commit:** ver `git log --oneline` después de T1 (commit `chore: monorepo scaffold + tipos + CI verde`).
+
+### T1.1 — Resultados verificables
+
+| Step | Verificación | Resultado |
+|---|---|---|
+| 1 | Contrato TS escrito | ✅ `packages/types/src/crm.ts` con `HoyItem`, `TaskDTO`, `EventDTO`, envelopes RPC/REST |
+| 2a | Workspaces npm + turbo + tsconfig base | ✅ `npm install` agrega 6 paquetes; `packageManager` field añadido para que Turbo resuelva workspaces |
+| 2a' | typecheck `@crm/web` no falla con "no inputs" | ✅ Añadido `apps/web/_type-smoke.ts` placeholder que importa `HoyItem` de `@crm/types` — integra paquetes desde T1 |
+| 2b | `.gitignore` robusto | ✅ Incluye `apps/web/e2e/.auth.json` (bug C7), `apps/web/test-results/`, `.lighthouseci/`, `deploy/cal-data/` |
+| 3 | CI workflow | ✅ `.github/workflows/ci.yaml` con `cache-dependency-path` para monorepo, `node-version: 22` (matches `.nvmrc`), 7 pasos, `timeout-minutes: 15` |
+| 4 | `npm ci && npm run typecheck && npm run lint` | ✅ Verde end-to-end (`FULL TURBO` cache hit todos los paquetes) |
+
+### T1.2 — Desviaciones del plan original
+
+1. **`packageManager` field añadido en package.json raíz**: Turbo 2.x exige `packageManager` para resolver workspaces en monorepo; el plan original lo omitió. Fix de 1 línea, commit relacionado.
+2. **`_type-smoke.ts` placeholder en `apps/web`**: TS no acepta `include` vacío en `tsconfig.json`; el plan asumía "PASS sin páginas" pero la realidad era input vacío. Solución: archivo que importa el contrato de `@crm/types`, evidencia end-to-end @crm/web↔@crm/types y permite que T4 entre escribiendo UI sin tocar config.
+3. **`@crm/web` lint script es placeholder**: como dice el plan, ESLint real viene con Next.js en T4. No añadir ESLint manual evita ensuciar T4 con config que se sobreescribiría.
+
+### T1.3 — Archivos creados (artefactos)
+
+```
+apps/web/_type-smoke.ts          # integración de paquete: importa HoyItem desde @crm/types
+apps/web/package.json            # @crm/web (Next 14, TanStack Query deps en T4)
+apps/web/tsconfig.json           # extends tsconfig.base; noEmit; include .ts/.tsx
+packages/types/package.json      # @crm/types, module ESM
+packages/types/tsconfig.json     # extends base
+packages/types/src/crm.ts        # contratos HoyItem/Task/Event + envelopes
+packages/ui/package.json         # @crm/ui (CSS only this stage)
+packages/ui/src/tokens.css       # design tokens dark-first
+package.json (raíz)              # workspaces + turbo scripts + packageManager
+package-lock.json                # generado por npm install
+turbo.json                       # pipeline typecheck/lint/test con dependsOn ^X
+tsconfig.base.json               # strict + noUncheckedIndexedAccess
+.github/workflows/ci.yaml        # cache-dependency-path monorepo
+.gitignore                       # ampliado con bug C7 fix
+.nvmrc                           # 22
+```
+
+### T1.4 — Próximo task
+
+T2: Spike Postgres 16 (aislado en `spike-backend-efimero.yaml`, sin tocar prod). Pide Docker + acceso al host; si el host actual no es linux con Docker corriendo, T2 puede correr en CI o en el VPS de Dokploy (más realista para validar provisioning).
