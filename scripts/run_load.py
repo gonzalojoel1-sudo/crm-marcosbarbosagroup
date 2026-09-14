@@ -48,9 +48,22 @@ frappe.local.module_app["crm_core"] = "crm_core"
 print(f"local.module_app has 'crm_core':", "crm_core" in frappe.local.module_app)
 
 # 4. Load each DocType
+# 4. Load each DocType — by dependency order, NOT alphabetical
+# (Contact references Lead/Account; Deal references Lead/Contact/Account; Lead references Contact)
+# Load user-independent Doctypes first, then those with cross-refs.
 DD = "/home/frappe/frappe-bench/apps/crm_core/crm_core/doctype"
-ORDER = ["task", "event", "contact", "account", "lead", "deal", "activity",
-         "gcal_connection", "gcal_sync_state", "sync_conflict"]
+ORDER = [
+    "task",                  # standalone
+    "event",                 # standalone (no DocType refs to other crm_core)
+    "account",               # referenced by Lead/Contact/Deal
+    "gcal_connection",       # standalone (tokens, no refs)
+    "gcal_sync_state",       # references GCal Connection
+    "sync_conflict",         # standalone
+    "contact",               # references Account
+    "lead",                  # references Contact, Account
+    "deal",                  # references Lead, Account, Contact
+    "activity",              # references others
+]
 
 loaded, failed = 0, []
 for name in ORDER:
@@ -59,25 +72,25 @@ for name in ORDER:
         print(f"SKIP {name}")
         continue
     spec = json.load(open(jp))
+    # Cleanup: if already exists AND complete, skip to make this idempotent
     try:
         if frappe.db.exists("DocType", spec["name"]):
-            d = frappe.get_doc("DocType", spec["name"])
-            d.set("fields", [])
-            for f in spec.get("fields", []):
-                d.append("fields", f)
-            d.set("permissions", [])
-            for p in spec.get("permissions", []):
-                d.append("permissions", p)
-            for k in ("module", "title", "custom", "is_virtual", "istable",
-                     "editable_grid", "track_changes", "allow_rename",
-                     "sort_field", "sort_order", "image_field"):
-                if k in spec:
-                    setattr(d, k, spec[k])
-            d.save(ignore_permissions=True)
-        else:
-            d = frappe.new_doc("DocType")
-            d.update(spec)
-            d.insert(ignore_permissions=True)
+            existing = frappe.get_doc("DocType", spec["name"])
+            if len(existing.fields) >= len(spec.get("fields", [])):
+                print(f"  SKIP {spec['name']}: already loaded ({len(existing.fields)} fields)")
+                loaded += 1
+                continue
+            # incomplete — delete and recreate
+            print(f"  RECREATE {spec['name']}: existing has {len(existing.fields)} vs spec {len(spec.get('fields', []))}")
+            frappe.delete_doc("DocType", spec["name"], force=True)
+        d = frappe.new_doc("DocType")
+        # Defensive: rename reserved field names
+        reserved = {"owner", "name", "modified", "creation", "docstatus"}
+        for fld in spec.get("fields", []):
+            if fld.get("fieldname") in reserved and fld.get("fieldtype") in ("Data", "Select"):
+                fld["fieldname"] = "owner_user" if fld["fieldname"] == "owner" else "doc_" + fld["fieldname"]
+        d.update(spec)
+        d.insert(ignore_permissions=True)
         loaded += 1
         print(f"OK {spec['name']}")
     except Exception as e:
