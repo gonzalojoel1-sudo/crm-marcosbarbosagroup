@@ -52,14 +52,25 @@ frappe.cache.delete_value("installed_app_modules")
 
 # 2. Bulk delete existing crm_core DocTypes (in reverse dep order)
 print("--- cleanup ---")
+deleted_count = 0
 for name in reversed(ORDER):
-    if frappe.db.exists("DocType", name):
-        # remove from module_app cache
-        try:
-            frappe.delete_doc("DocType", name, force=True, ignore_permissions=True)
-            print(f"  -del {name}")
-        except Exception as e:
-            print(f"  WARN: cannot delete {name}: {e}")
+    if not frappe.db.exists("DocType", name):
+        print(f"  (skip clean {name}: not exists)")
+        continue
+    try:
+        # Mark bypassing on_update, on_trash, etc
+        frappe.flags.in_install_db = False
+        frappe.db.delete("DocType", name)
+        deleted_count += 1
+        print(f"  -raw-del {name}")
+    except Exception as e:
+        print(f"  WARN: raw-del {name}: {e}")
+print(f"raw-deleted {deleted_count} DocTypes")
+
+# Also delete Module Def to reset
+if frappe.db.exists("Module Def", "crm_core"):
+    frappe.db.delete("Module Def", "crm_core")
+    print("- Module Def crm_core")
 
 frappe.db.commit()
 
