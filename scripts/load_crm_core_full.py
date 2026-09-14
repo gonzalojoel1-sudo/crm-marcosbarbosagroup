@@ -85,7 +85,9 @@ for name in ORDER:
             fld["fieldname"] = "owner_user" if fld["fieldname"] == "owner" else "doc_" + fld["fieldname"]
     # Force existence check (bypass local.cache)
     rows = frappe.db.sql("SELECT name FROM tabDocType WHERE name=%s", (name,))
-    exists_in_db = bool(rows) and rows[0][0] == name
+    print(f"  [DEBUG {name}] rows={rows} type={type(rows).__name__}", flush=True)
+    exists_in_db = bool(rows) and len(rows) > 0
+    print(f"  [DEBUG {name}] exists_in_db={exists_in_db}", flush=True)
 
     if exists_in_db:
         print(f"  +skip {name} (already in DB)")
