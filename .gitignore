@@ -8,6 +8,15 @@ node_modules/
 .turbo/
 *.tsbuildinfo
 
+# Python (crm_core)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+apps/crm_core/*.egg-info/
+apps/crm_core/build/
+apps/crm_core/dist/
+
 # Next.js (apps/web)
 apps/web/.next/
 apps/web/out/
