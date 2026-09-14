@@ -10,6 +10,15 @@ frappe.flags.in_install_db = False
 
 dts = frappe.db.get_all("DocType", filters={"module": "crm_core"}, pluck="name")
 print("Found:", dts)
+
+# Build module_app manually to bypass stale cache
+from frappe.modules.utils import scrub
+md_list = frappe.db.get_all("Module Def", fields=["module_name", "app_name"])
+frappe.local.module_app = frappe.local.module_app or {}
+for row in md_list:
+    frappe.local.module_app[scrub(row["module_name"])] = row["app_name"]
+frappe.local.module_app["crm_core"] = "crm_core"
+
 for dt in dts:
     print(f"Deleting {dt}...")
     frappe.delete_doc("DocType", dt, force=True)
