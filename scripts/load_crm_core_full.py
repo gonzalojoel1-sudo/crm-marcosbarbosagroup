@@ -83,6 +83,16 @@ for name in ORDER:
     for fld in spec.get("fields", []):
         if fld.get("fieldname") in reserved and fld.get("fieldtype") in ("Data", "Select"):
             fld["fieldname"] = "owner_user" if fld["fieldname"] == "owner" else "doc_" + fld["fieldname"]
+    # Force existence check (bypass local.cache)
+    if not frappe.db.sql("SELECT name FROM tabDocType WHERE name=%s", name):
+        exists_in_db = False
+    else:
+        exists_in_db = True
+
+    if exists_in_db:
+        print(f"  +skip {name} (already in DB)")
+        loaded += 1
+        continue
     try:
         d = frappe.new_doc("DocType")
         d.update(spec)
