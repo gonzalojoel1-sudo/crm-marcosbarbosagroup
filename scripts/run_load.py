@@ -77,15 +77,27 @@ for name in ORDER:
         continue
     spec = json.load(open(jp))
     try:
+        # Si ya existe y los fields cargados son >= al spec, skip
+        existing_ok = False
         if frappe.db.exists("DocType", spec["name"]):
-            print(f"  +delete {spec['name']}")
             try:
+                existing = frappe.get_doc("DocType", spec["name"])
+                if len(existing.fields) >= len(spec.get("fields", [])):
+                    existing_ok = True
+            except Exception:
+                pass
+        if existing_ok:
+            print(f"  SKIP {spec['name']}: existing OK")
+            loaded += 1
+            continue
+        # Si existe incompleto, delete y recreate
+        if frappe.db.exists("DocType", spec["name"]):
+            try:
+                print(f"  +delete {spec['name']}")
                 frappe.delete_doc("DocType", spec["name"], force=True, ignore_permissions=True)
-                print(f"  -deleted {spec['name']}")
+                print(f"  -deleted")
             except Exception as e:
                 print(f"  WARN: delete {spec['name']} failed: {type(e).__name__}: {str(e)[:80]}")
-        else:
-            print(f"  +new {spec['name']}")
         d = frappe.new_doc("DocType")
         reserved = {"owner", "name", "modified", "creation", "docstatus"}
         for fld in spec.get("fields", []):
