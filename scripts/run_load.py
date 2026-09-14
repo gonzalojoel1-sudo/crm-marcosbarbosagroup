@@ -5,8 +5,16 @@ sys.path.insert(0, "/home/frappe/frappe-bench/apps/crm_core")
 
 import frappe
 
+sites_path = "/home/frappe/frappe-bench/sites"
 site = os.environ.get("FRAPPE_SITE", "crm-test")
-frappe.init(site)
+
+# Verify site config exists
+site_config = os.path.join(sites_path, site, "site_config.json")
+if not os.path.exists(site_config):
+    print(f"FATAL: {site_config} not found")
+    raise SystemExit(1)
+
+frappe.init(site, sites_path=sites_path)
 frappe.connect()
 frappe.flags.in_install_db = False
 
