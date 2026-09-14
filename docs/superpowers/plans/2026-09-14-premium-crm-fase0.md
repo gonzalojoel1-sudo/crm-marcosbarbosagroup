@@ -36,7 +36,7 @@ apps/web/                          # Next.js 14 — NUEVO
   lib/hooks/use-hoy.ts              # query Hoy + optimistic
   components/cmdk-palette.tsx       # ⌘K (15 comandos)
   public/manifest.webmanifest       # PWA
-  playwright.config.ts  e2e/*.spec.ts
+  playwright.config.ts  e2e/*.spec.ts  e2e/global-setup.ts
 apps/crm_core/                      # custom app Frappe — NUEVO
   crm_core/doctype/task/task.json
   crm_core/doctype/event/event.json
@@ -56,6 +56,8 @@ packages/types/src/crm.ts           # contratos TS (Task, Event, HoyItem…)
 packages/ui/src/tokens.css          # design tokens + skin shadcn
 deploy/overlay-web.yaml             # servicio web Next.js (Dokploy)
 deploy/cal-sidecar.yaml             # Cal.com + PG + Redis propios
+deploy/init-cal.sh                  # entrypoint sidecar: prisma + secrets
+deploy/cors-check.sh                # check ACAO exacto + credentials
 deploy/pg16-spike.yaml              # Postgres 16 solo para spike T2
 turbo.json  package.json (workspaces)
 ```
@@ -230,14 +232,59 @@ git commit -m "feat(core): 9 DocTypes + REST smoke verde"
 
 ---
 
+### Task 3.5: CORS Frappe ↔ web (sin esto el login muere en producción)
+
+**Files:**
+- Create: `deploy/cors-check.sh`
+- Modify: site de test `crm-test` → `site_config.json` (`allow_cors` con origins exactos); `apps/crm_core/hooks.py` (append comentario CORS — sin código funcional).
+
+**Interfaces:**
+- Consumes: DocTypes (T3).
+- Produces: cookies de sesión cross-origin funcionales (requerido por T4).
+
+- [ ] **Step 1: Test CORS (falla: sin headers)**
+
+```bash
+# deploy/cors-check.sh
+#!/bin/bash
+# Uso: FRAPPE_BASE=https://<backend-test> WEB_ORIGIN=https://<web-test> ./deploy/cors-check.sh
+R=$(curl -s -o /dev/null -D - -X OPTIONS "$FRAPPE_BASE/api/method/frappe.auth.get_logged_user" \
+  -H "Origin: $WEB_ORIGIN" -H "Access-Control-Request-Method: POST")
+echo "$R" | grep -qi "Access-Control-Allow-Origin: $WEB_ORIGIN" || { echo "FAIL: sin ACAO exacto"; exit 1; }
+echo "$R" | grep -qi "Access-Control-Allow-Credentials: true" || { echo "FAIL: sin credentials"; exit 1; }
+echo "CORS OK"
+```
+
+Run: `chmod +x deploy/cors-check.sh && FRAPPE_BASE=... WEB_ORIGIN=... ./deploy/cors-check.sh`
+Expected: FAIL (Frappe no emite ACAO por defecto).
+
+- [ ] **Step 2: Configurar origins exactos (jamás `*` con credentials)**
+
+Run (en el host del site de test):
+```bash
+docker exec $(docker ps -qf name=backend) bench --site crm-test set-config allow_cors '["https://<web-test>", "http://localhost:3000"]'
+docker exec $(docker ps -qf name=backend) bench --site crm-test set-config allow_credentials true
+```
+Nota: `localhost:3000` solo para dev; en Dokploy el origin es la URL pública de `web` (registrar el valor real en `docs/runbook-dogfood.md` al ejecutar T8).
+
+- [ ] **Step 3: Check verde + commit**
+
+Run mismo `cors-check.sh`. Expected: `CORS OK`.
+```bash
+git add deploy/cors-check.sh apps/crm_core/hooks.py
+git commit -m "feat(core): CORS origins exactos + credentials para web"
+```
+
+---
+
 ### Task 4: Login web ↔ Frappe + guard de rutas (E2E real)
 
 **Files:**
-- Create: `apps/web/lib/frappe-client.ts`, `apps/web/app/(auth)/login/page.tsx`, `apps/web/app/(app)/layout.tsx`, `apps/web/playwright.config.ts`, `apps/web/e2e/login.spec.ts`
+- Create: `apps/web/lib/frappe-client.ts`, `apps/web/app/(auth)/login/page.tsx`, `apps/web/app/(app)/layout.tsx`, `apps/web/playwright.config.ts`, `apps/web/e2e/global-setup.ts`, `apps/web/e2e/login.spec.ts`
 - Test: `apps/web/e2e/login.spec.ts`
 
 **Interfaces:**
-- Consumes: REST v2 de T3; tipos de T1.
+- Consumes: REST v2 de T3 + CORS de T3.5; tipos de T1.
 - Produces: sesión autenticada + `frappe-client` (usado por T5).
 
 - [ ] **Step 1: E2E login (falla: no hay página)**
@@ -262,6 +309,14 @@ Run: `npx playwright test e2e/login.spec.ts` (desde `apps/web`). Expected: FAIL 
 ```typescript
 // apps/web/lib/frappe-client.ts
 const BASE = process.env.NEXT_PUBLIC_FRAPPE_BASE!;
+async function unwrap<T>(path: string, r: Response): Promise<T> {
+  if (r.status === 403) { window.location.href = "/login"; throw new Error("forbidden"); }
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  const json = await r.json();
+  // RPC (/api/method/*) envuelve en `message`; REST v2 en `data`
+  if (path.includes("/api/method/")) return json.message as T;
+  return (json.data ?? json) as T;
+}
 export async function frappeLogin(usr: string, pwd: string): Promise<void> {
   const r = await fetch(`${BASE}/api/method/login`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -271,13 +326,29 @@ export async function frappeLogin(usr: string, pwd: string): Promise<void> {
 }
 export async function frappeGet<T>(path: string): Promise<T> {
   const r = await fetch(`${BASE}${path}`, { credentials: "include" });
-  if (r.status === 403) { window.location.href = "/login"; throw new Error("forbidden"); }
-  if (!r.ok) throw new Error(`GET ${path}: ${r.status}`);
-  return r.json();
+  return unwrap<T>(path, r);
 }
 ```
 
-`login/page.tsx`: form `usr`/`pwd` + submit → `frappeLogin` → `router.push("/hoy")`. `(app)/layout.tsx`: verifica `/api/method/frappe.auth.get_logged_user`; si `Guest` → redirect `/login`.
+`login/page.tsx`: form `usr`/`pwd` + submit → `frappeLogin` → `router.push("/hoy")`. `(app)/layout.tsx`: verifica `/api/method/frappe.auth.get_logged_user`; si `Guest` → redirect `/login`. `e2e/global-setup.ts`: login programático una vez y guarda `storageState`:
+
+```typescript
+// apps/web/e2e/global-setup.ts
+import { chromium, type FullConfig } from "@playwright/test";
+import path from "path";
+export default async function globalSetup(_config: FullConfig) {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto("/login");
+  await page.fill('input[name="usr"]', process.env.E2E_USER!);
+  await page.fill('input[name="pwd"]', process.env.E2E_PW!);
+  await page.click('button[type="submit"]');
+  await page.waitForURL(/\/hoy/);
+  await page.context().storageState({ path: path.resolve("e2e/.auth.json") });
+  await browser.close();
+}
+```
+`playwright.config.ts`: `use: { storageState: "e2e/.auth.json" }` en todos los proyectos salvo el de login (que usa `storageState: undefined`), más `globalSetup: require.resolve("./e2e/global-setup")`. `e2e/.auth.json` en `.gitignore` (secretos jamás commiteados).
 
 - [ ] **Step 3: E2E verde + commit**
 
@@ -329,7 +400,7 @@ import type { HoyItem } from "@crm/types";
 export function useHoy() {
   const qc = useQueryClient();
   const query = useQuery({ queryKey: ["hoy"],
-    queryFn: () => frappeGet<{ data: HoyItem[] }>("/api/method/crm_core.api.v1.hoy.get") });
+    queryFn: () => frappeGet<HoyItem[]>("/api/method/crm_core.api.v1.hoy.get") });
   const doneTask = useMutation({
     mutationFn: (name: string) =>
       fetch(`${process.env.NEXT_PUBLIC_FRAPPE_BASE}/api/v2/document/Task/${name}`,
@@ -338,9 +409,9 @@ export function useHoy() {
           body: JSON.stringify({ status: "Done" }) }),
     onMutate: async (name) => {
       await qc.cancelQueries({ queryKey: ["hoy"] });
-      const prev = qc.getQueryData<{ data: HoyItem[] }>(["hoy"]);
-      qc.setQueryData(["hoy"], { data: (prev?.data ?? []).map(i =>
-        i.kind === "task" && i.name === name ? { ...i, status: "Done" } : i) });
+      const prev = qc.getQueryData<HoyItem[]>(["hoy"]);
+      qc.setQueryData<HoyItem[]>(["hoy"], (prev ?? []).map(i =>
+        i.kind === "task" && i.name === name ? { ...i, status: "Done" } : i));
       return { prev };
     },
     onError: (_e, _v, ctx) => { if (ctx?.prev) qc.setQueryData(["hoy"], ctx.prev); },
@@ -403,14 +474,31 @@ Run: `pytest apps/crm_core/tests/test_sync_machine.py -v`. Expected: FAIL (`run_
 
 ```python
 # apps/crm_core/api/v1/sync.py
-class GCalGone(Exception): pass  # mapea HTTP 410
+import os, time, random
+class GCalGone(Exception): pass      # mapea HTTP 410
+class GCalRateLimited(Exception): pass  # mapea HTTP 429 / 403 rateLimitExceeded
+
+def call_with_backoff(fn, tries=5, base=1.0):
+    """Backoff exponencial con jitter. Sin esto, un loop de reintentos
+    tumba el worker y quema la cuota de Google."""
+    for i in range(tries):
+        try:
+            return fn()
+        except GCalRateLimited:
+            if i == tries - 1: raise
+            time.sleep(base * (2 ** i) + random.uniform(0, 1))
+
 def run_incremental(client, stored_token):
     """Contrato §5.1: pagina con page_token; nextSyncToken solo vale
-    en la ÚLTIMA página; 410 → full sync desde cero."""
+    en la ÚLTIMA página; 410 → full sync desde cero.
+    REGLA FASE 0: ante conflicto local-vs-remoto, GCal es fuente de
+    verdad (remote wins); se registra SyncConflict auto_resolved_remote
+    para auditoría. UI de resolución manual → Fase 1."""
     token, page = stored_token, None
     while True:
         try:
-            resp = client.list_events(sync_token=token, page_token=page)
+            resp = call_with_backoff(
+                lambda: client.list_events(sync_token=token, page_token=page))
         except GCalGone:
             token, page = None, None  # 410: limpiar y full sync
             continue
@@ -421,7 +509,20 @@ def run_incremental(client, stored_token):
             return resp["nextSyncToken"]  # solo última página
 ```
 
-`upsert_event`: mapea Google→`Event` (UTC + tz original, `gcal_etag` guardado para §5.3 futuro). Tokens OAuth: `oauth.py` con AES-256-GCM (`cryptography.fernet`, clave de `GCAL_TOKEN_KEY`), refresh con buffer 5 min.
+`upsert_event`: mapea Google→`Event` (UTC + tz original, `gcal_etag` guardado). Tokens OAuth en `oauth.py` con **AES-256-GCM** (no Fernet: Fernet es AES-128-CBC y no cumple el spec §5.5):
+
+```python
+# apps/crm_core/api/v1/oauth.py
+import os
+from cryptography.hazmat.primitives.ciphers.aes import AESGCM
+_KEY = AESGCM(bytes.fromhex(os.environ["GCAL_TOKEN_KEY_HEX"]))  # 32 bytes = 256 bit
+def enc_token(plain: bytes, aad: bytes) -> bytes:
+    nonce = os.urandom(12)
+    return nonce + _KEY.encrypt(nonce, plain, aad)
+def dec_token(blob: bytes, aad: bytes) -> bytes:
+    return _KEY.decrypt(blob[:12], blob[12:], aad)
+```
+Refresh con buffer 5 min. `GCAL_TOKEN_KEY_HEX` solo en env/secret manager, jamás en repo.
 
 - [ ] **Step 3: Scheduler (polling 10 min + recordatorios 15 min + renew watch)**
 
@@ -502,11 +603,22 @@ def handle(p):
 ```
 Campo requerido: `Event.booking_uid UNIQUE` (añadir al DocType de T3 vía migrate en esta task).
 
-- [ ] **Step 3: Sidecar compose + tests verdes + commit**
+- [ ] **Step 3: Sidecar compose + init + tests verdes + commit**
 
-`deploy/cal-sidecar.yaml`: `calcom/postgres` + `redis` + `cal.com` (imagen y env según docs oficiales vigentes al deployar; registrar versión pineada en el archivo). Run: `pytest apps/crm_core/tests/test_webhook_hmac.py -v`. Expected: PASS.
+`deploy/cal-sidecar.yaml`: `calcom/postgres` + `redis` + `cal.com` (imagen y env según docs oficiales vigentes al deployar; versión pineada en el archivo). Arranque vía `deploy/init-cal.sh` (migraciones Prisma + secretos antes del web):
+
 ```bash
-git add deploy/cal-sidecar.yaml apps/crm_core/api/v1/webhooks.py apps/crm_core/tests/test_webhook_hmac.py
+# deploy/init-cal.sh — entrypoint del servicio cal.com en el sidecar
+#!/bin/bash
+set -euo pipefail
+: "${NEXTAUTH_SECRET:?NEXTAUTH_SECRET requerido (generar con: openssl rand -base64 32)}"
+: "${DATABASE_URL:?DATABASE_URL requerido}"
+npx prisma db push --accept-data-loss=false
+exec node apps/web/server.js
+```
+Run: `pytest apps/crm_core/tests/test_webhook_hmac.py -v`. Expected: PASS.
+```bash
+git add deploy/cal-sidecar.yaml deploy/init-cal.sh apps/crm_core/api/v1/webhooks.py apps/crm_core/tests/test_webhook_hmac.py
 git commit -m "feat(booking): Cal.com sidecar + webhooks HMAC idempotentes"
 ```
 
@@ -553,4 +665,4 @@ git commit -m "feat(fase0): PWA + deploy + migracion + gate dogfood"
 
 1. **Spec coverage:** §3 DocTypes→T3 (+`booking_uid` en T7, documentado). §4 performance Fase 0 (optimistic+SWR)→T5; palette→T5. §5.1+5.2 básico+5.5→T6 (§5.3 ETag/412 y §5.4 recurrentes/UI conflictos → plan Fase 1, fuera de este plan). §6 Fase 0 (sidecar+webhooks)→T7. §7 auth básica→T4 (MFA/SSO→Fase 2). §8 reminders→T6 scheduler. §9 spike PG→T2; backups/restore drill→T2 Step 3. §10 migración→T8. §11 gate Fase 0→T8 Step 3. Sin gaps en Fase 0.
 2. **Placeholder scan:** prohibidos "TBD/TODO/similar a Task N" — cada step trae código o comando exacto. Único punto versionado en deploy: pin de imagen Cal.com se registra al ejecutar (las tags vigentes cambian; pineado obligatorio en el archivo antes del deploy).
-3. **Type consistency:** `HoyItem/TaskDTO/EventDTO` definidos una vez en T1 y referenciados idénticos en T4/T5. `run_incremental(client, stored_token)->token`, `verify(p,sig,secret)->bool`, `handle(p)->event_name` usados con mismas firmas en tests e implementación. `crm_core.api.v1.*` como único prefijo RPC en T5-T7.
+3. **Type consistency:** `HoyItem/TaskDTO/EventDTO` definidos una vez en T1 y referenciados idénticos en T4/T5 (`unwrap` distingue `message` RPC vs `data` REST v2). `run_incremental(client, stored_token)->token`, `call_with_backoff(fn)->result`, `enc_token/dec_token(blob, aad)`, `verify(p,sig,secret)->bool`, `handle(p)->event_name` usados con mismas firmas en tests e implementación. `crm_core.api.v1.*` como único prefijo RPC en T5-T7. CORS (T3.5) precede a todo fetch con credentials (T4+).

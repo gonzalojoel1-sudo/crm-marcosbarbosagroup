@@ -130,6 +130,8 @@ Toda escritura CRM→GCal lleva `If-Match: <gcal_etag>`:
 - match → update OK, guardar nuevo etag;
 - **412** → otro escribió en el medio → crear `SyncConflict` + mostrar en UI con diff por campo (título, hora, attendees) y botones "quedarme con mío / con Google / mezclar". Nada se sobrescribe en silencio. Default configurable: last-write-wins para campos no críticos, manual para horario/asistentes.
 
+**REGLA FASE 0 (revisión 2026-09-14): ante conflicto, GCal es fuente de verdad (remote wins).** Se registra `SyncConflict` con `resolution=auto_resolved_remote` para auditoría; la UI de resolución manual llega en Fase 1. Esto evita pérdidas de datos inexplicables mientras no hay UI de merge.
+
 ### 5.4 Casos borde (lista cerrada, cada uno con test E2E)
 
 Recurrentes (serie vs instancia vs excepción), eventos borrados en GCal (`cancelled` → soft-delete local + actividad), evento borrado en CRM con sync activo (borrar en GCal o deslinkear, a elección del usuario), múltiples calendarios por usuario (uno primario escribible + N solo-lectura), calendarios compartidos/delegados (solo lectura + aviso), timezones (almacenar UTC + tz original; render en tz del viewer), rate limits (backoff exponencial + cola RQ con prioridad), OAuth revocado (estado `needs_reauth` + banner + re-auth en 2 clics), 410 en cascada (full sync con paginación y progress en UI).
@@ -181,6 +183,7 @@ Script `migrate:frappe-crm` (export vía REST v1 → mapping → import a `crm_c
 
 - **Fase 0 — Dogfood usable (sem 1-6)**: login, Hoy (tasks+events), CRUD contactos/deals, GCal sync vía motor propio básico (full+incremental+410), Cal.com sidecar para booking, PWA instalable. **Gate**: el equipo trabaja 5 días seguidos sin abrir el CRM viejo ni Google Calendar directo.
 - **Fase 1 — Premium core (mes 3-6)**: IndexedDB offline, palette completa, recurrentes + conflictos UI, motor booking propio, multi-tenant provisioning manual, MFA. **Gate**: p95 <100ms medido (PostHog), 0 lost-updates en tests de conflicto, Lighthouse PWA ≥90.
+  - Alcance ampliado (revisión 2026-09-14): validación runtime **Zod** en `frappe-client` (anti white-screen por datos sucios); **correlation IDs** + tracing básico del sync; **circuit breaker** en sync GCal (tras N fallos seguidos, pausa + aviso UI); **track_changes** nativo Frappe en Deal/Contact/Task + timeline de auditoría; **service worker + background sync** (PWA offline real).
 - **Fase 2 — SaaS hardening (mes 6-9)**: billing Stripe, dominios custom, SSO/SAML, auditoría exportable, SLA/backups por tenant, status page. **Gate**: tenant piloto externo pagando 30 días sin intervención manual.
 - **Fase 3 — Plataforma (mes 9-12)**: API pública + OAuth apps, marketplace de integraciones (n8n/Make templates), AI (resúmenes, next-best-action) con opt-in y DPA. **Gate**: 1 integración partner construida solo con docs públicas.
 
