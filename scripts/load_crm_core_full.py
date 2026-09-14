@@ -52,22 +52,12 @@ frappe.cache.delete_value("installed_app_modules")
 
 # 2. Bulk delete existing crm_core DocTypes (in reverse dep order)
 print("--- cleanup ---")
-# Direct SQL delete (bypasses all Frappe hooks, fast, idempotent)
-# We do this because Frappe v15 install-app is buggy with custom apps;
-# load_crm_core_full is the canonical fresh-start loader.
-parent_dts = ("DocType", "Module Def")
-for tbl in parent_dts:
-    frappe.db.sql(f"DELETE FROM `tab{tbl}` WHERE name = %s OR module = %s",
-                  ("crm_core", "crm_core"))
-
-# Also flush tabDocField, tabDocPerm, tabDocTypeAction, etc.
-# (cascading from tabDocType but let's be explicit)
-frappe.db.sql("""DELETE FROM `tabDocField` WHERE parent IN
-                  (SELECT name FROM `tabDocType` WHERE module='crm_core')""")
-frappe.db.sql("""DELETE FROM `tabDocPerm` WHERE parent IN
-                  (SELECT name FROM `tabDocType` WHERE module='crm_core')""")
+frappe.db.sql("DELETE FROM `tabDocField` WHERE parent IN "
+              "(SELECT name FROM `tabDocType` WHERE module='crm_core')")
+frappe.db.sql("DELETE FROM `tabDocPerm` WHERE parent IN "
+              "(SELECT name FROM `tabDocType` WHERE module='crm_core')")
 frappe.db.sql("DELETE FROM `tabDocType` WHERE module = 'crm_core'")
-frappe.db.sql("DELETE FROM `tabModule Def` WHERE module_name = 'crm_core'")
+frappe.db.sql("DELETE FROM `tabModule Def` WHERE name = 'crm_core'")
 frappe.db.commit()
 print("cleared all tabDocType rows with module=crm_core")
 
