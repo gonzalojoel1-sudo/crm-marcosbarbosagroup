@@ -38,28 +38,56 @@ frappe.flags.in_install_db = False
 
 print(f"=== STARTING load_crm_core for {site} ===")
 
-# 1. Module Def
+# 1. Module Def (commit immediately so subsequent inserts see it)
+print(f"=== STARTING load_crm_core for {site} ===")
+
 if not frappe.db.exists("Module Def", "crm_core"):
     m = frappe.new_doc("Module Def")
     m.module_name = "crm_core"
     m.app_name = "crm_core"
     m.insert(ignore_permissions=True)
-    print("+ Module Def crm_core")
+    frappe.db.commit()
+    print("+ Module Def crm_core created & committed")
+else:
+    print("Module Def crm_core already exists")
 
 # Clean caches
 frappe.cache.delete_value("app_modules")
 frappe.cache.delete_value("installed_app_modules")
+frappe.clear_cache()
+
+# Rebuild local.module_app including crm_core explicitly
+from frappe.modules.utils import scrub
+md_list = frappe.db.get_all("Module Def", fields=["module_name", "app_name"])
+frappe.local.module_app = frappe.local.module_app or {}
+for row in md_list:
+    frappe.local.module_app[scrub(row["module_name"])] = row["app_name"]
+if "crm_core" not in frappe.local.module_app:
+    frappe.local.module_app["crm_core"] = "crm_core"
+print(f"local.module_app has 'crm_core': {('crm_core' in frappe.local.module_app)}")
 
 # 2. Bulk delete existing crm_core DocTypes (in reverse dep order)
+# NOTE: Module Def is NOT deleted — it's preserved (we'll re-create if missing).
 print("--- cleanup ---")
 frappe.db.sql("DELETE FROM `tabDocField` WHERE parent IN "
               "(SELECT name FROM `tabDocType` WHERE module='crm_core')")
 frappe.db.sql("DELETE FROM `tabDocPerm` WHERE parent IN "
               "(SELECT name FROM `tabDocType` WHERE module='crm_core')")
 frappe.db.sql("DELETE FROM `tabDocType` WHERE module = 'crm_core'")
-frappe.db.sql("DELETE FROM `tabModule Def` WHERE name = 'crm_core'")
 frappe.db.commit()
-print("cleared all tabDocType rows with module=crm_core")
+print("cleared all tabDocType rows with module=crm_core (Module Def preserved)")
+
+# Re-ensure Module Def exists (in case deletion cascaded)
+if not frappe.db.exists("Module Def", "crm_core"):
+    m = frappe.new_doc("Module Def")
+    m.module_name = "crm_core"
+    m.app_name = "crm_core"
+    m.insert(ignore_permissions=True)
+    frappe.db.commit()
+    print("+ Module Def crm_core re-created")
+
+# Force local.module_app crm_core presence after deletion
+frappe.local.module_app["crm_core"] = "crm_core"
 
 # 3. Build module_app manually
 from frappe.modules.utils import scrub
