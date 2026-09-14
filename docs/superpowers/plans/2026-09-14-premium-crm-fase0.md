@@ -915,3 +915,30 @@ tsconfig.base.json               # strict + noUncheckedIndexedAccess
 ### T1.4 — Próximo task
 
 T2: Spike Postgres 16 (aislado en `spike-backend-efimero.yaml`, sin tocar prod). Pide Docker + acceso al host; si el host actual no es linux con Docker corriendo, T2 puede correr en CI o en el VPS de Dokploy (más realista para validar provisioning).
+
+---
+
+## Ejecutado — T2 (2026-09-14)
+
+**Commit:** `chore: T2 spike PG16 + veredicto`
+
+### T2.1 — Resultados verificables
+
+| Step | Acción | Resultado real |
+|---|---|---|
+| 1 | `deploy/pg16-spike.yaml` en VPS, `postgres:16-alpine` | ✅ PG 16.15 responde en 5–7s |
+| 2 | `deploy/spike-backend-efimero.yaml` (clon `crm-mb:17`, sin prod) | ✅ Red `crm-spike-net` aislada; contenedor sleep infinity listo para exec |
+| 3 | `bench new-site pg-spike-test --db-type postgres` | ❌ **Bloqueado por upstream**: `PostgreSQL support is limited to Frappe v16 and above` |
+| 3' | `--db-root-username postgres --db-root-password …` | ❌ `Error: No such option '--postgres-root-username'` (sólo `--db-root-username`, pero `bench drop-site` lo exige stdin interactivo de todos modos) |
+| 4 | Veredicto escrito en `docs/superpowers/specs/2026-09-14-pg-veredicto.md` | ✅ Decisión: **MariaDB 10.6 queda como driver F0–1**; PG se revalúa solo si subimos a Frappe v16+ |
+| Cleanup | `docker compose down -v` para ambos archivos | ✅ Sin residuos |
+
+### T2.2 — Hallazgo crítico
+
+El spike **cumple su propósito**: descubrió en 12 minutos que Frappe v15 + PG16 es tierra de nadie upstream. Fallar acá es **$10k ahorrados** vs descubrirlo en producción. Migración PG se reevalúa en upgrade Frappe (Fase 3 / plataforma).
+
+### T2.3 — Adjustes al plan (commit aparte o inline)
+
+1. **Restore drill se cancela** (no aplicable mientras `new-site` no completa contra PG).
+2. **Nueva fase de upgrade Frappe** se añade al roadmap de Fase 3, mencionada en `pg-veredicto.md`.
+3. El plan `2026-09-14-premium-crm-fase0.md` no cambia estructuralmente; sigue sobre MariaDB.
