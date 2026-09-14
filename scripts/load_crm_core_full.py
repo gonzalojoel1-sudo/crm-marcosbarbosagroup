@@ -6,6 +6,11 @@ Usage: docker exec -e FRAPPE_SITE=crm-test backend bash -lc "..."
 """
 import os, sys, json
 
+# CRITICAL: ensure crm_core.crm_core is importable.
+# Frappe v15 expects to load crm_core.crm_core.doctype.<X>.json.
+sys.path.insert(0, "/home/frappe/frappe-bench/apps")
+sys.path.insert(0, "/home/frappe/frappe-bench/apps/crm_core")
+
 DD = "/home/frappe/frappe-bench/apps/crm_core/crm_core/doctype"
 
 # Order matters: child tables first, then standalone, then cross-refs.
@@ -27,6 +32,24 @@ ORDER = [
 
 sys.path.insert(0, "/home/frappe/frappe-bench/apps")
 sys.path.insert(0, "/home/frappe/frappe-bench/apps/crm_core")
+
+# Pre-populate crm_core.__path__ explicitly (avoid ModuleNotFoundError)
+import importlib
+try:
+    importlib.import_module("crm_core")
+except Exception:
+    pass
+try:
+    importlib.import_module("crm_core.crm_core")
+except Exception as e:
+    print(f"NOTE: crm_core.crm_core import failed: {e}")
+
+# Verify loaded module paths
+print(f"crm_core.__file__:", getattr(importlib.import_module("crm_core"), "__file__", "N/A"))
+try:
+    print(f"crm_core.crm_core.__file__:", getattr(importlib.import_module("crm_core.crm_core"), "__file__", "N/A"))
+except Exception:
+    print("crm_core.crm_core: NOT importable (will fail at insert-time)")
 
 import frappe
 
