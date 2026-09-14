@@ -5,9 +5,10 @@ Run once. Idempotent (skips files already processed).
 import os, json, re
 
 DD = "/home/frappe/frappe-bench/apps/crm_core/crm_core/doctype"
-RESERVED = {"owner", "name", "modified", "creation", "docstatus",
-            "idx", "doctype", "_liked_by", "_comments", "_assign",
-            "user_tags", "_seen", "amended_from"}
+# Only 'owner' is reserved in DocType-context; 'name', 'creation', 'modified',
+# 'docstatus' etc are doc data fields managed by Frappe core.
+# We rename ONLY 'owner' because that one triggers LinkValidationError.
+RESERVED = {"owner"}
 
 for fname in sorted(os.listdir(DD)):
     sub = os.path.join(DD, fname)
