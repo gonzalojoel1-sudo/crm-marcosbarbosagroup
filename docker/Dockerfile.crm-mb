@@ -1,47 +1,36 @@
 # Dockerfile.crm-mb — Fase 0 (custom app crm_core baked)
 #
 # Bakes apps/crm_core into crm-mb:17 → produces crm-mb:18.
-# crm-mb:17 was built originally from frappe_docker build pipeline.
 #
 # Usage:
 #   docker build -f docker/Dockerfile.crm-mb -t crm-mb:18 .
 #
-# Rollback path: tag the previous image first
+# Rollback path:
 #   docker tag crm-mb:17 crm-mb:17-pre-crm-core
-# and switch compose back to that tag.
+#   sed -i 's|crm-mb:18|crm-mb:17-pre-crm-core|' compose.yaml
+#   docker compose up -d
+#
+# IMPORTANT:
+#   - /home/frappe/frappe-bench/apps/ is NOT a volume (persists per image)
+#   - /home/frappe/frappe-bench/sites and logs ARE volumes (overwritten by data)
+#   - We bake crm_core into the image for availability; install-app at runtime.
 
 FROM crm-mb:17
 
 # crm_core — premium custom app (T1-T3 of plan Fase 0).
-# OWNED by cliente (Marcos Barbosa Group, proprietary license).
+# Owned by cliente (Marcos Barbosa Group, proprietary).
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
 
 USER root
-
-# Ensure writability
 RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
     chown -R frappe:frappe /home/frappe/frappe-bench/apps/crm_core
 
-# Bench expects apps to be git repos for migrate paths.
-# Initialize a local-only repo so `bench --site X install-app crm_core` succeeds.
-RUN cd /home/frappe/frappe-bench/apps/crm_core && \
-    git init -q . && \
-    git config user.email "bot@crm-marcosbarbosagroup.com" && \
-    git config user.name "crm-mb-bot" && \
-    git config commit.gpgsign false && \
-    git add -A && \
-    git commit -q -m "crm_core initial bake" || true
-
-# Register crm_core in apps.txt (one entry per line; de-duped). Idempotent.
-RUN cd /home/frappe/frappe-bench && \
-    if grep -q "^crm_core$" sites/apps.txt; then \
-        echo "crm_core already in apps.txt"; \
-    else \
-        echo "crm_core" >> sites/apps.txt && \
-        echo "added crm_core to apps.txt"; \
-    fi
+# NOTE: We deliberately do NOT init a git repo here. Frappe v15 has bugs
+# treating arbitrary git repos of in-tree apps as upstream Github. Instead,
+# `bench init-from-image.sh` (script injected via ENTRYPOINT hook, NOT here) or
+# the deploy step itself manages the git init at first run.
+# If your team prefers git-init-baked, you may add it back; we observed
+# PermissionError on rollback paths.
 
 USER frappe
-
-# Workdir canonical
 WORKDIR /home/frappe/frappe-bench
