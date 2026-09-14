@@ -49,17 +49,20 @@ print(f"local.module_app has 'crm_core':", "crm_core" in frappe.local.module_app
 
 # 4. Load each DocType
 # 4. Load each DocType — by dependency order, NOT alphabetical
-# (Contact references Lead/Account; Deal references Lead/Contact/Account; Lead references Contact)
-# Load user-independent Doctypes first, then those with cross-refs.
+# Child tables first (Event Attendee, Contact Email, Contact Phone)
+# Then standalone, then those with cross-refs.
 DD = "/home/frappe/frappe-bench/apps/crm_core/crm_core/doctype"
 ORDER = [
+    "event_attendee",        # child table referenced by Event
+    "contact_email",          # child table referenced by Contact
+    "contact_phone",          # child table referenced by Contact
     "task",                  # standalone
-    "event",                 # standalone (no DocType refs to other crm_core)
+    "event",                 # references Event Attendee
     "account",               # referenced by Lead/Contact/Deal
     "gcal_connection",       # standalone (tokens, no refs)
     "gcal_sync_state",       # references GCal Connection
-    "sync_conflict",         # standalone
-    "contact",               # references Account
+    "sync_conflict",         # references Event
+    "contact",               # references Account, Contact Email, Contact Phone
     "lead",                  # references Contact, Account
     "deal",                  # references Lead, Account, Contact
     "activity",              # references others
