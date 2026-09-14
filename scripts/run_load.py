@@ -77,10 +77,12 @@ for name in ORDER:
         continue
     spec = json.load(open(jp))
     try:
-        # Always delete + recreate (idempotent for fresh schema)
         if frappe.db.exists("DocType", spec["name"]):
-            print(f"  DELETE {spec['name']} (forcing recreate)")
-            frappe.delete_doc("DocType", spec["name"], force=True)
+            # Always delete (handles parent-child as well)
+            try:
+                frappe.delete_doc("DocType", spec["name"], force=True)
+            except Exception:
+                pass
         d = frappe.new_doc("DocType")
         reserved = {"owner", "name", "modified", "creation", "docstatus"}
         for fld in spec.get("fields", []):
