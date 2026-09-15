@@ -41,8 +41,12 @@ RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
     chown -R frappe:frappe /home/frappe/frappe-bench/apps/crm_core
 
 # Install crm_core package into the bench venv so `import crm_core` resolves.
-# Idempotent across rebuilds.
-RUN cd /home/frappe/frappe-bench/apps/crm_core && pip install -e . 2>&1 | tail -20
+# Strategy: create a .pth file that points the system Python's site-packages
+# at the crm_core/crm_core/ subdirectory (the actual Python package).
+# This avoids pip install -e namespace confusion with our nested layout.
+RUN echo '/home/frappe/frappe-bench/apps/crm_core/crm_core' > /usr/local/lib/python3.11/site-packages/crm_core.pth && \
+    rm -rf /usr/local/lib/python3.11/site-packages/crm_core-0.0.1.dist-info /usr/local/lib/python3.11/site-packages/__editable__.crm_core-0.0.1.pth 2>/dev/null && \
+    /usr/local/bin/python3 -c "import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core import OK', crm_core.__file__, m.Task)"
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
