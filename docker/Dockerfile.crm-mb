@@ -1,36 +1,47 @@
-# Dockerfile.crm-mb — Fase 0 (custom app crm_core baked)
+# Dockerfile.crm-mb — Fase 0 v19 (custom app crm_core baked with canonical layout)
 #
-# Bakes apps/crm_core into crm-mb:17 → produces crm-mb:18.
+# Bakes apps/crm_core into crm-mb:17 → produces crm-mb:19.
 #
 # Usage:
-#   docker build -f docker/Dockerfile.crm-mb -t crm-mb:18 .
+#   docker build -f docker/Dockerfile.crm-mb -t crm-mb:19 .
 #
 # Rollback path:
-#   docker tag crm-mb:17 crm-mb:17-pre-crm-core
-#   sed -i 's|crm-mb:18|crm-mb:17-pre-crm-core|' compose.yaml
+#   docker tag crm-mb:18 crm-mb:18-pre-crm-core
+#   sed -i 's|crm-mb:19|crm-mb:18-pre-crm-core|' compose.yaml
 #   docker compose up -d
 #
 # IMPORTANT:
 #   - /home/frappe/frappe-bench/apps/ is NOT a volume (persists per image)
 #   - /home/frappe/frappe-bench/sites and logs ARE volumes (overwritten by data)
 #   - We bake crm_core into the image for availability; install-app at runtime.
+#
+# Layout (canonical Frappe v15):
+#   apps/crm_core/
+#     pyproject.toml         # name="crm_core"
+#     crm_core/               # Python package
+#       __init__.py
+#       hooks.py
+#       modules.txt           # "MbCRM"
+#       mbcrm/                # submodule matching the module name
+#         doctype/<X>/<X>.{json,py}
+#
+# Verified 2026-09-14:
+#   bench get-app + install-app + migrate + ORM CRUD (Task) all green on crm-test.
 
 FROM crm-mb:17
 
-# crm_core — premium custom app (T1-T3 of plan Fase 0).
-# Owned by cliente (Marcos Barbosa Group, proprietary).
+# crm_core — premium custom app (Marcos Barbosa Group, proprietary).
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
 
 USER root
 RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
     chown -R frappe:frappe /home/frappe/frappe-bench/apps/crm_core
 
-# NOTE: We deliberately do NOT init a git repo here. Frappe v15 has bugs
-# treating arbitrary git repos of in-tree apps as upstream Github. Instead,
-# `bench init-from-image.sh` (script injected via ENTRYPOINT hook, NOT here) or
-# the deploy step itself manages the git init at first run.
-# If your team prefers git-init-baked, you may add it back; we observed
-# PermissionError on rollback paths.
+# pip install -e . into bench venv (Frappe v15 uses uv, but pip works too).
+# Idempotent across rebuilds.
+RUN . /home/frappe/frappe-bench/env/bin/activate && \
+    cd /home/frappe/frappe-bench/apps/crm_core && \
+    pip install -e . --quiet 2>&1 || true
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
