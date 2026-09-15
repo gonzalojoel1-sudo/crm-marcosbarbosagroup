@@ -16,7 +16,13 @@
 #         __init__.py
 #         doctype/<X>/{X.json,X.py,__init__.py}
 
-FROM crm-mb:19
+# El build NO usa una base fija: parte de la imagen que está corriendo en Swarm.
+# Dokploy poda las imágenes sin usar, así que una base "suelta" (crm-mb:19)
+# desaparece. La imagen viva siempre existe (la referencia un contenedor), y este
+# Dockerfile borra y recopia apps/crm_core, así que el resultado es equivalente.
+# scripts/deploy-crm.sh pasa BASE=<imagen en uso> automáticamente.
+ARG BASE=crm-mb:54
+FROM ${BASE}
 
 # Base image ends as USER frappe; we need root for rm/copy/chown.
 USER root
