@@ -251,6 +251,65 @@ def add_task(title, reference_name=None, due_date=None):
     return {"name": doc.name, "title": doc.title, "status": doc.status}
 
 
+DEAL_STAGES = [
+    "Qualification",
+    "Diagnóstico",
+    "Análisis",
+    "Estrategia",
+    "Implementación",
+    "Seguimiento",
+    "Escalamiento",
+    "Won",
+    "Lost",
+]
+
+
+@frappe.whitelist()
+def get_deals():
+    rows = frappe.get_all(
+        "CRM Deal",
+        fields=["name", "organization", "status", "contact", "lead", "deal_owner"],
+        order_by="modified desc",
+        limit_page_length=0,
+    )
+    deals = []
+    for r in rows:
+        title = r.get("organization") or r.get("lead") or r.get("contact") or r["name"]
+        deals.append(
+            {
+                "name": r["name"],
+                "title": title,
+                "status": r.get("status") or "Qualification",
+                "org": r.get("organization") or "",
+            }
+        )
+    return {"deals": deals, "stages": DEAL_STAGES}
+
+
+@frappe.whitelist()
+def move_deal(name, status):
+    if not frappe.db.exists("CRM Deal Status", status):
+        frappe.throw("Etapa inválida")
+    frappe.db.set_value("CRM Deal", name, "status", status)
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def create_deal(title, status=None):
+    title = (title or "").strip()
+    if not title:
+        frappe.throw("Poné un nombre")
+    org = frappe.db.get_value("CRM Organization", {"organization_name": title}, "name")
+    if not org:
+        o = frappe.get_doc({"doctype": "CRM Organization", "organization_name": title})
+        o.insert(ignore_permissions=True)
+        org = o.name
+    status = status if (status and frappe.db.exists("CRM Deal Status", status)) else "Qualification"
+    doc = frappe.get_doc({"doctype": "CRM Deal", "organization": org, "status": status})
+    doc.insert(ignore_permissions=True)
+    return {"name": doc.name, "title": title, "status": status}
+
+
 @frappe.whitelist()
 def update_lead(name, email=None, mobile_no=None, organization=None, status=None, first_name=None, last_name=None):
     """Actualiza campos de un CRM Lead. Solo escribe los que vienen (no None)."""

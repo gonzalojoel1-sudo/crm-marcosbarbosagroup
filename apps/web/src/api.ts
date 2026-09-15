@@ -35,8 +35,14 @@ export interface AgendaData {
   tasks: TaskDTO[];
 }
 
-export interface LeadDTO {
+export interface DealDTO {
   name: string;
+  title: string;
+  status: string;
+  org: string;
+}
+
+export interface LeadDTO {  name: string;
   who: string;
   email: string;
   mobile_no: string;
@@ -109,6 +115,11 @@ export const api = {
     get<AgendaData>("crm_core.api.get_agenda", { start, end }),
   getMeeting: (name: string) => get<MeetingDetail>("crm_core.api.get_meeting", { name }),
   getLeads: () => get<{ leads: LeadDTO[] }>("crm_core.api.get_leads"),
+  getDeals: () => get<{ deals: DealDTO[]; stages: string[] }>("crm_core.api.get_deals"),
+  moveDeal: (name: string, status: string) =>
+    post<{ ok: boolean }>("crm_core.api.move_deal", { name, status }),
+  createDeal: (title: string) =>
+    post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", { title }),
   createLead: (p: {
     first_name?: string;
     last_name?: string;

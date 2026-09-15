@@ -1208,6 +1208,157 @@ button.meta-row:hover {
   cursor: default;
 }
 
+/* ── Pipeline ────────────────────────────────────────── */
+.pipe {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 22px 22px 64px;
+}
+.pipe-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.pipe-input {
+  flex: 1;
+  max-width: 320px;
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 12px;
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.pipe-board {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+.pipe-col {
+  flex: 0 0 236px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.pipe-col.over {
+  border-color: var(--accent);
+  background: rgba(254, 65, 0, 0.05);
+}
+.pipe-col-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border);
+}
+.pipe-col-name {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+}
+.pipe-col.won .pipe-col-name {
+  color: var(--ok);
+}
+.pipe-col.lost .pipe-col-name {
+  color: var(--danger);
+}
+.pipe-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.pipe-col-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  min-height: 80px;
+}
+.pipe-card {
+  position: relative;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: grab;
+  transition: border-color 0.15s var(--ease), transform 0.1s var(--ease);
+}
+.pipe-card:hover {
+  border-color: var(--border-2);
+}
+.pipe-card:active {
+  cursor: grabbing;
+  transform: scale(0.99);
+}
+.pipe-card-title {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pipe-card-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--fg-dim);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pipe-menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% - 2px);
+  left: 8px;
+  min-width: 160px;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+.pipe-menu button {
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.pipe-menu button:hover {
+  background: var(--surface-2);
+  color: var(--accent-2);
+}
+.pipe-empty {
+  margin: 0;
+  padding: 8px 4px;
+  color: var(--fg-faint);
+  font-size: 14px;
+}
+
 @media (max-width: 820px) {
   .ag {
     padding: 16px 14px 48px;
