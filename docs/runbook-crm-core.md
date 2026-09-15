@@ -78,6 +78,37 @@ Si algún DocType no se registra tras el migrate, forzarlo:
 bench --site <site> reload-doc MbCRM doctype <snake_case_name>
 ```
 
+## ⚠️ IMPORTANTE — `sites/apps.txt` es global del bench
+
+`sites/apps.txt` lista TODAS las apps del bench (no es por site). Debe
+contener **siempre** las apps base, en orden de dependencia:
+
+```
+frappe
+crm
+crm_core
+```
+
+**Si se pierde `crm` de `apps.txt`**: el CRM oficial (`/crm`) devuelve
+`500 TemplateNotFound: www/crm.html`, aunque los archivos y la DB estén
+bien. Causa: el app no queda registrado y su carpeta `www/` sale del
+loader de templates.
+
+**Nunca sobreescribir `apps.txt` completo** — usar `echo <app> >> apps.txt`
+para agregar. Para repararlo:
+
+```bash
+BE=$(docker ps -qf name=crm_backend.1)
+docker exec "$BE" bash -c 'printf "frappe\ncrm\ncrm_core\n" > /home/frappe/frappe-bench/sites/apps.txt'
+docker exec "$BE" bash -c 'cd /home/frappe/frappe-bench && bench --site <site> clear-cache'
+for svc in crm_backend crm_websocket crm_worker crm_scheduler crm_frontend; do
+  docker service update --force "$svc"
+done
+```
+
+El `clear-cache` es imprescindible: los hooks de apps quedan cacheados en
+Redis y no se refrescan solo al reiniciar el contenedor.
+
 ## Rollback
 
 ```bash
