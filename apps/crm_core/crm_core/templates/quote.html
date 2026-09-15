@@ -123,7 +123,8 @@
   /* ── Pie ──────────────────────────────────────────── */
   .foot { margin-top: auto; padding-top: 5mm; }
   .foot-rule { height: 1px; background: #e7e5e2; }
-  .foot-row { display: flex; justify-content: space-between; margin-top: 3.4mm; font-size: 8.4pt; color: #9a989e; }
+  .foot-row { display: flex; justify-content: space-between; gap: 6mm; margin-top: 3.4mm; font-size: 8.4pt; color: #9a989e; }
+  .foot-row span { white-space: nowrap; }
   .foot-row .thanks { color: #b03413; font-weight: 500; }
 </style>
 </head>
@@ -266,7 +267,7 @@
   <footer class="foot">
     <div class="foot-rule"></div>
     <div class="foot-row">
-      <span>{{ company.phone }} · {{ company.email }} · marcosbarbosagroup.com</span>
+      <span>{{ company.email }} · {{ company.phone }}</span>
       <span class="thanks">Gracias por confiar en Marcos Barbosa Group</span>
     </div>
   </footer>
