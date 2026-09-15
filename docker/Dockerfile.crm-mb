@@ -31,7 +31,7 @@
 FROM crm-mb:18
 
 # crm_core — premium custom app (Marcos Barbosa Group, proprietary).
-# IMPORTANT: must rm -rf first; COPY does not remove existing files, and the
+# IMPORTANT: rm -rf first; COPY does not remove existing files, and the
 # base image (crm-mb:18) bakes an older flat layout that would conflict.
 RUN rm -rf /home/frappe/frappe-bench/apps/crm_core
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
@@ -40,11 +40,17 @@ USER root
 RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
     chown -R frappe:frappe /home/frappe/frappe-bench/apps/crm_core
 
-# pip install -e . into bench venv (Frappe v15 uses uv, but pip works too).
-# Idempotent across rebuilds.
-RUN . /home/frappe/frappe-bench/env/bin/activate && \
-    cd /home/frappe/frappe-bench/apps/crm_core && \
-    pip install -e . --quiet 2>&1 || true
+# Install crm_core package into the bench venv so `import crm_core` resolves.
+# Frappe v15 uses uv; use uv pip if available, else pip.
+RUN if [ -x /home/frappe/frappe-bench/env/bin/uv ]; then \
+      cd /home/frappe/frappe-bench/apps/crm_core && \
+      /home/frappe/frappe-bench/env/bin/uv pip install --quiet -e . --python /home/frappe/frappe-bench/env/bin/python; \
+    else \
+      . /home/frappe/frappe-bench/env/bin/activate && \
+      cd /home/frappe/frappe-bench/apps/crm_core && \
+      pip install -e . --quiet; \
+    fi && \
+    rm -rf /home/frappe/frappe-bench/apps/crm_core.egg-info /home/frappe/frappe-bench/apps/crm_core/crm_core/__pycache__
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
