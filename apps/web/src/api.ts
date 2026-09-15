@@ -127,6 +127,7 @@ export const api = {
     get<{ meetings: EventDTO[]; overdue: number; now: string }>("crm_core.api.get_reminders"),
   moveDeal: (name: string, status: string) =>
     post<{ ok: boolean }>("crm_core.api.move_deal", { name, status }),
+  deleteDeal: (name: string) => post<{ ok: boolean }>("crm_core.api.delete_deal", { name }),
   createDeal: (title: string) =>
     post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", { title }),
   createLead: (p: {

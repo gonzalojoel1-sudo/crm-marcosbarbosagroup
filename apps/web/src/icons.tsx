@@ -97,3 +97,9 @@ export const IconInbox = (p: SVGProps<SVGSVGElement>) => (
     <path d="M3 13h5l1.5 2.5h5L16 13h5" />
   </Base>
 );
+
+export const IconTrash = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 12a1 1 0 001 1h8a1 1 0 001-1l1-12" />
+  </Base>
+);

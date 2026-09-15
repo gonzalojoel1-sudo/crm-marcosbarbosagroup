@@ -323,6 +323,9 @@ def get_deals():
             or f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip()
             or r["name"]
         )
+        contact = r.get("contact") or ""
+        if not contact and r.get("lead_name"):
+            contact = r.get("lead_name")
         owner = frappe.db.get_value("User", r["deal_owner"], "full_name") if r.get("deal_owner") else None
         value = r.get("deal_value") or r.get("expected_deal_value")
         deals.append(
@@ -331,7 +334,7 @@ def get_deals():
                 "title": title,
                 "status": r.get("status") or "Qualification",
                 "org": r.get("organization_name") or "",
-                "contact": r.get("contact") or "",
+                "contact": contact,
                 "owner": owner or "",
                 "value": float(value) if value else None,
                 "currency": r.get("currency") or "",
@@ -341,6 +344,12 @@ def get_deals():
             }
         )
     return {"deals": deals, "stages": DEAL_STAGES}
+
+
+@frappe.whitelist()
+def delete_deal(name):
+    frappe.delete_doc("CRM Deal", name, force=True, ignore_permissions=True)
+    return {"ok": True}
 
 
 @frappe.whitelist()
