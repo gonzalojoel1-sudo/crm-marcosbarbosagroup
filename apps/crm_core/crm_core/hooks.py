@@ -14,3 +14,8 @@ app_license = "proprietary"
 # Stubs: tareas reales llegan en T6 (scheduler) y T7 (webhooks).
 scheduler_events = {}
 doc_events = {}
+
+# Rutas web propias. Mismo mecanismo que usa el app `crm` para /crm.
+website_route_rules = [
+    {"from_route": "/hoy", "to_route": "hoy"},
+]
