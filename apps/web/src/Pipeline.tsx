@@ -17,7 +17,7 @@ function fmtMoney(v: number | null, cur: string): string {
 }
 function initials(name: string): string {
   const p = name.trim().split(/\s+/).filter(Boolean);
-  return (p[0]?.[0] ?? "?") + (p[1]?.[0] ?? "");
+  return ((p[0]?.[0] ?? "?") + (p[1]?.[0] ?? "")).toUpperCase();
 }
 function stageKind(s: string): string {
   if (s === "Won") return "won";
@@ -25,13 +25,16 @@ function stageKind(s: string): string {
   return "";
 }
 
+type MenuPos = { name: string; x: number; y: number };
+
 export default function Pipeline() {
   const [deals, setDeals] = useState<DealDTO[] | null>(null);
   const [stages, setStages] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState("");
-  const [menu, setMenu] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuPos | null>(null);
   const dragName = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -48,8 +51,13 @@ export default function Pipeline() {
   }, [creating]);
   useEffect(() => {
     const close = () => setMenu(null);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
     document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", esc);
+    };
   }, []);
 
   async function create() {
@@ -111,7 +119,7 @@ export default function Pipeline() {
             const kind = stageKind(s);
             return (
               <section
-                className={`pipe-col${dragOver === s ? " over" : ""}${kind ? " " + kind : ""}`}
+                className={`pipe-col${dragOver === s && dragging ? " over" : ""}${kind ? " " + kind : ""}`}
                 key={s}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -120,6 +128,7 @@ export default function Pipeline() {
                 onDragLeave={() => setDragOver((v) => (v === s ? null : v))}
                 onDrop={() => {
                   setDragOver(null);
+                  setDragging(false);
                   if (dragName.current) move(dragName.current, s);
                 }}
               >
@@ -135,44 +144,45 @@ export default function Pipeline() {
                       className="pipe-card"
                       key={d.name}
                       draggable
-                      onDragStart={() => (dragName.current = d.name)}
-                      onDragEnd={() => (dragName.current = null)}
+                      onDragStart={() => {
+                        dragName.current = d.name;
+                        setDragging(true);
+                      }}
+                      onDragEnd={() => {
+                        dragName.current = null;
+                        setDragging(false);
+                      }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setMenu((m) => (m === d.name ? null : d.name));
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                        setMenu((m) =>
+                          m?.name === d.name
+                            ? null
+                            : { name: d.name, x: r.left, y: Math.min(r.bottom + 6, window.innerHeight - 280) },
+                        );
                       }}
                     >
                       <span className="pipe-card-title">{d.title}</span>
                       {d.org && d.org !== d.title ? (
                         <span className="pipe-card-sub">{d.org}</span>
                       ) : null}
-                      {d.next_step ? (
-                        <span className="pipe-card-src">{d.next_step}</span>
-                      ) : null}
-                      <div className="pipe-card-meta">
-                        {d.value != null ? (
-                          <span className="pipe-value">{fmtMoney(d.value, d.currency)}</span>
-                        ) : null}
-                        {d.date ? <span className="pipe-date">{fmtDate(d.date)}</span> : null}
-                        {d.owner ? <span className="pipe-owner" title={d.owner}>{initials(d.owner)}</span> : null}
-                      </div>
-                      {menu === d.name ? (
-                        <div className="pipe-menu" onClick={(e) => e.stopPropagation()}>
-                          <span className="pipe-menu-label">Mover a</span>
-                          {stages
-                            .filter((x) => x !== d.status)
-                            .map((x) => (
-                              <button key={x} onClick={() => move(d.name, x)}>
-                                {x}
-                              </button>
-                            ))}
+                      {d.next_step ? <span className="pipe-card-src">{d.next_step}</span> : null}
+                      {(d.value != null || d.date || d.owner) && (
+                        <div className="pipe-card-meta">
+                          {d.value != null ? (
+                            <span className="pipe-value">{fmtMoney(d.value, d.currency)}</span>
+                          ) : null}
+                          {d.date ? <span className="pipe-date">{fmtDate(d.date)}</span> : null}
+                          {d.owner ? (
+                            <span className="pipe-owner" title={d.owner}>
+                              {initials(d.owner)}
+                            </span>
+                          ) : null}
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   ))}
-                  {items.length === 0 ? (
-                    <p className="pipe-drop">Arrastrá un negocio acá</p>
-                  ) : null}
+                  {items.length === 0 && dragging ? <p className="pipe-drop">Soltá acá</p> : null}
                 </div>
 
                 {sum > 0 ? (
@@ -183,6 +193,23 @@ export default function Pipeline() {
           })}
         </div>
       )}
+
+      {menu ? (
+        <div
+          className="pipe-menu"
+          style={{ position: "fixed", left: menu.x, top: menu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="pipe-menu-label">Mover a</span>
+          {stages
+            .filter((x) => x !== (deals ?? []).find((d) => d.name === menu.name)?.status)
+            .map((x) => (
+              <button key={x} onClick={() => move(menu.name, x)}>
+                {x}
+              </button>
+            ))}
+        </div>
+      ) : null}
     </div>
   );
 }

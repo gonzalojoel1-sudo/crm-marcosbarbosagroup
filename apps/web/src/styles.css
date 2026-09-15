@@ -1245,6 +1245,7 @@ button.meta-row:hover {
   flex: 0 0 236px;
   display: flex;
   flex-direction: column;
+  min-height: min(66vh, 560px);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -1304,7 +1305,7 @@ button.meta-row:hover {
   flex-direction: column;
   gap: 8px;
   padding: 10px;
-  min-height: 80px;
+  flex: 1;
 }
 .pipe-card {
   position: relative;
@@ -1398,13 +1399,15 @@ button.meta-row:hover {
   justify-content: center;
 }
 .pipe-drop {
-  margin: 0;
-  padding: 12px 4px;
-  color: var(--fg-faint);
+  margin: auto 0;
+  padding: 10px 4px;
+  color: var(--accent-2);
   font-size: 12px;
+  font-weight: 600;
   text-align: center;
-  border: 1px dashed var(--border);
+  border: 1px dashed var(--accent-line);
   border-radius: 9px;
+  background: var(--accent-soft);
 }
 .pipe-col-foot {
   padding: 9px 13px;
@@ -1423,18 +1426,19 @@ button.meta-row:hover {
   padding: 5px 10px 3px;
 }
 .pipe-menu {
-  position: absolute;
-  z-index: 10;
-  top: calc(100% - 2px);
-  left: 8px;
-  min-width: 160px;
+  position: fixed;
+  z-index: 60;
+  min-width: 168px;
+  max-height: 300px;
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--border-2);
   border-radius: 10px;
   padding: 5px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
   display: flex;
   flex-direction: column;
+  animation: pop 0.12s var(--ease);
 }
 .pipe-menu button {
   text-align: left;
