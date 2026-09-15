@@ -27,7 +27,11 @@ def get_hoy():
 
     overdue = frappe.get_all(
         "Task",
-        filters={"status": "Open", "due_datetime": ["<", start]},
+        filters=[
+            ["status", "=", "Open"],
+            ["due_datetime", "is", "set"],
+            ["due_datetime", "<", start],
+        ],
         fields=TASK_FIELDS,
         order_by="due_datetime asc",
         limit_page_length=0,

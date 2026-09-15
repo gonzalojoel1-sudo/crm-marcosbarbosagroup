@@ -255,9 +255,9 @@ h2 {
   border-radius: var(--r);
   font-size: 14px;
 }
-.empty-emoji {
+.empty-ico {
   color: var(--fg-faint);
-  font-size: 15px;
+  flex: none;
 }
 
 /* Error */

@@ -205,7 +205,16 @@ export default function App() {
               </ul>
             ) : (
               <div className="empty">
-                <span className="empty-emoji">✓</span>
+                <svg className="empty-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+                  <path
+                    d="M8.5 12.4l2.3 2.3L15.6 10"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
                 Nada pendiente para hoy
               </div>
             )}
@@ -223,7 +232,16 @@ export default function App() {
               </ul>
             ) : (
               <div className="empty">
-                <span className="empty-emoji">◷</span>
+                <svg className="empty-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
+                  <path
+                    d="M12 7.5v5l3 1.8"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
                 Sin eventos
               </div>
             )}

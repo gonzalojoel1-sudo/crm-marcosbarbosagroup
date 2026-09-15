@@ -67,6 +67,7 @@ def test_partition():
     assert "__vencida" in subs_o, subs_o
     assert "__dehoy" in subs_t, subs_t
     assert "__sinfecha" in subs_t, subs_t
+    assert "__sinfecha" not in subs_o, subs_o
     assert "__hecha" not in subs_o and "__hecha" not in subs_t
 
     for n in (overdue.name, hoyd.name, done.name, rapid["name"]):
