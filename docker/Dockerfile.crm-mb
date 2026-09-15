@@ -1,6 +1,6 @@
 # Dockerfile.crm-mb — Fase 0 v19 (custom app crm_core baked with canonical layout)
 #
-# Bakes apps/crm_core into crm-mb:17 → produces crm-mb:19.
+# Bakes apps/crm_core into crm-mb:18 → produces crm-mb:19.
 #
 # Usage:
 #   docker build -f docker/Dockerfile.crm-mb -t crm-mb:19 .
@@ -28,7 +28,7 @@
 # Verified 2026-09-14:
 #   bench get-app + install-app + migrate + ORM CRUD (Task) all green on crm-test.
 
-FROM crm-mb:17
+FROM crm-mb:18
 
 # crm_core — premium custom app (Marcos Barbosa Group, proprietary).
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
