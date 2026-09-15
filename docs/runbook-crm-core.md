@@ -149,21 +149,61 @@ el directorio PADRE del app** (no el paquete interno).
 
 ## Deploy
 
-Imagen: `crm-mb:19` (base `crm-mb:18` + `apps/crm_core` baked +
-`.pth` + smoke test de import en build).
+La imagen `crm-mb:N` = base del bench + `apps/crm_core` baked (plantilla del
+presupuesto, fuente, `www/`, `.pth`) + smoke test de import en build.
+
+**Usar el script, no `docker build` a mano:**
 
 ```bash
-# Build (en el VPS, desde el repo)
-docker build --no-cache -f docker/Dockerfile.crm-mb -t crm-mb:19 .
-
-# Rolling update de los 6 servicios Swarm
-for svc in crm_backend crm_configurator crm_frontend crm_scheduler crm_websocket crm_worker; do
-  docker service update --image crm-mb:19 "$svc"
-done
+ssh root@2.28.121.92
+cd /opt/crm-marcosbarbosagroup
+bash scripts/deploy-crm.sh 56        # construye y despliega crm-mb:56
 ```
 
-El build **falla a propósito** si `import crm_core` no funciona: nunca se
-publica una imagen rota.
+El script parte de la imagen **que está corriendo**, construye, actualiza los 5
+servicios, espera, verifica `1/1` + HTTP y **revierte** si algo falla.
+
+### ⚠️ No volver a una base fija (`FROM crm-mb:19`)
+
+El Dockerfile usa `ARG BASE`, y por defecto la imagen viva. Antes decía
+`FROM crm-mb:19` y pasó esto:
+
+1. **Dokploy poda las imágenes sin usar** → se llevó `crm-mb:19` y todas las
+   intermedias (quedaron solo las 7 en uso).
+2. El build murió, pero `docker build … | tail -2` **enmascaró el exit code**,
+   así que el `for` que sigue se ejecutó igual.
+3. Los 5 servicios quedaron apuntando a `crm-mb:55` (inexistente) → **caída 502**.
+
+Lecciones, todas aplicadas en `scripts/deploy-crm.sh`: la base debe ser una
+imagen referenciada por un contenedor vivo; nunca encadenar `docker build | tail`
+sin propagar el error; verificar siempre después de desplegar y saber volver.
+
+## Presupuesto en PDF
+
+`crm_core.api.quote_pdf(name, iva_mode)` → HTML (Jinja) → **Chromium
+headless** → PDF A4 descargable (`frappe.local.response.type = "download"`).
+
+- Plantilla: `apps/crm_core/crm_core/templates/quote.html` (autocontenida).
+- Fuente: `templates/fonts/outfit-latin.woff2` embebida en base64 — el
+  contenedor solo tiene DejaVu, y la marca va en Outfit. Se usa Chromium y no
+  `wkhtmltopdf` (existe en la imagen, pero no soporta grid/flex/SVG como
+  Chromium; la fidelidad de la hoja depende de eso).
+- `iva_mode`: `sumar` (21% sobre el subtotal) · `incluido` (precios con IVA y se
+  muestra el IVA contenido) · `exento`.
+- El `deal_value` del negocio es el **subtotal sin IVA**; el PDF agrega la línea.
+- Datos de la empresa en `COMPANY` (api.py). **Pendiente: CUIT y dirección reales
+  (hoy van como `—`).**
+
+### Iterar la maqueta sin desplegar
+
+```bash
+python3 scripts/quote-preview.py     # plantilla + datos de ejemplo
+node scripts/quote-shot.mjs          # mide páginas, genera PNG y PDF
+```
+
+`quote-shot.mjs` compara la altura real contra la caja imprimible (180×272 mm)
+y avisa si la hoja se va a 2 páginas. Ojo: el viewport debe medir la **caja
+imprimible** (680px), no A4 completo, o la medición miente.
 
 ## Instalar en un site
 
