@@ -1,49 +1,114 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-09-14 12:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "title",
-  "stage",
-  "amount_section",
-  "amount",
-  "currency",
-  "expected_close",
-  "probability",
-  "linked_section",
-  "lead",
-  "company",
-  "contact"
- ],
- "fields": [
-  {"fieldname": "title", "fieldtype": "Data", "in_list_view": 1, "label": "Title", "reqd": 1},
-  {"default": "Prospecting", "fieldname": "stage", "fieldtype": "Select",
-   "in_list_view": 1, "in_standard_filter": 1, "label": "Stage",
-   "options": "Prospecting\nQualification\nProposal\nNegotiation\nWon\nLost",
-   "reqd": 1},
-  {"fieldname": "amount_section", "fieldtype": "Section Break", "label": "Value"},
-  {"fieldname": "amount", "fieldtype": "Currency", "label": "Amount"},
-  {"default": "USD", "fieldname": "currency", "fieldtype": "Link", "label": "Currency", "options": "Currency"},
-  {"fieldname": "expected_close", "fieldtype": "Date", "label": "Expected Close"},
-  {"default": 10, "fieldname": "probability", "fieldtype": "Percent", "label": "Probability"},
-  {"fieldname": "linked_section", "fieldtype": "Section Break", "label": "Linked Records"},
-  {"fieldname": "lead", "fieldtype": "Link", "label": "Lead", "options": "Lead"},
-  {"fieldname": "company", "fieldtype": "Link", "label": "Company", "options": "Account"},
-  {"fieldname": "contact", "fieldtype": "Link", "label": "Contact", "options": "Contact"}
- ],
- "istable": 0,
- "links": [],
- "modified": "2026-09-14 12:00:00.000000",
- "module": "crm_core",
- "name": "Deal",
- "owner": "Administrator",
- "permissions": [
-  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
- ],
- "sort_field": "modified",
- "sort_order": "DESC",
- "title_field": "title",
- "track_changes": 1
+  "actions": [],
+  "allow_rename": 1,
+  "creation": "2026-09-14 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "title",
+    "stage",
+    "amount_section",
+    "amount",
+    "currency",
+    "expected_close",
+    "probability",
+    "linked_section",
+    "lead",
+    "company",
+    "contact"
+  ],
+  "fields": [
+    {
+      "fieldname": "title",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Title",
+      "reqd": 1
+    },
+    {
+      "default": "Prospecting",
+      "fieldname": "stage",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Stage",
+      "options": "Prospecting\nQualification\nProposal\nNegotiation\nWon\nLost",
+      "reqd": 1
+    },
+    {
+      "fieldname": "amount_section",
+      "fieldtype": "Section Break",
+      "label": "Value"
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "label": "Amount"
+    },
+    {
+      "default": "USD",
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Currency",
+      "options": "Currency"
+    },
+    {
+      "fieldname": "expected_close",
+      "fieldtype": "Date",
+      "label": "Expected Close"
+    },
+    {
+      "default": 10,
+      "fieldname": "probability",
+      "fieldtype": "Percent",
+      "label": "Probability"
+    },
+    {
+      "fieldname": "linked_section",
+      "fieldtype": "Section Break",
+      "label": "Linked Records"
+    },
+    {
+      "fieldname": "lead",
+      "fieldtype": "Link",
+      "label": "Lead",
+      "options": "Lead"
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Account"
+    },
+    {
+      "fieldname": "contact",
+      "fieldtype": "Link",
+      "label": "Contact",
+      "options": "Contact"
+    }
+  ],
+  "istable": 0,
+  "links": [],
+  "modified": "2026-09-14 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "Deal",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "title",
+  "track_changes": 1
 }

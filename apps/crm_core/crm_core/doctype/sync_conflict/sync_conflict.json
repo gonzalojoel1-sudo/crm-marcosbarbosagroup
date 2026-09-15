@@ -1,33 +1,69 @@
 {
- "actions": [],
- "allow_rename": 0,
- "creation": "2026-09-14 12:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "event",
-  "field_diffs",
-  "resolution",
-  "resolved_by",
-  "resolved_at"
- ],
- "fields": [
-  {"fieldname": "event", "fieldtype": "Link", "in_list_view": 1,
-   "in_standard_filter": 1, "label": "Event", "options": "Event", "reqd": 1},
-  {"fieldname": "field_diffs", "fieldtype": "Long Text", "label": "Field Diffs (JSON)"},
-  {"default": "auto_resolved_remote", "fieldname": "resolution", "fieldtype": "Select",
-   "in_standard_filter": 1, "label": "Resolution",
-   "options": "auto_resolved_remote\nmanual_keep_local\nmanual_keep_remote\nmixed"},
-  {"fieldname": "resolved_by", "fieldtype": "Link", "label": "Resolved By", "options": "User"},
-  {"fieldname": "resolved_at", "fieldtype": "Datetime", "label": "Resolved At"}
- ],
- "istable": 0,
- "links": [],
- "modified": "2026-09-14 12:00:00.000000",
- "module": "crm_core",
- "name": "Sync Conflict",
- "owner": "Administrator",
- "permissions": [
-  {"create": 1, "delete": 0, "email": 0, "export": 1, "print": 0, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
- ]
+  "actions": [],
+  "allow_rename": 0,
+  "creation": "2026-09-14 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "event",
+    "field_diffs",
+    "resolution",
+    "resolved_by",
+    "resolved_at"
+  ],
+  "fields": [
+    {
+      "fieldname": "event",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Event",
+      "options": "Event",
+      "reqd": 1
+    },
+    {
+      "fieldname": "field_diffs",
+      "fieldtype": "Long Text",
+      "label": "Field Diffs (JSON)"
+    },
+    {
+      "default": "auto_resolved_remote",
+      "fieldname": "resolution",
+      "fieldtype": "Select",
+      "in_standard_filter": 1,
+      "label": "Resolution",
+      "options": "auto_resolved_remote\nmanual_keep_local\nmanual_keep_remote\nmixed"
+    },
+    {
+      "fieldname": "resolved_by",
+      "fieldtype": "Link",
+      "label": "Resolved By",
+      "options": "User"
+    },
+    {
+      "fieldname": "resolved_at",
+      "fieldtype": "Datetime",
+      "label": "Resolved At"
+    }
+  ],
+  "istable": 0,
+  "links": [],
+  "modified": "2026-09-14 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "Sync Conflict",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 1,
+      "print": 0,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ]
 }

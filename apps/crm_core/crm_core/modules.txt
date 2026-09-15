@@ -1,1 +1,1 @@
-crm_core
+MbCRM

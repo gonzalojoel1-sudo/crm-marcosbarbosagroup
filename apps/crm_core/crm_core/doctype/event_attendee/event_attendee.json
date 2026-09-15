@@ -1,25 +1,50 @@
 {
- "actions": [],
- "allow_rename": 0,
- "creation": "2026-09-14 12:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "event",
-  "email",
-  "display_name"
- ],
- "fields": [
-  {"fieldname": "event", "fieldtype": "Link", "label": "Event", "options": "Event", "reqd": 1},
-  {"fieldname": "email", "fieldtype": "Data", "label": "Email"},
-  {"fieldname": "display_name", "fieldtype": "Data", "label": "Display Name"}
- ],
- "istable": 1,
- "modified": "2026-09-14 12:00:00.000000",
- "module": "crm_core",
- "name": "Event Attendee",
- "owner": "Administrator",
- "permissions": [
-  {"create": 1, "delete": 0, "email": 0, "export": 0, "print": 0, "read": 1, "report": 0, "role": "All", "share": 0, "write": 1}
- ]
+  "actions": [],
+  "allow_rename": 0,
+  "creation": "2026-09-14 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "event",
+    "email",
+    "display_name"
+  ],
+  "fields": [
+    {
+      "fieldname": "event",
+      "fieldtype": "Link",
+      "label": "Event",
+      "options": "Event",
+      "reqd": 1
+    },
+    {
+      "fieldname": "email",
+      "fieldtype": "Data",
+      "label": "Email"
+    },
+    {
+      "fieldname": "display_name",
+      "fieldtype": "Data",
+      "label": "Display Name"
+    }
+  ],
+  "istable": 1,
+  "modified": "2026-09-14 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "Event Attendee",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 0,
+      "role": "All",
+      "share": 0,
+      "write": 1
+    }
+  ]
 }

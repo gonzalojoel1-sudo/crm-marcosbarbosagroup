@@ -1,33 +1,62 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2026-09-14 12:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "name_field",
-  "website",
-  "industry",
-  "size"
- ],
- "fields": [
-  {"fieldname": "name_field", "fieldtype": "Data", "in_list_view": 1, "label": "Name", "reqd": 1},
-  {"fieldname": "website", "fieldtype": "Data", "label": "Website"},
-  {"fieldname": "industry", "fieldtype": "Data", "label": "Industry"},
-  {"fieldname": "size", "fieldtype": "Select", "label": "Size",
-   "options": "1\n2-10\n11-50\n51-200\n201-500\n500+"}
- ],
- "istable": 0,
- "links": [],
- "modified": "2026-09-14 12:00:00.000000",
- "module": "crm_core",
- "name": "Account",
- "owner": "Administrator",
- "permissions": [
-  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
- ],
- "sort_field": "modified",
- "sort_order": "DESC",
- "title_field": "name_field",
- "track_changes": 1
+  "actions": [],
+  "allow_rename": 1,
+  "creation": "2026-09-14 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "name_field",
+    "website",
+    "industry",
+    "size"
+  ],
+  "fields": [
+    {
+      "fieldname": "name_field",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Name",
+      "reqd": 1
+    },
+    {
+      "fieldname": "website",
+      "fieldtype": "Data",
+      "label": "Website"
+    },
+    {
+      "fieldname": "industry",
+      "fieldtype": "Data",
+      "label": "Industry"
+    },
+    {
+      "fieldname": "size",
+      "fieldtype": "Select",
+      "label": "Size",
+      "options": "1\n2-10\n11-50\n51-200\n201-500\n500+"
+    }
+  ],
+  "istable": 0,
+  "links": [],
+  "modified": "2026-09-14 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "Account",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "title_field": "name_field",
+  "track_changes": 1
 }
