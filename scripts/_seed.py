@@ -29,6 +29,7 @@ for subj, d, s, e in EVENTS:
     doc = frappe.get_doc({
         "doctype": "Event",
         "subject": subj,
+        "title": subj,
         "starts_on": f"{day} {s}:00",
         "ends_on": f"{day} {e}:00",
         "event_type": "Private",

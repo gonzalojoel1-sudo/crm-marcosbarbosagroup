@@ -134,6 +134,7 @@ def create_event(subject, starts_on, ends_on=None, description=None):
         {
             "doctype": "Event",
             "subject": subject,
+            "title": subject,
             "starts_on": starts_on,
             "ends_on": ends_on or starts_on,
             "event_type": "Private",
