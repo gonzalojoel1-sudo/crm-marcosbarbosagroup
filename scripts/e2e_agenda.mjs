@@ -28,4 +28,13 @@ console.log("pageerrors:", errors.length ? errors : "(none)");
 await page.screenshot({ path: "agenda.png", fullPage: true });
 console.log("screenshot -> agenda.png");
 
+if (process.env.MODAL === "1") {
+  await page.locator(".ag-slot").nth(20).click();
+  await page.waitForSelector(".modal", { timeout: 5000 });
+  console.log("modal visible:", await page.locator(".modal").isVisible());
+  console.log("modal title:", (await page.locator(".modal h3").textContent())?.trim());
+  await page.screenshot({ path: "modal.png", fullPage: false });
+  console.log("screenshot -> modal.png");
+}
+
 await browser.close();
