@@ -1,14 +1,22 @@
 {
   "name": "@crm/web",
-  "version": "0.0.0",
   "private": true,
+  "version": "0.0.1",
+  "type": "module",
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "lint": "echo '@crm/web: scaffold only (Next configures ESLint in T4)'",
-    "test": "echo '@crm/web: Playwright in T4'"
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@crm/types": "*",
-    "@crm/ui": "*"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
   }
 }

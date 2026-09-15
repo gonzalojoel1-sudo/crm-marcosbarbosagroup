@@ -38,3 +38,7 @@ deploy/cal-sidecar/.secrets
 
 # OS
 .DS_Store
+
+# apps/web build output (built assets are committed under apps/crm_core/crm_core/public/web)
+apps/web/dist/
+apps/web/node_modules/
