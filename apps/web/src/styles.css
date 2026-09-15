@@ -360,6 +360,102 @@ h2 {
   color: var(--fg-faint);
 }
 
+/* ── Contactos (leads) ───────────────────────────────── */
+.search svg {
+  color: var(--fg-faint);
+}
+.leads {
+  margin-top: 4px;
+  padding: 6px;
+}
+.lead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.12s var(--ease);
+}
+.lead:hover {
+  background: var(--surface-2);
+}
+.avatar {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.lead:hover .avatar {
+  color: var(--accent-2);
+  border-color: var(--accent-line);
+}
+.lead-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.lead-who {
+  font-size: 14.5px;
+  font-weight: 550;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lead-sub {
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lead-meet {
+  flex: none;
+  font-size: 12px;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tag {
+  flex: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-dim);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.tag.on-ok {
+  color: var(--ok);
+  border-color: rgba(52, 211, 153, 0.3);
+}
+.tag.on-danger {
+  color: var(--danger);
+  border-color: rgba(255, 90, 90, 0.3);
+}
+.lead-go {
+  flex: none;
+  color: var(--fg-faint);
+  opacity: 0;
+  transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+}
+.lead:hover .lead-go {
+  opacity: 1;
+  transform: translateX(1px);
+}
+
 /* ── Agenda ──────────────────────────────────────────── */
 .ag {
   position: relative;

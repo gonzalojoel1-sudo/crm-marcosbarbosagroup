@@ -35,8 +35,18 @@ export interface AgendaData {
   tasks: TaskDTO[];
 }
 
-export interface MeetingComment {
+export interface LeadDTO {
   name: string;
+  who: string;
+  email: string;
+  mobile_no: string;
+  organization: string;
+  source: string;
+  status: string;
+  meeting: string | null;
+}
+
+export interface MeetingComment {  name: string;
   content: string;
   when: string;
   by: string;
@@ -50,8 +60,7 @@ export interface MeetingTask {
   due_date: string | null;
 }
 
-export interface MeetingDetail {
-  name: string;
+export interface MeetingDetail {  name: string;
   subject: string;
   who: string;
   first_name: string;
@@ -98,6 +107,7 @@ export const api = {
   getAgenda: (start: string, end: string) =>
     get<AgendaData>("crm_core.api.get_agenda", { start, end }),
   getMeeting: (name: string) => get<MeetingDetail>("crm_core.api.get_meeting", { name }),
+  getLeads: () => get<{ leads: LeadDTO[] }>("crm_core.api.get_leads"),
   addNote: (name: string, text: string) =>
     post<MeetingComment>("crm_core.api.add_note", { name, text }),
   toggleTask: (name: string) => post<{ status: string }>("crm_core.api.toggle_task", { name }),

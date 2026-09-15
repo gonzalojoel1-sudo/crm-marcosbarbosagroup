@@ -148,6 +148,55 @@ def complete_task(name):
 
 
 @frappe.whitelist()
+def get_leads(query=None):
+    """Lista de contactos/leads (CRM Lead) con búsqueda por nombre/email/tel."""
+    q = (query or "").strip()
+    or_filters = None
+    if q:
+        like = f"%{q}%"
+        or_filters = [
+            ["first_name", "like", like],
+            ["last_name", "like", like],
+            ["email", "like", like],
+            ["mobile_no", "like", like],
+            ["organization", "like", like],
+        ]
+    rows = frappe.get_all(
+        "CRM Lead",
+        filters=[["status", "!=", ""]],
+        or_filters=or_filters,
+        fields=[
+            "name",
+            "first_name",
+            "last_name",
+            "email",
+            "mobile_no",
+            "organization",
+            "source",
+            "status",
+            "custom_meeting_datetime",
+        ],
+        order_by="modified desc",
+        limit_page_length=200,
+    )
+    return {"leads": [_lead_dto(r) for r in rows]}
+
+
+def _lead_dto(r):
+    who = f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip().strip("-").strip()
+    return {
+        "name": r["name"],
+        "who": who or r.get("email") or r.get("mobile_no") or "(sin nombre)",
+        "email": r.get("email") or "",
+        "mobile_no": r.get("mobile_no") or "",
+        "organization": r.get("organization") or "",
+        "source": r.get("source") or "",
+        "status": r.get("status") or "",
+        "meeting": str(r["custom_meeting_datetime"]) if r.get("custom_meeting_datetime") else None,
+    }
+
+
+@frappe.whitelist()
 def create_event(subject, starts_on, ends_on=None):
     subject = (subject or "").strip()
     if not subject:
