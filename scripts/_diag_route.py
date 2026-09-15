@@ -6,16 +6,17 @@ frappe.init("crm.marcosbarbosagroup.com", sites_path="/home/frappe/frappe-bench/
 frappe.connect()
 frappe.flags.in_install_db = False
 
-from frappe.website.path_resolver import resolve_path, PathResolver
-from frappe.website.utils import get_website_rules
-
-print("website rules:", get_website_rules())
+from frappe.website.path_resolver import resolve_path, PathResolver, resolve_from_map
 
 for path in ("hoy", "crm"):
     try:
         print(f"resolve_path({path!r}) ->", resolve_path(path))
     except Exception as e:
         print(f"resolve_path({path!r}) EXC:", type(e).__name__, e)
+    try:
+        print(f"resolve_from_map({path!r}) ->", resolve_from_map(path))
+    except Exception as e:
+        print(f"resolve_from_map({path!r}) EXC:", type(e).__name__, e)
 
 for path in ("hoy", "crm"):
     pr = PathResolver(path)
