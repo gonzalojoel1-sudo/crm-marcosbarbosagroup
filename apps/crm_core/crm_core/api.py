@@ -180,7 +180,7 @@ def get_meeting(name):
     lead = frappe.get_doc("CRM Lead", name)
     comments = frappe.get_all(
         "Comment",
-        filters={"reference_doctype": "CRM Lead", "reference_docname": name, "comment_type": "Comment"},
+        filters={"reference_doctype": "CRM Lead", "reference_name": name, "comment_type": "Comment"},
         fields=["name", "content", "creation", "owner", "comment_by"],
         order_by="creation desc",
         limit_page_length=0,
@@ -235,7 +235,7 @@ def add_note(name, text):
             "doctype": "Comment",
             "comment_type": "Comment",
             "reference_doctype": "CRM Lead",
-            "reference_docname": name,
+            "reference_name": name,
             "content": text,
         }
     )
