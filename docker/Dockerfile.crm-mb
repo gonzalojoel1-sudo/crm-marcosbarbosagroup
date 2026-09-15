@@ -18,10 +18,11 @@
 
 FROM crm-mb:19
 
+# Base image ends as USER frappe; we need root for rm/copy/chown.
+USER root
+
 RUN rm -rf /home/frappe/frappe-bench/apps/crm_core
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
-
-USER root
 
 # Remove any stale editable-install artifacts from earlier attempts.
 RUN rm -rf \
