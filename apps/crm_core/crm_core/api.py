@@ -197,6 +197,61 @@ def _lead_dto(r):
 
 
 @frappe.whitelist()
+def create_lead(first_name=None, last_name=None, email=None, mobile_no=None, organization=None, source=None, notes=None):
+    """Crea un CRM Lead. Dedupe por email (si existe, devuelve el existente)."""
+    first_name = (first_name or "").strip()
+    last_name = (last_name or "").strip()
+    email = (email or "").strip()
+    if not first_name and not email:
+        frappe.throw("Poné al menos un nombre o un email")
+
+    if email:
+        existing = frappe.db.get_value("CRM Lead", {"email": email}, "name")
+        if existing:
+            return {"name": existing, "existing": True}
+
+    if not (source and frappe.db.exists("CRM Lead Source", source)):
+        source = "Reference"
+
+    doc = frappe.get_doc(
+        {
+            "doctype": "CRM Lead",
+            "first_name": first_name or email.split("@")[0],
+            "last_name": last_name or "-",
+            "email": email or None,
+            "mobile_no": (mobile_no or "").strip() or None,
+            "organization": (organization or "").strip() or None,
+            "source": source,
+            "status": "New",
+            "notes": (notes or "").strip() or None,
+        }
+    )
+    doc.insert(ignore_permissions=True)
+    return {"name": doc.name, "existing": False}
+
+
+@frappe.whitelist()
+def add_task(title, reference_name=None, due_date=None):
+    """Crea un CRM Task. Si reference_name (un CRM Lead) se vincula a ese contacto."""
+    title = (title or "").strip()
+    if not title:
+        frappe.throw("La tarea no puede estar vacía")
+    doc = frappe.get_doc(
+        {
+            "doctype": "CRM Task",
+            "title": title,
+            "status": "Todo",
+            "priority": "Medium",
+            "reference_doctype": "CRM Lead" if reference_name else None,
+            "reference_docname": reference_name or None,
+            "due_date": due_date or None,
+        }
+    )
+    doc.insert()
+    return {"name": doc.name, "title": doc.title, "status": doc.status}
+
+
+@frappe.whitelist()
 def create_event(subject, starts_on, ends_on=None):
     subject = (subject or "").strip()
     if not subject:
@@ -250,6 +305,7 @@ def get_meeting(name):
         "last_name": lead.last_name,
         "email": lead.get("email") or "",
         "mobile_no": lead.get("mobile_no") or "",
+        "organization": lead.get("organization") or "",
         "status": lead.get("status") or "",
         "source": lead.get("source") or "",
         "meeting": str(lead.custom_meeting_datetime) if lead.get("custom_meeting_datetime") else None,

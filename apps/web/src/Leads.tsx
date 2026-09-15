@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type LeadDTO } from "./api";
-import { IconChevronRight, IconUser } from "./icons";
+import { IconChevronRight, IconPlus, IconUser } from "./icons";
+import NewLead from "./NewLead";
 
 const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -27,10 +28,15 @@ function statusClass(status: string): string {
 export default function Leads({ onOpen }: { onOpen: (name: string) => void }) {
   const [all, setAll] = useState<LeadDTO[] | null>(null);
   const [q, setQ] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     api.getLeads().then((r) => setAll(r.leads));
   }, []);
+
+  function load() {
+    api.getLeads().then((r) => setAll(r.leads));
+  }
 
   const leads = useMemo(() => {
     const list = all ?? [];
@@ -50,6 +56,10 @@ export default function Leads({ onOpen }: { onOpen: (name: string) => void }) {
             {all ? `${all.length} contacto${all.length === 1 ? "" : "s"}` : "\u00a0"}
           </p>
         </div>
+        <button className="btn-primary" onClick={() => setCreating(true)}>
+          <IconPlus width={16} height={16} />
+          Nuevo
+        </button>
       </header>
 
       <div className="quick search">
@@ -91,6 +101,16 @@ export default function Leads({ onOpen }: { onOpen: (name: string) => void }) {
           ))}
         </ul>
       )}
+      {creating ? (
+        <NewLead
+          onClose={() => setCreating(false)}
+          onCreated={(name) => {
+            setCreating(false);
+            load();
+            onOpen(name);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

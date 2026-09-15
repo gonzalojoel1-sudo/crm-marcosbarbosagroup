@@ -67,6 +67,7 @@ export interface MeetingDetail {  name: string;
   last_name: string;
   email: string;
   mobile_no: string;
+  organization: string;
   status: string;
   source: string;
   meeting: string | null;
@@ -108,6 +109,17 @@ export const api = {
     get<AgendaData>("crm_core.api.get_agenda", { start, end }),
   getMeeting: (name: string) => get<MeetingDetail>("crm_core.api.get_meeting", { name }),
   getLeads: () => get<{ leads: LeadDTO[] }>("crm_core.api.get_leads"),
+  createLead: (p: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    mobile_no?: string;
+    organization?: string;
+    source?: string;
+    notes?: string;
+  }) => post<{ name: string; existing: boolean }>("crm_core.api.create_lead", p),
+  addTask: (title: string, reference_name?: string, due_date?: string) =>
+    post<MeetingTask>("crm_core.api.add_task", { title, reference_name, due_date }),
   addNote: (name: string, text: string) =>
     post<MeetingComment>("crm_core.api.add_note", { name, text }),
   toggleTask: (name: string) => post<{ status: string }>("crm_core.api.toggle_task", { name }),

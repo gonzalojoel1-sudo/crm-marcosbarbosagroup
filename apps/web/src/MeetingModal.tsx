@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type MeetingDetail } from "./api";
-import { IconCheck, IconClock, IconMail, IconPhone, IconUser, IconX } from "./icons";
+import { IconCheck, IconClock, IconMail, IconPhone, IconPlus, IconUser, IconX } from "./icons";
 
 const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -23,6 +23,8 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
   const [m, setM] = useState<MeetingDetail | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [newTask, setNewTask] = useState("");
+  const [addingTask, setAddingTask] = useState(false);
 
   useEffect(() => {
     setM(null);
@@ -57,6 +59,21 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
         ? { ...prev, tasks: prev.tasks.map((x) => (x.name === t.name ? { ...x, status: r.status } : x)) }
         : prev,
     );
+  }
+
+  async function addTask() {
+    const title = newTask.trim();
+    if (!title || addingTask || !m) return;
+    setAddingTask(true);
+    try {
+      const t = await api.addTask(title, m.name);
+      setM((prev) =>
+        prev ? { ...prev, tasks: [...prev.tasks, { ...t, priority: "Medium", due_date: null }] } : prev,
+      );
+      setNewTask("");
+    } finally {
+      setAddingTask(false);
+    }
   }
 
   return (
@@ -110,9 +127,9 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
                 </section>
               ) : null}
 
-              {m.tasks.length > 0 ? (
-                <section className="blk">
-                  <h4>Tareas</h4>
+              <section className="blk">
+                <h4>Tareas</h4>
+                {m.tasks.length > 0 ? (
                   <ul className="dtasks">
                     {m.tasks.map((t) => (
                       <li key={t.name} className={t.status === "Done" ? "done" : ""}>
@@ -124,8 +141,28 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
                       </li>
                     ))}
                   </ul>
-                </section>
-              ) : null}
+                ) : (
+                  <p className="muted">Sin tareas todavía.</p>
+                )}
+                <div className="task-add">
+                  <input
+                    value={newTask}
+                    onChange={(e) => setNewTask(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") addTask();
+                    }}
+                    placeholder="Nueva tarea para este contacto…"
+                  />
+                  <button
+                    className="add-btn"
+                    onClick={addTask}
+                    disabled={!newTask.trim() || addingTask}
+                    aria-label="Agregar tarea"
+                  >
+                    <IconPlus width={16} height={16} />
+                  </button>
+                </div>
+              </section>
 
               <section className="blk">
                 <h4>Comentarios</h4>
