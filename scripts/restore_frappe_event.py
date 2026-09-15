@@ -11,10 +11,10 @@ frappe.init("crm.marcosbarbosagroup.com", sites_path="/home/frappe/frappe-bench/
 frappe.connect()
 frappe.flags.in_install_db = False
 
-path = "/home/frappe/frappe-bench/apps/frappe/frappe/core/doctype/event/event.json"
+path = "/home/frappe/frappe-bench/apps/frappe/frappe/desk/doctype/event/event.json"
 spec = json.load(open(path))
 
-frappe.db.sql("UPDATE `tabDocType` SET module='Core' WHERE name='Event'")
+frappe.db.sql("UPDATE `tabDocType` SET module='Desk' WHERE name='Event'")
 frappe.db.sql("DELETE FROM `tabDocField` WHERE parent='Event'")
 frappe.db.sql("DELETE FROM `tabDocPerm` WHERE parent='Event'")
 frappe.db.commit()
