@@ -21,8 +21,8 @@ page.on("console", (m) => {
 page.on("pageerror", (e) => errors.push(String(e)));
 
 await page.goto(URL, { waitUntil: "networkidle", timeout: 30000 });
-// La app abre en Agenda; ir a la pestaña Hoy.
-await page.getByRole("button", { name: "Hoy", exact: true }).click();
+// La app abre en Agenda; ir a la pestaña Hoy (dentro de .tabs).
+await page.locator(".tabs button", { hasText: "Hoy" }).click();
 await page.waitForSelector(".wrap", { timeout: 15000 });
 
 console.log("title:", await page.title());
