@@ -1,18 +1,14 @@
 [project]
 name = "crm_core"
 version = "0.0.1"
-description = "Premium CRM core (custom app: 9 DocTypes + Google Calendar 2-way sync + Cal.com bridge)"
+description = "Premium CRM core — DocTypes + Google Calendar 2-way sync + Cal.com bridge"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
-dependencies = [
-    "cryptography>=42.0.0",
-    "requests>=2.32.0",
-]
+dependencies = []
 
-# Explicit package declaration. Without this, pip auto-discovery fails
-# because setuptools can't find packages by convention (we have a nested
-# apps/crm_core/crm_core/ structure that breaks its heuristic).
-[tool.setuptools.packages.find]
-where = ["crm_core"]
-include = ["*"]
-namespaces = false
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<16.0.0"

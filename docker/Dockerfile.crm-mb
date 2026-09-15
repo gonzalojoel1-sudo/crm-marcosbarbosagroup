@@ -1,57 +1,47 @@
-# Dockerfile.crm-mb — Fase 0 v19 (custom app crm_core baked with canonical layout)
+# Dockerfile.crm-mb — crm_core baked into crm-mb:18 → produces crm-mb:19
 #
-# Bakes apps/crm_core into crm-mb:18 → produces crm-mb:19.
+# Canonical Frappe v15 app registration (mirrors how frappe.pth / crm.pth work):
+#   <venv>/lib/python3.11/site-packages/<app>.pth  contains  <bench>/apps/<app>
 #
-# Usage:
-#   docker build -f docker/Dockerfile.crm-mb -t crm-mb:19 .
-#
-# Rollback path:
-#   docker tag crm-mb:18 crm-mb:18-pre-crm-core
-#   sed -i 's|crm-mb:19|crm-mb:18-pre-crm-core|' compose.yaml
-#   docker compose up -d
-#
-# IMPORTANT:
-#   - /home/frappe/frappe-bench/apps/ is NOT a volume (persists per image)
-#   - /home/frappe/frappe-bench/sites and logs ARE volumes (overwritten by data)
-#   - We bake crm_core into the image for availability; install-app at runtime.
-#
-# Layout (canonical Frappe v15):
+# Layout (identical to apps/crm/crm/):
 #   apps/crm_core/
-#     pyproject.toml         # name="crm_core"
-#     crm_core/               # Python package
+#     pyproject.toml            # flit backend (Frappe canonical)
+#     tests/
+#     crm_core/                 # the Python package
 #       __init__.py
 #       hooks.py
-#       modules.txt           # "MbCRM"
-#       mbcrm/                # submodule matching the module name
-#         doctype/<X>/<X>.{json,py}
-#
-# Verified 2026-09-14:
-#   bench get-app + install-app + migrate + ORM CRUD (Task) all green on crm-test.
+#       modules.txt             # "MbCRM"
+#       config/desktop.py
+#       mbcrm/                  # submodule matching the module name
+#         __init__.py
+#         doctype/<X>/{X.json,X.py,__init__.py}
 
 FROM crm-mb:18
 
-# crm_core — premium custom app (Marcos Barbosa Group, proprietary).
-# IMPORTANT: rm -rf first; COPY does not remove existing files, and the
-# base image (crm-mb:18) bakes an older flat layout that would conflict.
 RUN rm -rf /home/frappe/frappe-bench/apps/crm_core
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
 
 USER root
-RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
-    chown -R frappe:frappe /home/frappe/frappe-bench/apps/crm_core
 
-# Install crm_core package via .pth (avoids pip install -e namespace conflict).
-# Strategy: drop a single crm_core.pth that adds apps/crm_core/crm_core to sys.path.
-# CRITICAL: clean any prior egg-info/dist-info files that pollute namespace resolution.
-# Note: .pth files must end with a newline to be parsed by site.py.
+# Remove any stale editable-install artifacts from earlier attempts.
 RUN rm -rf \
-      /usr/local/lib/python3.11/site-packages/crm_core-*.dist-info \
-      /usr/local/lib/python3.11/site-packages/__editable__.crm_core*.pth \
-      /home/frappe/frappe-bench/apps/crm_core/crm_core.egg-info \
+      /home/frappe/frappe-bench/env/lib/python3.11/site-packages/__editable__.crm_core* \
+      /home/frappe/frappe-bench/env/lib/python3.11/site-packages/crm_core-*.dist-info \
       /home/frappe/frappe-bench/apps/crm_core.egg-info \
-      /home/frappe/frappe-bench/apps/crm_core.egg-link && \
-    printf "/home/frappe/frappe-bench/apps/crm_core/crm_core\n" > /usr/local/lib/python3.11/site-packages/crm_core.pth && \
-    /usr/local/bin/python3 -c "import sys; sys.path += ['/home/frappe/frappe-bench/apps/crm_core/crm_core']; import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core import OK', crm_core.__file__, m.Task)"
+      /home/frappe/frappe-bench/apps/crm_core/crm_core.egg-info
+
+# Register the app the same way frappe.pth and crm.pth do: a .pth in the
+# bench venv site-packages containing the app's PARENT directory.
+RUN printf '/home/frappe/frappe-bench/apps/crm_core\n' \
+      > /home/frappe/frappe-bench/env/lib/python3.11/site-packages/crm_core.pth && \
+    chown -R frappe:frappe \
+      /home/frappe/frappe-bench/apps/crm_core \
+      /home/frappe/frappe-bench/env/lib/python3.11/site-packages/crm_core.pth
+
+# Smoke test with the bench venv python. Fails the build if the app is not
+# importable — never ship a broken image.
+RUN /home/frappe/frappe-bench/env/bin/python -c \
+    "import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core OK:', crm_core.__file__, m.Task)"
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
