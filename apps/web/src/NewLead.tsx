@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
+import { leadSourceLabel } from "./labels";
 import { IconX } from "./icons";
 
 const SOURCES = [
@@ -87,7 +88,7 @@ export default function NewLead({
               </label>
             </div>
             <label className="field">
-              <span>Email</span>
+              <span>Correo</span>
               <input
                 type="email"
                 value={email}
@@ -108,7 +109,7 @@ export default function NewLead({
               <select value={source} onChange={(e) => setSource(e.target.value)}>
                 {SOURCES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {leadSourceLabel(s)}
                   </option>
                 ))}
               </select>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type LeadDTO } from "./api";
+import { leadStatusLabel } from "./labels";
 import { IconChevronRight, IconPlus, IconUser } from "./icons";
 import NewLead from "./NewLead";
 
@@ -94,7 +95,7 @@ export default function Leads({ onOpen }: { onOpen: (name: string) => void }) {
               </div>
               {l.meeting ? <span className="lead-meet">{fmtMeeting(l.meeting)}</span> : null}
               {l.status ? (
-                <span className={`tag ${statusClass(l.status)}`}>{l.status}</span>
+                <span className={`tag ${statusClass(l.status)}`}>{leadStatusLabel(l.status)}</span>
               ) : null}
               <IconChevronRight className="lead-go" width={16} height={16} />
             </li>

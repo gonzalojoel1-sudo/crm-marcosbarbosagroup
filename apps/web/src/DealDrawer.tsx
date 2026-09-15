@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type DealInput } from "./api";
-import { IconX } from "./icons";
+import { stageLabel } from "./labels";
+import { IconPlus, IconReceipt, IconTarget, IconTrash, IconX } from "./icons";
 
 const STAGES = [
   "Qualification",
@@ -14,17 +15,30 @@ const STAGES = [
   "Lost",
 ];
 
+type Row = { description: string; qty: string; rate: string; discount: string };
+type Tab = "detalle" | "presupuesto";
+
+const EMPTY_ROW: Row = { description: "", qty: "1", rate: "", discount: "" };
+
+const money = (v: number) =>
+  "$" + v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const num = (v: string) => {
+  const n = parseFloat(String(v).replace(",", "."));
+  return isNaN(n) ? 0 : n;
+};
+
 export default function DealDrawer({
   name,
+  organization,
   onClose,
-  onSaved,
 }: {
   name?: string;
+  organization?: string;
   onClose: () => void;
-  onSaved: () => void;
 }) {
-  const editing = Boolean(name);
-  const [title, setTitle] = useState("");
+  const [dealName, setDealName] = useState<string | undefined>(name);
+  const [tab, setTab] = useState<Tab>("detalle");
+  const [title, setTitle] = useState(organization ?? "");
   const [form, setForm] = useState({
     contact: "",
     value: "",
@@ -33,9 +47,11 @@ export default function DealDrawer({
     probability: "",
     status: "Qualification",
   });
+  const [rows, setRows] = useState<Row[]>([]);
   const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(editing);
+  const [loading, setLoading] = useState(Boolean(name));
   const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -57,15 +73,31 @@ export default function DealDrawer({
         probability: d.probability != null ? String(d.probability) : "",
         status: d.status || "Qualification",
       });
+      setRows(
+        d.items.map((i) => ({
+          description: i.description,
+          qty: String(i.qty),
+          rate: String(i.rate),
+          discount: i.discount_percentage ? String(i.discount_percentage) : "",
+        })),
+      );
       setLoading(false);
     });
   }, [name]);
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const canSave = editing || title.trim();
+  const setRow = (i: number, k: keyof Row, v: string) =>
+    setRows((r) => r.map((row, j) => (j === i ? { ...row, [k]: v } : row)));
+  const addRow = () => setRows((r) => [...r, { ...EMPTY_ROW }]);
+  const delRow = (i: number) => setRows((r) => r.filter((_, j) => j !== i));
 
-  async function save() {
-    if (!canSave || saving) return;
+  const rowNet = (r: Row) => num(r.qty) * num(r.rate) * (1 - num(r.discount) / 100);
+  const total = useMemo(() => rows.reduce((a, r) => a + rowNet(r), 0), [rows]);
+  const filledRows = rows.filter((r) => r.description.trim());
+  const canSaveDetalle = Boolean(dealName) || Boolean(title.trim());
+
+  async function saveDetalle() {
+    if (!canSaveDetalle || saving) return;
     setSaving(true);
     setError(null);
     const fields: DealInput = {
@@ -77,14 +109,62 @@ export default function DealDrawer({
       status: form.status,
     };
     try {
-      if (editing && name) await api.updateDeal(name, fields);
-      else await api.createDeal({ title: title.trim(), ...fields });
-      onSaved();
+      if (dealName) {
+        await api.updateDeal(dealName, fields);
+        onClose();
+      } else {
+        const r = await api.createDeal({ title: title.trim(), ...fields });
+        setDealName(r.name);
+        setTab("presupuesto");
+        setFlash("Negocio creado. Ahora armá el presupuesto.");
+        setSaving(false);
+      }
     } catch (e) {
       setError(String(e));
       setSaving(false);
     }
   }
+
+  async function saveQuote() {
+    if (!dealName || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.saveQuote(
+        dealName,
+        filledRows.map((r) => ({
+          description: r.description.trim(),
+          qty: num(r.qty),
+          rate: num(r.rate),
+          discount_percentage: num(r.discount),
+          amount: 0,
+          net_amount: 0,
+        })),
+      );
+      onClose();
+    } catch (e) {
+      setError(String(e));
+      setSaving(false);
+    }
+  }
+
+  const primary = () => {
+    if (tab === "detalle")
+      return (
+        <button
+          className="btn-primary"
+          onClick={saveDetalle}
+          disabled={!canSaveDetalle || saving || loading}
+        >
+          {saving ? "Guardando…" : dealName ? "Guardar" : "Crear negocio"}
+        </button>
+      );
+    return (
+      <button className="btn-primary" onClick={saveQuote} disabled={saving || loading}>
+        {saving ? "Guardando…" : "Guardar presupuesto"}
+      </button>
+    );
+  };
 
   return (
     <div className="drawer-overlay" onClick={onClose}>
@@ -96,15 +176,33 @@ export default function DealDrawer({
               <IconX />
             </button>
           </div>
-          <h2>{editing ? title : "Nuevo negocio"}</h2>
+          <h2>{dealName ? title : "Nuevo negocio"}</h2>
+          <div className="tabs-inline" role="tablist">
+            <button
+              role="tab"
+              aria-selected={tab === "detalle"}
+              className={tab === "detalle" ? "on" : ""}
+              onClick={() => setTab("detalle")}
+            >
+              Detalle
+            </button>
+            <button
+              role="tab"
+              aria-selected={tab === "presupuesto"}
+              className={tab === "presupuesto" ? "on" : ""}
+              onClick={() => setTab("presupuesto")}
+            >
+              <IconReceipt width={15} height={15} /> Presupuesto
+            </button>
+          </div>
         </header>
 
         {loading ? (
           <div className="drawer-loading">Cargando…</div>
-        ) : (
+        ) : tab === "detalle" ? (
           <div className="drawer-body">
             <div className="form">
-              {!editing ? (
+              {!dealName ? (
                 <label className="field">
                   <span>Empresa</span>
                   <input
@@ -139,11 +237,13 @@ export default function DealDrawer({
                 </label>
               </div>
               <label className="field">
-                <span>Próximo paso</span>
+                <span>
+                  <IconTarget width={14} height={14} className="lbl-ico" /> Próxima acción
+                </span>
                 <input
                   value={form.next_step}
                   onChange={(e) => set("next_step", e.target.value)}
-                  placeholder="Enviar propuesta técnica"
+                  placeholder="Enviar presupuesto"
                 />
               </label>
               <div className="row2">
@@ -152,7 +252,7 @@ export default function DealDrawer({
                   <select value={form.status} onChange={(e) => set("status", e.target.value)}>
                     {STAGES.map((s) => (
                       <option key={s} value={s}>
-                        {s}
+                        {stageLabel(s)}
                       </option>
                     ))}
                   </select>
@@ -170,6 +270,69 @@ export default function DealDrawer({
               {error ? <p className="error">{error}</p> : null}
             </div>
           </div>
+        ) : !dealName ? (
+          <div className="drawer-body">
+            <div className="empty soft">
+              <IconReceipt className="empty-ico" />
+              <p>Guardá los datos del negocio para armar el presupuesto.</p>
+              <button className="btn-primary" onClick={saveDetalle} disabled={!canSaveDetalle || saving}>
+                {saving ? "Guardando…" : "Guardar y continuar"}
+              </button>
+            </div>
+            {error ? <p className="error">{error}</p> : null}
+          </div>
+        ) : (
+          <div className="drawer-body">
+            {flash ? <p className="flash">{flash}</p> : null}
+            <div className="quote">
+              <div className="quote-head">
+                <span>Descripción</span>
+                <span>Cant.</span>
+                <span>Precio</span>
+                <span>Desc. %</span>
+                <span>Importe</span>
+                <span />
+              </div>
+              {rows.map((r, i) => (
+                <div className="quote-row" key={i}>
+                  <input
+                    value={r.description}
+                    onChange={(e) => setRow(i, "description", e.target.value)}
+                    placeholder="Servicio o producto"
+                  />
+                  <input
+                    value={r.qty}
+                    onChange={(e) => setRow(i, "qty", e.target.value)}
+                    inputMode="decimal"
+                  />
+                  <input
+                    value={r.rate}
+                    onChange={(e) => setRow(i, "rate", e.target.value)}
+                    placeholder="0"
+                    inputMode="decimal"
+                  />
+                  <input
+                    value={r.discount}
+                    onChange={(e) => setRow(i, "discount", e.target.value)}
+                    placeholder="0"
+                    inputMode="decimal"
+                  />
+                  <span className="quote-amt">{money(rowNet(r))}</span>
+                  <button className="icon-btn danger" onClick={() => delRow(i)} aria-label="Quitar ítem">
+                    <IconTrash width={14} height={14} />
+                  </button>
+                </div>
+              ))}
+              <button className="quote-add" onClick={addRow}>
+                <IconPlus width={15} height={15} /> Agregar ítem
+              </button>
+              <div className="quote-total">
+                <span>Total del presupuesto</span>
+                <strong>{money(total)}</strong>
+              </div>
+              {error ? <p className="error">{error}</p> : null}
+            </div>
+          </div>
         )}
 
         <footer className="drawer-foot">
@@ -177,9 +340,7 @@ export default function DealDrawer({
             <button className="ghost" onClick={onClose}>
               Cancelar
             </button>
-            <button className="btn-primary" onClick={save} disabled={!canSave || saving || loading}>
-              {saving ? "Guardando…" : editing ? "Guardar" : "Crear negocio"}
-            </button>
+            {primary()}
           </div>
         </footer>
       </aside>

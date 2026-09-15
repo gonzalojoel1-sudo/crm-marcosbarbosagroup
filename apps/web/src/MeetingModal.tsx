@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type MeetingDetail } from "./api";
-import { IconCheck, IconClock, IconMail, IconNotes, IconPhone, IconPlus, IconUser, IconX } from "./icons";
+import { leadSourceLabel, leadStatusLabel } from "./labels";
+import {
+  IconCheck,
+  IconClock,
+  IconMail,
+  IconNotes,
+  IconPhone,
+  IconPlus,
+  IconTarget,
+  IconUser,
+  IconX,
+} from "./icons";
 
 const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -76,6 +87,8 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
   const [sending, setSending] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [addingTask, setAddingTask] = useState(false);
+  const [converting, setConverting] = useState(false);
+  const [dealId, setDealId] = useState<string | null>(null);
   const commentRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -134,6 +147,17 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
     await api.updateLead(m.name, { [field]: value });
   }
 
+  async function toDeal() {
+    if (converting || dealId) return;
+    setConverting(true);
+    try {
+      const r = await api.convertLeadToDeal(name);
+      setDealId(r.name);
+    } finally {
+      setConverting(false);
+    }
+  }
+
   return (
     <div className="drawer-overlay" onClick={onClose}>
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Detalle de reunión">
@@ -152,7 +176,7 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
               <div className="dh-when">
                 <IconClock width={14} height={14} />
                 {fmtDT(m.meeting)}
-                {m.source ? <span className="dh-src">{m.source}</span> : null}
+                {m.source ? <span className="dh-src">{leadSourceLabel(m.source)}</span> : null}
               </div>
             </header>
 
@@ -167,12 +191,16 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
                 {m.email ? (
                   <a className="act" href={`mailto:${m.email}`}>
                     <IconMail width={15} height={15} />
-                    Email
+                    Correo
                   </a>
                 ) : null}
                 <button className="act" onClick={() => commentRef.current?.focus()}>
                   <IconNotes width={15} height={15} />
                   Nota
+                </button>
+                <button className="act" onClick={toDeal} disabled={converting || Boolean(dealId)}>
+                  <IconTarget width={15} height={15} />
+                  {dealId ? "En el embudo" : converting ? "Creando…" : "Crear negocio"}
                 </button>
               </div>
 
@@ -210,7 +238,7 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
                   >
                     {STATUSES.map((s) => (
                       <option key={s} value={s}>
-                        {s}
+                        {leadStatusLabel(s)}
                       </option>
                     ))}
                   </select>

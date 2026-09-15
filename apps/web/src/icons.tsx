@@ -103,3 +103,24 @@ export const IconTrash = (p: SVGProps<SVGSVGElement>) => (
     <path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 12a1 1 0 001 1h8a1 1 0 001-1l1-12" />
   </Base>
 );
+
+export const IconReceipt = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M5 3h14v18l-2.5-1.5L14 21l-2-1.5L10 21l-2.5-1.5L5 21V3z" />
+    <path d="M9 8h6M9 12h6" />
+  </Base>
+);
+
+export const IconTarget = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <circle cx="12" cy="12" r="8" />
+    <circle cx="12" cy="12" r="3.5" />
+  </Base>
+);
+
+export const IconTrophy = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M7 4h10v5a5 5 0 01-10 0V4z" />
+    <path d="M7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3M9 20h6M12 14v6" />
+  </Base>
+);

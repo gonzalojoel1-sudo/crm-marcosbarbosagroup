@@ -47,6 +47,17 @@ export interface DealDTO {
   date: string | null;
   next_step: string;
   probability: number | null;
+  lead: string;
+  has_quote: boolean;
+}
+
+export interface QuoteItem {
+  description: string;
+  qty: number;
+  rate: number;
+  discount_percentage: number;
+  amount: number;
+  net_amount: number;
 }
 
 export interface DealDetail {
@@ -61,6 +72,9 @@ export interface DealDetail {
   probability: number | null;
   status: string;
   owner: string;
+  lead: string;
+  items: QuoteItem[];
+  total: number;
 }
 
 export interface DealInput {
@@ -145,7 +159,8 @@ export const api = {
     get<AgendaData>("crm_core.api.get_agenda", { start, end }),
   getMeeting: (name: string) => get<MeetingDetail>("crm_core.api.get_meeting", { name }),
   getLeads: () => get<{ leads: LeadDTO[] }>("crm_core.api.get_leads"),
-  getDeals: () => get<{ deals: DealDTO[]; stages: string[] }>("crm_core.api.get_deals"),
+  getDeals: () =>
+    get<{ deals: DealDTO[]; stages: string[]; leads: LeadDTO[] }>("crm_core.api.get_deals"),
   getReminders: () =>
     get<{ meetings: EventDTO[]; overdue: number; now: string }>("crm_core.api.get_reminders"),
   moveDeal: (name: string, status: string) =>
@@ -154,8 +169,15 @@ export const api = {
   getDeal: (name: string) => get<DealDetail>("crm_core.api.get_deal", { name }),
   updateDeal: (name: string, fields: DealInput) =>
     post<{ ok: boolean }>("crm_core.api.update_deal", { name, ...fields }),
-  createDeal: (payload: { title: string } & DealInput) =>
+  createDeal: (payload: { title: string; lead?: string } & DealInput) =>
     post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", payload),
+  saveQuote: (name: string, items: QuoteItem[]) =>
+    post<{ ok: boolean; total: number; count: number }>("crm_core.api.save_quote", { name, items }),
+  convertLeadToDeal: (lead: string, status?: string) =>
+    post<{ name: string; title: string; status: string }>("crm_core.api.convert_lead_to_deal", {
+      lead,
+      status,
+    }),
   createLead: (p: {
     first_name?: string;
     last_name?: string;

@@ -291,6 +291,46 @@ def get_reminders():
     }
 
 
+def _lead_dto(r):
+    who = f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip().strip("-").strip()
+    return {
+        "name": r["name"],
+        "who": who or r.get("email") or "Contacto",
+        "email": r.get("email") or "",
+        "mobile_no": r.get("mobile_no") or "",
+        "organization": r.get("organization") or "",
+        "source": r.get("source") or "",
+        "status": r.get("status") or "",
+        "meeting": str(r["custom_meeting_datetime"]) if r.get("custom_meeting_datetime") else None,
+    }
+
+
+def _unlinked_leads():
+    """Leads que todavía no están en el embudo (no tienen negocio asociado)."""
+    linked = {
+        r[0]
+        for r in frappe.get_all("CRM Deal", filters={"lead": ["is", "set"]}, fields=["lead"], as_list=True)
+        if r[0]
+    }
+    rows = frappe.get_all(
+        "CRM Lead",
+        fields=[
+            "name",
+            "first_name",
+            "last_name",
+            "email",
+            "mobile_no",
+            "organization",
+            "source",
+            "status",
+            "custom_meeting_datetime",
+        ],
+        order_by="modified desc",
+        limit_page_length=0,
+    )
+    return [_lead_dto(r) for r in rows if r["name"] not in linked]
+
+
 @frappe.whitelist()
 def get_deals():
     rows = frappe.get_all(
@@ -299,6 +339,7 @@ def get_deals():
             "name",
             "organization",
             "organization_name",
+            "lead",
             "lead_name",
             "first_name",
             "last_name",
@@ -311,6 +352,7 @@ def get_deals():
             "next_step",
             "probability",
             "contact",
+            "total",
         ],
         order_by="modified desc",
         limit_page_length=0,
@@ -341,15 +383,28 @@ def get_deals():
                 "date": str(r["expected_closure_date"]) if r.get("expected_closure_date") else None,
                 "next_step": r.get("next_step") or "",
                 "probability": r.get("probability"),
+                "lead": r.get("lead") or "",
+                "has_quote": bool(r.get("total")),
             }
         )
-    return {"deals": deals, "stages": DEAL_STAGES}
+    return {"deals": deals, "stages": DEAL_STAGES, "leads": _unlinked_leads()}
 
 
 @frappe.whitelist()
 def get_deal(name):
     d = frappe.get_doc("CRM Deal", name)
     owner = frappe.db.get_value("User", d.deal_owner, "full_name") if d.get("deal_owner") else None
+    items = [
+        {
+            "description": p.product_name or "",
+            "qty": p.qty or 0,
+            "rate": p.rate or 0,
+            "discount_percentage": p.discount_percentage or 0,
+            "amount": p.amount or 0,
+            "net_amount": p.net_amount or 0,
+        }
+        for p in (d.get("products") or [])
+    ]
     return {
         "name": d.name,
         "title": d.organization or d.lead_name or d.name,
@@ -362,7 +417,74 @@ def get_deal(name):
         "probability": d.probability,
         "status": d.get("status") or "",
         "owner": owner or "",
+        "lead": d.get("lead") or "",
+        "items": items,
+        "total": float(d.total) if d.get("total") else 0,
     }
+
+
+@frappe.whitelist()
+def save_quote(name, items):
+    """Guarda el presupuesto del negocio: ítems + total (deal_value/total/net_total)."""
+    rows = frappe.parse_json(items) if isinstance(items, str) else (items or [])
+    d = frappe.get_doc("CRM Deal", name)
+    d.set("products", [])
+    total = 0.0
+    for it in rows:
+        desc = str(it.get("description") or it.get("product_name") or "").strip()
+        if not desc:
+            continue
+        qty = float(it.get("qty") or 0)
+        rate = float(it.get("rate") or 0)
+        disc = float(it.get("discount_percentage") or 0)
+        amount = qty * rate
+        net = amount * (1 - (disc / 100.0))
+        d.append(
+            "products",
+            {
+                "product_name": desc,
+                "qty": qty,
+                "rate": rate,
+                "discount_percentage": disc,
+                "amount": amount,
+                "net_amount": net,
+            },
+        )
+        total += net
+    d.deal_value = total or None
+    d.total = total
+    d.net_total = total
+    d.save(ignore_permissions=True)
+    return {"ok": True, "total": total, "count": len(d.get("products") or [])}
+
+
+@frappe.whitelist()
+def convert_lead_to_deal(lead, status=None, deal_value=None):
+    """Mete un lead al embudo creando un negocio con sus datos."""
+    l = frappe.get_doc("CRM Lead", lead)
+    who = f"{l.first_name or ''} {l.last_name or ''}".strip().strip("-").strip()
+    who = who or l.get("email") or "Contacto"
+    org_name = (l.get("organization") or who).strip()
+    org = frappe.db.get_value("CRM Organization", {"organization_name": org_name}, "name")
+    if not org:
+        o = frappe.get_doc({"doctype": "CRM Organization", "organization_name": org_name})
+        o.insert(ignore_permissions=True)
+        org = o.name
+    status = status if (status and frappe.db.exists("CRM Deal Status", status)) else "Qualification"
+    src = l.get("source") if (l.get("source") and frappe.db.exists("CRM Lead Source", l.get("source"))) else None
+    doc = frappe.get_doc(
+        {
+            "doctype": "CRM Deal",
+            "organization": org,
+            "status": status,
+            "lead": l.name,
+            "lead_name": who,
+            "source": src,
+            "deal_value": float(deal_value) if (deal_value not in (None, "")) else None,
+        }
+    )
+    doc.insert(ignore_permissions=True)
+    return {"name": doc.name, "title": org_name, "status": status}
 
 
 @frappe.whitelist()
@@ -407,7 +529,15 @@ def move_deal(name, status):
 
 
 @frappe.whitelist()
-def create_deal(title, status=None, contact=None, deal_value=None, expected_closure_date=None, next_step=None):
+def create_deal(
+    title,
+    status=None,
+    contact=None,
+    deal_value=None,
+    expected_closure_date=None,
+    next_step=None,
+    lead=None,
+):
     title = (title or "").strip()
     if not title:
         frappe.throw("Poné un nombre")
@@ -422,6 +552,7 @@ def create_deal(title, status=None, contact=None, deal_value=None, expected_clos
             "doctype": "CRM Deal",
             "organization": org,
             "status": status,
+            "lead": lead if (lead and frappe.db.exists("CRM Lead", lead)) else None,
             "lead_name": (contact or "").strip() or None,
             "deal_value": float(deal_value) if (deal_value not in (None, "")) else None,
             "expected_closure_date": expected_closure_date or None,

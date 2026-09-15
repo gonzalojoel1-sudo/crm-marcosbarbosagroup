@@ -32,7 +32,7 @@ export default function App() {
           {tab("agenda", "Agenda")}
           {tab("hoy", "Hoy")}
           {tab("contactos", "Contactos")}
-          {tab("pipeline", "Pipeline")}
+          {tab("pipeline", "Negocios")}
         </div>
       </nav>
       {view === "agenda" ? (
