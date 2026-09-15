@@ -42,3 +42,4 @@ deploy/cal-sidecar/.secrets
 # apps/web build output (built assets are committed under apps/crm_core/crm_core/public/web)
 apps/web/dist/
 apps/web/node_modules/
+hoy.png

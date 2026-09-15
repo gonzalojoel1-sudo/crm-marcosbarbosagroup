@@ -14,31 +14,62 @@ DocTypes (13): Task, Event, Event Attendee, Contact, Contact Email,
 Contact Phone, Account, Lead, Deal, Activity, GCal Connection,
 GCal Sync State, Sync Conflict.
 
-## Página "Hoy" (Nivel 1)
+## Página "Hoy" — app React (Nivel 1)
 
 Ruta: `crm.marcosbarbosagroup.com/hoy` (requiere login).
 
-- Muestra tareas vencidas + de hoy + eventos del día.
-- Alta rápida: escribir y Enter.
-- Completar: checkbox (optimista).
-- Archivos: `apps/crm_core/crm_core/www/{hoy.html,hoy.py}` + `crm_core/api.py`.
-- Ruta registrada en `hooks.py` → `website_route_rules` (mismo mecanismo que `/crm`).
-- Tests: `apps/crm_core/tests/test_hoy_api.py` (correr contra `crm-test`, NO prod):
-  ```bash
-  FRAPPE_SITE=crm-test ./env/bin/python apps/crm_core/tests/test_hoy_api.py
-  ```
-- **Gotcha #1:** el template JS se sirve inline a propósito (evita depender de
-  `/assets/crm_core/...`, que requeriría `bench build`).
-- **Gotcha #2:** si `/hoy` alguna vez da 404 aunque el archivo exista, la causa
-  es la cache `website_404` de Frappe. Limpiarla:
-  ```bash
-  # desde un script conectado al site:
-  frappe.cache.delete_value("website_404")
-  ```
-- **Gotcha #3:** los procesos `gunicorn` cachean imports y el loader de templates.
-  Un cambio en `www/`, `api.py` o `hooks.py` requiere **reiniciar el servicio**
-  (que recrea el contenedor) → por eso los cambios van **horneados en la imagen**,
-  no por `docker cp` (que se pierde al recrear el contenedor).
+Es una **app React** (Vite + TS) con UI dark premium, servida por Frappe.
+
+- Muestra tareas vencidas + de hoy (incluidas las sin fecha) + eventos del día.
+- Alta rápida: escribir y Enter (optimista). Completar: click en la fila.
+- Atajo `N` para enfocar el input. Skeleton al cargar. Estados vacíos.
+
+### Fuente y build
+
+```
+apps/web/                     # la app React (Vite + React + TS)
+  src/{App.tsx,api.ts,main.tsx,styles.css}
+  gen-shell.mjs               # genera el template de Frappe embebiendo el bundle
+apps/crm_core/crm_core/
+  www/hoy.html                # TEMPLATE GENERADO (no editar a mano)
+  www/hoy.py                  # gate de login + inyecta CSRF
+  api.py                      # get_hoy / quick_add_task / complete_task
+```
+
+Build: `cd apps/web && npm run build` → compila con Vite y corre `gen-shell.mjs`,
+que escribe `www/hoy.html`.
+
+### Por qué el bundle va embebido en base64 (leer antes de tocar)
+
+1. Los contenedores `crm_backend` y `crm_frontend` **no comparten `sites/assets`**
+   de forma confiable (verificado con un archivo marcador), así que `/assets/...`
+   no sirve para los assets del frontend.
+2. Frappe **rechaza cualquier template que contenga `.__`** (`Illegal template`).
+   El bundle minificado de React lo tiene. Base64 no tiene `.` → pasa.
+3. `window.CSRF` (no `__CSRF__`) por el mismo motivo.
+
+El shell hace: `atob` → `Uint8Array` (¡clave para UTF-8!) → `Blob` → `import()`.
+**Ojo:** usar `Uint8Array`; si se usa el string de `atob` directo, los acentos
+se rompen (día → dÃa).
+
+### Tests
+
+```bash
+# contra el site de prueba crm-test, NUNCA prod:
+FRAPPE_SITE=crm-test ./env/bin/python apps/crm_core/tests/test_hoy_api.py
+```
+
+### Gotchas
+
+- **404 fantasma:** si `/hoy` da 404 aunque el archivo exista, limpiar la cache:
+  `frappe.cache.delete_value("website_404")`.
+- **Cambios requieren reinicio:** `www/`, `api.py` y `hooks.py` se cachean en los
+  procesos gunicorn. Los cambios van **horneados en la imagen** (`crm-mb:N` +
+  rolling update), no por `docker cp` (se pierde al recrear el contenedor).
+- **Verificación E2E:** `KEY=... SEC=... node scripts/e2e_hoy.mjs` (usa Playwright,
+  renderiza en navegador real y saca screenshot). `scripts/tmp_admin_key.py`
+  crea/borra una API key de Administrator para el test (¡borrarla después!).
+
 
 ## Estructura (idéntica al app `crm` de Frappe)
 
