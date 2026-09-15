@@ -14,7 +14,7 @@ frappe.flags.in_install_db = False
 path = "/home/frappe/frappe-bench/apps/frappe/frappe/desk/doctype/event/event.json"
 spec = json.load(open(path))
 
-frappe.db.sql("UPDATE `tabDocType` SET module='Desk' WHERE name='Event'")
+frappe.db.sql("UPDATE `tabDocType` SET module='Desk', title_field='subject', sort_field='starts_on', sort_order='DESC', allow_rename=1 WHERE name='Event'")
 frappe.db.sql("DELETE FROM `tabDocField` WHERE parent='Event'")
 frappe.db.sql("DELETE FROM `tabDocPerm` WHERE parent='Event'")
 frappe.db.commit()
