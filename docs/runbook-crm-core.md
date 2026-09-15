@@ -41,14 +41,37 @@ apps/crm_core/crm_core/
 
 Build: `cd apps/web && npm run build` → Vite + `gen-shell.mjs` → `www/hoy.html`.
 
-### DocTypes que usa
+### DocTypes que usa (datos REALES del app `crm`)
 
-- **Task** (`crm_core`): campo `due_datetime` para la hora.
-- **Event** (Frappe, módulo **Desk**): `subject`, `starts_on`, `ends_on`.
-  ⚠️ **NO** crear un DocType propio llamado `Event`: choca con el de Frappe y lo
-  sobrescribe (rompe `sync_with_google_calendar`, etc.). Si alguna vez se
-  corrompe, correr `scripts/restore_frappe_event.py`.
-  Frappe's Event ya trae sync con Google Calendar → es la base para el Nivel 2.
+La agenda/Hoy leen y escriben los DocTypes que el CRM ya venía usando:
+- **Reuniones/reservas** → `CRM Lead.custom_meeting_datetime`. Las carga el cron
+  de Google Calendar (ver abajo). En la agenda se muestran como bloques; el
+  título sale de `notes` ("Reunión agendada: <título real>").
+- **Tareas** → `CRM Task` (`title`, `status`, `priority`, `due_date`).
+  `Todo/In Progress = pendiente`, `Done = hecha`. Sin `due_date` = inbox del día.
+
+> ⚠️ Las DocTypes propias `Task`/`Event` de `crm_core` quedaron **sin uso** (el
+> CRM real vive en el app `crm`). No borrarlas sin migrar antes.
+> ⚠️ **NO** crear un DocType llamado `Event`: choca con el de Frappe y lo
+> sobrescribe. Recuperación: `scripts/restore_frappe_event.py`.
+
+### Integraciones que YA funcionan (reutilizadas)
+
+- **Google Calendar → CRM (cron cada 1 min, en el HOST, no en Docker):**
+  - Script: `/opt/crm-marcosbarbosagroup/scripts/sync/sync-gcal-crm.py`
+  - Config: `/etc/crm-gcal-sync/config.json` (client_id/secret + refresh_token
+    de `Agenda.personal.mb@gmail.com`, `crm_url`, `api_key`/`api_secret`)
+  - Cron: `* * * * * /usr/bin/python3 .../sync-gcal-crm.py >> /var/log/crm-gcal-sync.log`
+  - Por cada evento con invitados crea un `CRM Lead` con `custom_meeting_datetime`
+    y `custom_event_id` (dedupe). Eso es lo que alimenta la agenda.
+  - Estado/log: `/var/log/crm-gcal-sync.log`
+- **Web → CRM:** la web postea a `POST /api/resource/CRM Lead` con token del
+  usuario `web-form@marcosbarbosagroup.com`.
+- **Backups → Google Drive:** cron 03:30 y 15:30 UTC
+  (`scripts/backup/backup-gdrive.sh`, rclone).
+
+Referencia: `docs/crm-config.md` y `docs/runbook.md` (docs previos).
+
 
 ### E2E con navegador (Playwright)
 
