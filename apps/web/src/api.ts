@@ -1,10 +1,10 @@
 declare global {
   interface Window {
-    __CSRF__?: string;
+    CSRF?: string;
   }
 }
 
-const CSRF = window.__CSRF__ || "";
+const CSRF = window.CSRF || "";
 
 export interface TaskDTO {
   name: string;
