@@ -43,15 +43,15 @@ RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
 # Install crm_core package via .pth (avoids pip install -e namespace conflict).
 # Strategy: drop a single crm_core.pth that adds apps/crm_core/crm_core to sys.path.
 # CRITICAL: clean any prior egg-info/dist-info files that pollute namespace resolution.
+# Note: .pth files must end with a newline to be parsed by site.py.
 RUN rm -rf \
       /usr/local/lib/python3.11/site-packages/crm_core-*.dist-info \
       /usr/local/lib/python3.11/site-packages/__editable__.crm_core*.pth \
       /home/frappe/frappe-bench/apps/crm_core/crm_core.egg-info \
       /home/frappe/frappe-bench/apps/crm_core.egg-info \
       /home/frappe/frappe-bench/apps/crm_core.egg-link && \
-    echo '/home/frappe/frappe-bench/apps/crm_core/crm_core' > /usr/local/lib/python3.11/site-packages/crm_core.pth && \
-    echo 'import crm_core' && cat /usr/local/lib/python3.11/site-packages/crm_core.pth && \
-    /usr/local/bin/python3 -c "import sys; print('sys.path[:2]:', sys.path[:3]); print('crm_core.pth exists:', __import__('os').path.exists('/usr/local/lib/python3.11/site-packages/crm_core.pth')); import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core import OK', crm_core.__file__, m.Task)"
+    printf "/home/frappe/frappe-bench/apps/crm_core/crm_core\n" > /usr/local/lib/python3.11/site-packages/crm_core.pth && \
+    /usr/local/bin/python3 -c "import sys; sys.path += ['/home/frappe/frappe-bench/apps/crm_core/crm_core']; import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core import OK', crm_core.__file__, m.Task)"
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
