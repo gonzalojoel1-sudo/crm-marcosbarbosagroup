@@ -1,6 +1,7 @@
 # Runbook — crm_core (custom app Frappe v15)
 
 Estado: **instalada y funcionando en producción** (`crm.marcosbarbosagroup.com`)
+Imagen actual: `crm-mb:21` (incluye la página `/hoy`)
 Fecha: 2026-09-15
 
 ## Qué es
@@ -12,6 +13,32 @@ Barbosa Group).
 DocTypes (13): Task, Event, Event Attendee, Contact, Contact Email,
 Contact Phone, Account, Lead, Deal, Activity, GCal Connection,
 GCal Sync State, Sync Conflict.
+
+## Página "Hoy" (Nivel 1)
+
+Ruta: `crm.marcosbarbosagroup.com/hoy` (requiere login).
+
+- Muestra tareas vencidas + de hoy + eventos del día.
+- Alta rápida: escribir y Enter.
+- Completar: checkbox (optimista).
+- Archivos: `apps/crm_core/crm_core/www/{hoy.html,hoy.py}` + `crm_core/api.py`.
+- Ruta registrada en `hooks.py` → `website_route_rules` (mismo mecanismo que `/crm`).
+- Tests: `apps/crm_core/tests/test_hoy_api.py` (correr contra `crm-test`, NO prod):
+  ```bash
+  FRAPPE_SITE=crm-test ./env/bin/python apps/crm_core/tests/test_hoy_api.py
+  ```
+- **Gotcha #1:** el template JS se sirve inline a propósito (evita depender de
+  `/assets/crm_core/...`, que requeriría `bench build`).
+- **Gotcha #2:** si `/hoy` alguna vez da 404 aunque el archivo exista, la causa
+  es la cache `website_404` de Frappe. Limpiarla:
+  ```bash
+  # desde un script conectado al site:
+  frappe.cache.delete_value("website_404")
+  ```
+- **Gotcha #3:** los procesos `gunicorn` cachean imports y el loader de templates.
+  Un cambio en `www/`, `api.py` o `hooks.py` requiere **reiniciar el servicio**
+  (que recrea el contenedor) → por eso los cambios van **horneados en la imagen**,
+  no por `docker cp` (que se pierde al recrear el contenedor).
 
 ## Estructura (idéntica al app `crm` de Frappe)
 
