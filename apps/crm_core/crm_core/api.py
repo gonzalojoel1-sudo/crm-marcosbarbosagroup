@@ -265,6 +265,33 @@ DEAL_STAGES = [
 
 
 @frappe.whitelist()
+def get_reminders():
+    """Reuniones próximas (ventana de 3 h) + pendientes vencidos. Para avisos in-app."""
+    from frappe.utils import add_to_date, now_datetime
+
+    now = now_datetime()
+    horizon = add_to_date(now, minutes=180)
+    rows = frappe.get_all(
+        "CRM Lead",
+        filters=[["custom_meeting_datetime", ">=", now], ["custom_meeting_datetime", "<=", horizon]],
+        fields=MEETING_FIELDS,
+        order_by="custom_meeting_datetime asc",
+        limit_page_length=0,
+    )
+    overdue = frappe.get_all(
+        "CRM Task",
+        filters=[["status", "!=", "Done"], ["due_date", "is", "set"], ["due_date", "<", now]],
+        pluck="name",
+        limit_page_length=0,
+    )
+    return {
+        "meetings": [_meeting_dto(r) for r in rows],
+        "overdue": len(overdue),
+        "now": str(now),
+    }
+
+
+@frappe.whitelist()
 def get_deals():
     rows = frappe.get_all(
         "CRM Deal",

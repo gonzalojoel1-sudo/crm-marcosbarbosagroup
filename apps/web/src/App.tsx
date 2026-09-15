@@ -4,6 +4,7 @@ import Agenda from "./Agenda";
 import Leads from "./Leads";
 import Pipeline from "./Pipeline";
 import MeetingDrawer from "./MeetingModal";
+import Reminder from "./Reminder";
 import Logo from "./Logo";
 import "./styles.css";
 
@@ -44,6 +45,7 @@ export default function App() {
         <Pipeline />
       )}
       {openMeeting ? <MeetingDrawer name={openMeeting} onClose={() => setOpenMeeting(null)} /> : null}
+      <Reminder onOpen={setOpenMeeting} />
     </div>
   );
 }

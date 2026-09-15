@@ -1456,6 +1456,75 @@ button.meta-row:hover {
   color: var(--accent-2);
 }
 
+/* Aviso de reunión próxima */
+.reminder {
+  position: fixed;
+  top: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--surface);
+  border: 1px solid var(--accent-line);
+  border-radius: 11px;
+  box-shadow: var(--shadow);
+  animation: pop 0.2s var(--ease);
+  max-width: min(560px, calc(100vw - 24px));
+}
+.rem-clock {
+  color: var(--accent);
+  display: flex;
+  flex: none;
+}
+.rem-when {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent-2);
+  white-space: nowrap;
+  flex: none;
+}
+.rem-title {
+  font-size: 13.5px;
+  font-weight: 550;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rem-open {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s var(--ease);
+}
+.rem-open:hover {
+  background: var(--accent-2);
+}
+.rem-x {
+  background: transparent;
+  border: none;
+  color: var(--fg-dim);
+  cursor: pointer;
+  display: flex;
+  padding: 3px;
+  border-radius: 6px;
+  flex: none;
+}
+.rem-x:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
 @media (max-width: 820px) {
   .ag {
     padding: 16px 14px 48px;

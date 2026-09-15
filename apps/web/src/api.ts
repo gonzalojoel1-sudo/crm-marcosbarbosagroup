@@ -123,6 +123,8 @@ export const api = {
   getMeeting: (name: string) => get<MeetingDetail>("crm_core.api.get_meeting", { name }),
   getLeads: () => get<{ leads: LeadDTO[] }>("crm_core.api.get_leads"),
   getDeals: () => get<{ deals: DealDTO[]; stages: string[] }>("crm_core.api.get_deals"),
+  getReminders: () =>
+    get<{ meetings: EventDTO[]; overdue: number; now: string }>("crm_core.api.get_reminders"),
   moveDeal: (name: string, status: string) =>
     post<{ ok: boolean }>("crm_core.api.move_deal", { name, status }),
   createDeal: (title: string) =>
