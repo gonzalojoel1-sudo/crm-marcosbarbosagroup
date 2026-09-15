@@ -113,15 +113,24 @@ export default function Agenda() {
     );
   }
 
-  async function createAt(day: Date, hour: number) {
+  const [creating, setCreating] = useState<{ day: Date; hour: number } | null>(null);
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submitEvent() {
+    if (!creating || !title.trim() || saving) return;
+    setSaving(true);
     const p = (n: number) => String(n).padStart(2, "0");
-    const starts = `${ymd(day)} ${p(hour)}:00:00`;
-    const ends = `${ymd(day)} ${p(Math.min(hour + 1, 23))}:00:00`;
-    const subject = window.prompt("Título del evento");
-    if (!subject) return;
-    await api.createEvent(subject.trim(), starts, ends);
-    const fresh = await api.getAgenda(startKey, ymd(end));
-    setData(fresh);
+    const starts = `${ymd(creating.day)} ${p(creating.hour)}:00:00`;
+    const ends = `${ymd(creating.day)} ${p(Math.min(creating.hour + 1, 23))}:00:00`;
+    try {
+      await api.createEvent(title.trim(), starts, ends);
+      setData(await api.getAgenda(startKey, ymd(end)));
+      setCreating(null);
+      setTitle("");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -180,7 +189,10 @@ export default function Agenda() {
                       className="ag-slot"
                       key={h}
                       style={{ top: offsetFor(h * 60), height: HOUR_H }}
-                      onClick={() => createAt(day, h)}
+                      onClick={() => {
+                        setTitle("");
+                        setCreating({ day, hour: h });
+                      }}
                     />
                   ))}
                 </div>
@@ -217,6 +229,36 @@ export default function Agenda() {
           );
         })}
       </div>
+
+      {creating ? (
+        <div className="overlay" onClick={() => setCreating(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Nuevo evento</h3>
+            <p className="modal-when">
+              {DAY_NAMES[(creating.day.getDay() + 6) % 7]} {creating.day.getDate()} ·{" "}
+              {String(creating.hour).padStart(2, "0")}:00–{String(Math.min(creating.hour + 1, 23)).padStart(2, "0")}:00
+            </p>
+            <input
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitEvent();
+                if (e.key === "Escape") setCreating(null);
+              }}
+              placeholder="Título del evento…"
+            />
+            <div className="modal-actions">
+              <button className="btn-ghost" onClick={() => setCreating(null)}>
+                Cancelar
+              </button>
+              <button className="btn-primary" onClick={submitEvent} disabled={!title.trim() || saving}>
+                {saving ? "Creando…" : "Crear"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
