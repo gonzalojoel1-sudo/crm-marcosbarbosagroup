@@ -22,6 +22,15 @@ def setup():
     frappe.connect()
     frappe.flags.in_install_db = False
     frappe.set_user("Administrator")
+
+    # Rebuild the in-memory module map from the DB (avoids stale cache in
+    # standalone processes).
+    from frappe.modules.utils import scrub
+
+    frappe.cache.delete_value("app_modules")
+    frappe.local.module_app = {}
+    for row in frappe.db.get_all("Module Def", fields=["module_name", "app_name"]):
+        frappe.local.module_app[scrub(row["module_name"])] = row["app_name"]
     return site
 
 
