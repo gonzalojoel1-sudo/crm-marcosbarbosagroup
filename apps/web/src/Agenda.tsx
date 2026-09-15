@@ -57,7 +57,7 @@ function rangeTitle(start: Date, end: Date, mode: "week" | "day"): string {
   return `${a} – ${b}`;
 }
 
-export default function Agenda() {
+export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string) => void }) {
   const [anchor, setAnchor] = useState(() => new Date());
   const [mode, setMode] = useState<"week" | "day">("week");
   const [data, setData] = useState<AgendaData | null>(null);
@@ -202,7 +202,15 @@ export default function Agenda() {
                   const bottom = offsetFor(minutesOfDay(e.ends_on));
                   const height = Math.max(22, bottom - top);
                   return (
-                    <div className="ag-event" key={e.name} style={{ top, height }}>
+                    <div
+                      className="ag-event"
+                      key={e.name}
+                      style={{ top, height }}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        onOpenMeeting(e.name);
+                      }}
+                    >
                       <div className="ev-time">{hhmm(e.starts_on)}</div>
                       <div className="ev-title">{e.subject}</div>
                     </div>

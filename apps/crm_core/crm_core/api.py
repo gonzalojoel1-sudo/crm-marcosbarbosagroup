@@ -166,3 +166,86 @@ def create_event(subject, starts_on, ends_on=None):
     )
     doc.insert(ignore_permissions=True)
     return {"name": doc.name, "subject": subject}
+
+
+def _summary_from_notes(notes):
+    notes = (notes or "").strip()
+    if notes.startswith("Reunión agendada:"):
+        return notes.split("\n", 1)[0].replace("Reunión agendada:", "").strip()
+    return notes.split("\n", 1)[0].strip() if notes else ""
+
+
+@frappe.whitelist()
+def get_meeting(name):
+    lead = frappe.get_doc("CRM Lead", name)
+    comments = frappe.get_all(
+        "Comment",
+        filters={"reference_doctype": "CRM Lead", "reference_docname": name, "comment_type": "Comment"},
+        fields=["name", "content", "creation", "owner", "comment_by"],
+        order_by="creation desc",
+        limit_page_length=0,
+    )
+    tasks = frappe.get_all(
+        "CRM Task",
+        filters={"reference_doctype": "CRM Lead", "reference_docname": name},
+        fields=["name", "title", "status", "priority", "due_date"],
+        order_by="creation asc",
+        limit_page_length=0,
+    )
+    who = f"{lead.first_name or ''} {lead.last_name or ''}".strip().strip("-").strip()
+    return {
+        "name": lead.name,
+        "subject": _summary_from_notes(lead.get("notes")) or who or lead.email or "Reunión",
+        "who": who,
+        "first_name": lead.first_name,
+        "last_name": lead.last_name,
+        "email": lead.get("email") or "",
+        "mobile_no": lead.get("mobile_no") or "",
+        "status": lead.get("status") or "",
+        "source": lead.get("source") or "",
+        "meeting": str(lead.custom_meeting_datetime) if lead.get("custom_meeting_datetime") else None,
+        "notes": lead.get("notes") or "",
+        "description": lead.get("descripcion") or "",
+        "comments": [
+            {"name": c.name, "content": c.content, "when": str(c.creation), "by": c.comment_by or c.owner}
+            for c in comments
+        ],
+        "tasks": [
+            {
+                "name": t.name,
+                "title": t.title,
+                "status": t.status,
+                "priority": t.priority,
+                "due_date": str(t.due_date) if t.due_date else None,
+            }
+            for t in tasks
+        ],
+    }
+
+
+@frappe.whitelist()
+def add_note(name, text):
+    text = (text or "").strip()
+    if not text:
+        frappe.throw("El comentario no puede estar vacío")
+    if not frappe.has_permission("CRM Lead", "read", doc=name):
+        frappe.throw("Sin permiso", frappe.PermissionError)
+    c = frappe.get_doc(
+        {
+            "doctype": "Comment",
+            "comment_type": "Comment",
+            "reference_doctype": "CRM Lead",
+            "reference_docname": name,
+            "content": text,
+        }
+    )
+    c.insert(ignore_permissions=True)
+    return {"name": c.name, "content": text, "when": str(c.creation), "by": frappe.session.user}
+
+
+@frappe.whitelist()
+def toggle_task(name):
+    current = frappe.db.get_value("CRM Task", name, "status")
+    new = "Todo" if current == "Done" else "Done"
+    frappe.db.set_value("CRM Task", name, "status", new)
+    return {"status": new}

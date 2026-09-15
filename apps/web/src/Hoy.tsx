@@ -39,7 +39,7 @@ function TaskRow({
   );
 }
 
-export default function Hoy() {
+export default function Hoy({ onOpenMeeting }: { onOpenMeeting: (name: string) => void }) {
   const [data, setData] = useState<HoyData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -196,7 +196,7 @@ export default function Hoy() {
           {events.length > 0 ? (
             <ul className="list">
               {events.map((e: EventDTO) => (
-                <li className="event" key={e.name}>
+                <li className="event clickable" key={e.name} onClick={() => onOpenMeeting(e.name)}>
                   <span className="when">{hhmm(e.starts_on)}</span>
                   <span className="subject">{e.subject}</span>
                 </li>

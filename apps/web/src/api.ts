@@ -35,6 +35,38 @@ export interface AgendaData {
   tasks: TaskDTO[];
 }
 
+export interface MeetingComment {
+  name: string;
+  content: string;
+  when: string;
+  by: string;
+}
+
+export interface MeetingTask {
+  name: string;
+  title: string;
+  status: string;
+  priority: string;
+  due_date: string | null;
+}
+
+export interface MeetingDetail {
+  name: string;
+  subject: string;
+  who: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  mobile_no: string;
+  status: string;
+  source: string;
+  meeting: string | null;
+  notes: string;
+  description: string;
+  comments: MeetingComment[];
+  tasks: MeetingTask[];
+}
+
 async function handle<T>(r: Response): Promise<T> {
   if (r.status === 403) {
     window.location.href = "/login";
@@ -65,6 +97,10 @@ export const api = {
   getHoy: () => get<HoyData>("crm_core.api.get_hoy"),
   getAgenda: (start: string, end: string) =>
     get<AgendaData>("crm_core.api.get_agenda", { start, end }),
+  getMeeting: (name: string) => get<MeetingDetail>("crm_core.api.get_meeting", { name }),
+  addNote: (name: string, text: string) =>
+    post<MeetingComment>("crm_core.api.add_note", { name, text }),
+  toggleTask: (name: string) => post<{ status: string }>("crm_core.api.toggle_task", { name }),
   quickAdd: (subject: string) =>
     post<{ name: string; subject: string }>("crm_core.api.quick_add_task", { subject }),
   complete: (name: string) => post<{ ok: boolean }>("crm_core.api.complete_task", { name }),

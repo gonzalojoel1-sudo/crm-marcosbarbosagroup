@@ -1,10 +1,12 @@
 import { useState } from "react";
 import Hoy from "./Hoy";
 import Agenda from "./Agenda";
+import MeetingModal from "./MeetingModal";
 import "./styles.css";
 
 export default function App() {
   const [view, setView] = useState<"agenda" | "hoy">("agenda");
+  const [openMeeting, setOpenMeeting] = useState<string | null>(null);
 
   return (
     <div className="app">
@@ -20,7 +22,12 @@ export default function App() {
           </button>
         </div>
       </nav>
-      {view === "agenda" ? <Agenda /> : <Hoy />}
+      {view === "agenda" ? (
+        <Agenda onOpenMeeting={setOpenMeeting} />
+      ) : (
+        <Hoy onOpenMeeting={setOpenMeeting} />
+      )}
+      {openMeeting ? <MeetingModal name={openMeeting} onClose={() => setOpenMeeting(null)} /> : null}
     </div>
   );
 }
