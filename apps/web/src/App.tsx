@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Hoy from "./Hoy";
 import Agenda from "./Agenda";
-import MeetingModal from "./MeetingModal";
+import MeetingDrawer from "./MeetingModal";
 import Logo from "./Logo";
 import "./styles.css";
 
@@ -31,7 +31,7 @@ export default function App() {
       ) : (
         <Hoy onOpenMeeting={setOpenMeeting} />
       )}
-      {openMeeting ? <MeetingModal name={openMeeting} onClose={() => setOpenMeeting(null)} /> : null}
+      {openMeeting ? <MeetingDrawer name={openMeeting} onClose={() => setOpenMeeting(null)} /> : null}
     </div>
   );
 }

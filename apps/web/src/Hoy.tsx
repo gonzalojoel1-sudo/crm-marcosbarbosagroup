@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type EventDTO, type HoyData, type TaskDTO } from "./api";
+import { IconCheck, IconClock } from "./icons";
 
 function fmtLongDate(iso: string): string {
   try {
@@ -180,10 +181,7 @@ export default function Hoy({ onOpenMeeting }: { onOpenMeeting: (name: string) =
             </ul>
           ) : (
             <div className="empty">
-              <svg className="empty-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-                <path d="M8.5 12.4l2.3 2.3L15.6 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <IconCheck className="empty-ico" />
               Nada pendiente para hoy
             </div>
           )}
@@ -204,10 +202,7 @@ export default function Hoy({ onOpenMeeting }: { onOpenMeeting: (name: string) =
             </ul>
           ) : (
             <div className="empty">
-              <svg className="empty-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" />
-                <path d="M12 7.5v5l3 1.8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <IconClock className="empty-ico" />
               Sin eventos
             </div>
           )}

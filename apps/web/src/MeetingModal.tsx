@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type MeetingDetail } from "./api";
+import { IconCheck, IconClock, IconMail, IconPhone, IconUser, IconX } from "./icons";
 
 const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 function fmtDT(s: string | null): string {
-  if (!s) return "";
+  if (!s) return "Sin fecha";
   const d = new Date(s.replace(" ", "T"));
   if (isNaN(d.getTime())) return s;
   const p = (n: number) => String(n).padStart(2, "0");
   return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
-
 function relWhen(s: string): string {
   const d = new Date(s.replace(" ", "T"));
   if (isNaN(d.getTime())) return "";
@@ -19,15 +19,23 @@ function relWhen(s: string): string {
   return `${p(d.getDate())} ${MON[d.getMonth()]} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export default function MeetingModal({ name, onClose }: { name: string; onClose: () => void }) {
+export default function MeetingDrawer({ name, onClose }: { name: string; onClose: () => void }) {
   const [m, setM] = useState<MeetingDetail | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
-  const boxRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    setM(null);
     api.getMeeting(name).then(setM);
   }, [name]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   async function send() {
     const text = draft.trim();
@@ -45,107 +53,116 @@ export default function MeetingModal({ name, onClose }: { name: string; onClose:
   async function toggle(t: { name: string; status: string }) {
     const r = await api.toggleTask(t.name);
     setM((prev) =>
-      prev ? { ...prev, tasks: prev.tasks.map((x) => (x.name === t.name ? { ...x, status: r.status } : x)) } : prev,
+      prev
+        ? { ...prev, tasks: prev.tasks.map((x) => (x.name === t.name ? { ...x, status: r.status } : x)) }
+        : prev,
     );
   }
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal detail" onClick={(e) => e.stopPropagation()}>
+    <div className="drawer-overlay" onClick={onClose}>
+      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Detalle de reunión">
         {!m ? (
-          <div className="detail-loading">Cargando…</div>
+          <div className="drawer-loading">Cargando…</div>
         ) : (
           <>
-            <div className="detail-head">
-              <div>
-                <h3>{m.subject}</h3>
-                <p className="modal-when">
-                  {m.meeting ? fmtDT(m.meeting) : "Sin fecha"}
-                  {m.source ? ` · ${m.source}` : ""}
-                </p>
-              </div>
-              <button className="icon" onClick={onClose} title="Cerrar">
-                ✕
-              </button>
-            </div>
-
-            <div className="detail-meta">
-              {m.who ? <div><span className="k">Contacto</span><span>{m.who}</span></div> : null}
-              {m.email ? (
-                <div>
-                  <span className="k">Email</span>
-                  <a href={`mailto:${m.email}`}>{m.email}</a>
-                </div>
-              ) : null}
-              {m.mobile_no ? (
-                <div>
-                  <span className="k">Teléfono</span>
-                  <a href={`tel:${m.mobile_no.replace(/\s/g, "")}`}>{m.mobile_no}</a>
-                </div>
-              ) : null}
-              {m.status ? <div><span className="k">Estado</span><span>{m.status}</span></div> : null}
-            </div>
-
-            {m.description ? (
-              <div className="detail-block">
-                <h4>Sobre</h4>
-                <p>{m.description}</p>
-              </div>
-            ) : null}
-
-            {m.tasks.length > 0 ? (
-              <div className="detail-block">
-                <h4>Tareas</h4>
-                <ul className="dtasks">
-                  {m.tasks.map((t) => (
-                    <li key={t.name} className={t.status === "Done" ? "done" : ""}>
-                      <button className="dcheck" onClick={() => toggle(t)} aria-label="alternar">
-                        {t.status === "Done" ? "✓" : ""}
-                      </button>
-                      <span className="subject">{t.title}</span>
-                      {t.due_date ? <span className="when">{t.due_date.slice(0, 10)}</span> : null}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
-            <div className="detail-block">
-              <h4>Comentarios</h4>
-              {m.comments.length > 0 ? (
-                <ul className="comments">
-                  {m.comments.map((c) => (
-                    <li key={c.name}>
-                      <div className="ctext">{c.content}</div>
-                      <div className="cmeta">
-                        {c.by} · {relWhen(c.when)}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="muted">Sin comentarios todavía.</p>
-              )}
-
-              <div className="comment-box">
-                <textarea
-                  ref={boxRef}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send();
-                  }}
-                  placeholder="Escribir un comentario…  (⌘+Enter para enviar)"
-                  rows={2}
-                />
-                <button className="btn-primary" onClick={send} disabled={!draft.trim() || sending}>
-                  {sending ? "Enviando…" : "Comentar"}
+            <header className="drawer-head">
+              <div className="dh-row">
+                <span className="eyebrow">Reunión</span>
+                <button className="icon-btn" onClick={onClose} aria-label="Cerrar">
+                  <IconX />
                 </button>
               </div>
+              <h2>{m.subject}</h2>
+              <div className="dh-when">
+                <IconClock width={14} height={14} />
+                {fmtDT(m.meeting)}
+                {m.source ? <span className="dh-src">{m.source}</span> : null}
+              </div>
+            </header>
+
+            <div className="drawer-body">
+              <div className="meta">
+                {m.who ? (
+                  <div className="meta-row">
+                    <IconUser width={16} height={16} />
+                    <span>{m.who}</span>
+                  </div>
+                ) : null}
+                {m.email ? (
+                  <a className="meta-row" href={`mailto:${m.email}`}>
+                    <IconMail width={16} height={16} />
+                    <span>{m.email}</span>
+                  </a>
+                ) : null}
+                {m.mobile_no ? (
+                  <a className="meta-row" href={`tel:${m.mobile_no.replace(/\s/g, "")}`}>
+                    <IconPhone width={16} height={16} />
+                    <span>{m.mobile_no}</span>
+                  </a>
+                ) : null}
+              </div>
+
+              {m.description ? (
+                <section className="blk">
+                  <h4>Sobre</h4>
+                  <p className="body-text">{m.description}</p>
+                </section>
+              ) : null}
+
+              {m.tasks.length > 0 ? (
+                <section className="blk">
+                  <h4>Tareas</h4>
+                  <ul className="dtasks">
+                    {m.tasks.map((t) => (
+                      <li key={t.name} className={t.status === "Done" ? "done" : ""}>
+                        <button className="dcheck" onClick={() => toggle(t)} aria-label="alternar">
+                          {t.status === "Done" ? <IconCheck width={12} height={12} /> : null}
+                        </button>
+                        <span className="subject">{t.title}</span>
+                        {t.due_date ? <span className="when">{t.due_date.slice(0, 10)}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              <section className="blk">
+                <h4>Comentarios</h4>
+                {m.comments.length > 0 ? (
+                  <ul className="comments">
+                    {m.comments.map((c) => (
+                      <li key={c.name}>
+                        <p className="ctext">{c.content}</p>
+                        <div className="cmeta">
+                          {c.by} · {relWhen(c.when)}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="muted">Todavía no hay comentarios. Escribí el primero abajo.</p>
+                )}
+              </section>
             </div>
+
+            <footer className="drawer-foot">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) send();
+                }}
+                placeholder="Escribir un comentario…"
+                rows={2}
+              />
+              <button className="btn-primary" onClick={send} disabled={!draft.trim() || sending}>
+                {sending ? "Enviando…" : "Comentar"}
+              </button>
+            </footer>
           </>
         )}
-      </div>
+      </aside>
     </div>
   );
 }

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type AgendaData, type EventDTO, type TaskDTO } from "./api";
+import { IconChevronLeft, IconChevronRight, IconPlus } from "./icons";
 
 const HOUR_H = 46;
 
@@ -25,8 +26,7 @@ function startOfDay(d: Date): Date {
 }
 function startOfWeek(d: Date): Date {
   const x = startOfDay(d);
-  const shift = (x.getDay() + 6) % 7; // Monday = 0
-  return addDays(x, -shift);
+  return addDays(x, -((x.getDay() + 6) % 7));
 }
 function hhmm(s: string): string {
   return s.slice(11, 16);
@@ -40,20 +40,19 @@ function sameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString();
 }
 
-const DAY_NAMES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
-const MONTH_SHORT = [
-  "ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic",
-];
+const DOW = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+const DOW_SHORT = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"];
+const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
 function rangeTitle(start: Date, end: Date, mode: "week" | "day"): string {
   if (mode === "day") {
-    const s = `${DAY_NAMES[(start.getDay() + 6) % 7]} ${start.getDate()} de ${MONTH_SHORT[start.getMonth()]}`;
+    const s = `${DOW[(start.getDay() + 6) % 7]} ${start.getDate()} de ${MON[start.getMonth()]}`;
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
   const last = addDays(end, -1);
   const sameMonth = start.getMonth() === last.getMonth();
-  const a = `${start.getDate()} de ${MONTH_SHORT[start.getMonth()]}`;
-  const b = sameMonth ? `${last.getDate()}` : `${last.getDate()} de ${MONTH_SHORT[last.getMonth()]}`;
+  const a = `${start.getDate()} de ${MON[start.getMonth()]}`;
+  const b = sameMonth ? `${last.getDate()}` : `${last.getDate()} de ${MON[last.getMonth()]}`;
   return `${a} – ${b}`;
 }
 
@@ -62,30 +61,36 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
   const [mode, setMode] = useState<"week" | "day">("week");
   const [data, setData] = useState<AgendaData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState<{ day: Date; hour: number } | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const createRef = useRef<HTMLInputElement>(null);
 
   const start = mode === "week" ? startOfWeek(anchor) : startOfDay(anchor);
   const days = mode === "week" ? 7 : 1;
   const end = addDays(start, days);
   const startKey = ymd(start);
 
+  async function reload() {
+    setData(await api.getAgenda(startKey, ymd(end)));
+  }
+
   useEffect(() => {
     setLoading(true);
-    api
-      .getAgenda(startKey, ymd(end))
-      .then(setData)
-      .finally(() => setLoading(false));
+    reload().finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startKey, mode]);
 
-  // Rango horario visible: se adapta a los datos (7–21 por defecto).
+  useEffect(() => {
+    if (creating) createRef.current?.focus();
+  }, [creating]);
+
   const { h0, h1 } = useMemo(() => {
     let lo = 7;
     let hi = 21;
     for (const e of data?.events ?? []) {
-      const s = Math.floor(minutesOfDay(e.starts_on) / 60);
-      const en = Math.ceil(minutesOfDay(e.ends_on) / 60);
-      lo = Math.min(lo, s);
-      hi = Math.max(hi, en);
+      lo = Math.min(lo, Math.floor(minutesOfDay(e.starts_on) / 60));
+      hi = Math.max(hi, Math.ceil(minutesOfDay(e.ends_on) / 60));
     }
     for (const t of data?.tasks ?? []) {
       if (!t.due_datetime) continue;
@@ -96,38 +101,31 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
     return { h0: Math.max(0, lo), h1: Math.min(23, Math.max(hi, lo + 4)) };
   }, [data]);
 
-  const hours = [];
+  const hours: number[] = [];
   for (let h = h0; h <= h1; h++) hours.push(h);
   const gridH = (h1 - h0) * HOUR_H;
   const now = new Date();
   const offsetFor = (min: number) => ((min - h0 * 60) / 60) * HOUR_H;
-
   const daysArr = Array.from({ length: days }, (_, i) => addDays(start, i));
 
   function eventsFor(day: Date): EventDTO[] {
     return (data?.events ?? []).filter((e) => sameDay(parseDT(e.starts_on), day));
   }
   function tasksFor(day: Date): TaskDTO[] {
-    return (data?.tasks ?? []).filter(
-      (t) => t.due_datetime && sameDay(parseDT(t.due_datetime), day),
-    );
+    return (data?.tasks ?? []).filter((t) => t.due_datetime && sameDay(parseDT(t.due_datetime), day));
   }
 
-  const [creating, setCreating] = useState<{ day: Date; hour: number } | null>(null);
-  const [title, setTitle] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  async function submitEvent() {
-    if (!creating || !title.trim() || saving) return;
+  async function submitCreate() {
+    if (!creating || !draft.trim() || saving) return;
     setSaving(true);
     const p = (n: number) => String(n).padStart(2, "0");
     const starts = `${ymd(creating.day)} ${p(creating.hour)}:00:00`;
     const ends = `${ymd(creating.day)} ${p(Math.min(creating.hour + 1, 23))}:00:00`;
     try {
-      await api.createEvent(title.trim(), starts, ends);
-      setData(await api.getAgenda(startKey, ymd(end)));
+      await api.createEvent(draft.trim(), starts, ends);
       setCreating(null);
-      setTitle("");
+      setDraft("");
+      await reload();
     } finally {
       setSaving(false);
     }
@@ -136,9 +134,14 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
   return (
     <div className="ag">
       <div className="ag-bar">
-        <div className="ag-range">{rangeTitle(start, end, mode)}</div>
+        <div className="ag-left">
+          <h1 className="ag-range">{rangeTitle(start, end, mode)}</h1>
+          <button className="ghost" onClick={() => setAnchor(new Date())}>
+            Hoy
+          </button>
+        </div>
         <div className="ag-actions">
-          <div className="seg">
+          <div className="seg" role="tablist" aria-label="Vista">
             <button className={mode === "day" ? "on" : ""} onClick={() => setMode("day")}>
               Día
             </button>
@@ -146,15 +149,20 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
               Semana
             </button>
           </div>
-          <button className="ghost" onClick={() => setAnchor(new Date())}>
-            Hoy
-          </button>
           <div className="pager">
-            <button className="icon" onClick={() => setAnchor(addDays(anchor, mode === "week" ? -7 : -1))}>
-              ‹
+            <button
+              className="pager-btn"
+              aria-label="Anterior"
+              onClick={() => setAnchor(addDays(anchor, mode === "week" ? -7 : -1))}
+            >
+              <IconChevronLeft />
             </button>
-            <button className="icon" onClick={() => setAnchor(addDays(anchor, mode === "week" ? 7 : 1))}>
-              ›
+            <button
+              className="pager-btn"
+              aria-label="Siguiente"
+              onClick={() => setAnchor(addDays(anchor, mode === "week" ? 7 : 1))}
+            >
+              <IconChevronRight />
             </button>
           </div>
         </div>
@@ -173,10 +181,11 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
           const evs = eventsFor(day);
           const tks = tasksFor(day);
           const isToday = sameDay(day, now);
+          const isCreating = creating && sameDay(creating.day, day);
           return (
             <div className="ag-col" key={ymd(day)}>
               <div className={`ag-dayhead${isToday ? " today" : ""}`}>
-                <span className="dow">{DAY_NAMES[(day.getDay() + 6) % 7].slice(0, 3)}</span>
+                <span className="dow">{DOW_SHORT[(day.getDay() + 6) % 7]}</span>
                 <span className="dom">{day.getDate()}</span>
               </div>
               <div className="ag-body" style={{ height: gridH }}>
@@ -185,24 +194,45 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
                 ))}
                 <div className="ag-slots">
                   {hours.map((h) => (
-                    <div
+                    <button
                       className="ag-slot"
                       key={h}
                       style={{ top: offsetFor(h * 60), height: HOUR_H }}
+                      aria-label={`Crear evento ${String(h).padStart(2, "0")}:00`}
                       onClick={() => {
-                        setTitle("");
+                        setDraft("");
                         setCreating({ day, hour: h });
                       }}
-                    />
+                    >
+                      <span className="ag-slot-plus">
+                        <IconPlus width={13} height={13} />
+                      </span>
+                    </button>
                   ))}
                 </div>
+
+                {isCreating ? (
+                  <input
+                    ref={createRef}
+                    className="ag-create"
+                    style={{ top: offsetFor(creating!.hour * 60), height: HOUR_H - 2 }}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") submitCreate();
+                      if (e.key === "Escape") setCreating(null);
+                    }}
+                    onBlur={() => setCreating(null)}
+                    placeholder="Título del evento…"
+                  />
+                ) : null}
 
                 {evs.map((e) => {
                   const top = offsetFor(minutesOfDay(e.starts_on));
                   const bottom = offsetFor(minutesOfDay(e.ends_on));
-                  const height = Math.max(22, bottom - top);
+                  const height = Math.max(26, bottom - top);
                   return (
-                    <div
+                    <button
                       className="ag-event"
                       key={e.name}
                       style={{ top, height }}
@@ -211,9 +241,9 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
                         onOpenMeeting(e.name);
                       }}
                     >
-                      <div className="ev-time">{hhmm(e.starts_on)}</div>
-                      <div className="ev-title">{e.subject}</div>
-                    </div>
+                      <span className="ev-time">{hhmm(e.starts_on)}</span>
+                      <span className="ev-title">{e.subject}</span>
+                    </button>
                   );
                 })}
 
@@ -222,7 +252,6 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
                     className="ag-task"
                     key={t.name}
                     style={{ top: offsetFor(minutesOfDay(t.due_datetime!)) }}
-                    title={`Tarea: ${t.subject}`}
                   >
                     <span className="dot" />
                     <span className="t">{t.subject}</span>
@@ -230,7 +259,10 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
                 ))}
 
                 {isToday ? (
-                  <div className="ag-now" style={{ top: offsetFor(now.getHours() * 60 + now.getMinutes()) }} />
+                  <div
+                    className="ag-now"
+                    style={{ top: offsetFor(now.getHours() * 60 + now.getMinutes()) }}
+                  />
                 ) : null}
               </div>
             </div>
@@ -238,34 +270,11 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
         })}
       </div>
 
-      {creating ? (
-        <div className="overlay" onClick={() => setCreating(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Nuevo evento</h3>
-            <p className="modal-when">
-              {DAY_NAMES[(creating.day.getDay() + 6) % 7]} {creating.day.getDate()} ·{" "}
-              {String(creating.hour).padStart(2, "0")}:00–{String(Math.min(creating.hour + 1, 23)).padStart(2, "0")}:00
-            </p>
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitEvent();
-                if (e.key === "Escape") setCreating(null);
-              }}
-              placeholder="Título del evento…"
-            />
-            <div className="modal-actions">
-              <button className="btn-ghost" onClick={() => setCreating(null)}>
-                Cancelar
-              </button>
-              <button className="btn-primary" onClick={submitEvent} disabled={!title.trim() || saving}>
-                {saving ? "Creando…" : "Crear"}
-              </button>
-            </div>
-          </div>
-        </div>
+      {!loading && (data?.events.length ?? 0) === 0 ? (
+        <p className="ag-hint">
+          Las reservas de tu Google Calendar aparecen acá automáticamente. Para cargar una a mano,
+          hacé click en cualquier franja horaria.
+        </p>
       ) : null}
     </div>
   );
