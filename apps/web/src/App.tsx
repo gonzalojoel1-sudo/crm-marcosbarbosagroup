@@ -15,7 +15,7 @@ export default function App() {
       <nav className="nav">
         <span className="brand">
           <Logo size={24} />
-          Marcos Barbosa Group
+          <span className="brand-name">Marcos Barbosa Group</span>
         </span>
         <div className="tabs">
           <button className={view === "agenda" ? "on" : ""} onClick={() => setView("agenda")}>

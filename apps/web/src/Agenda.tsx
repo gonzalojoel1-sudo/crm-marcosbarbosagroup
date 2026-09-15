@@ -58,7 +58,9 @@ function rangeTitle(start: Date, end: Date, mode: "week" | "day"): string {
 
 export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string) => void }) {
   const [anchor, setAnchor] = useState(() => new Date());
-  const [mode, setMode] = useState<"week" | "day">("week");
+  const [mode, setMode] = useState<"week" | "day">(() =>
+    typeof window !== "undefined" && window.innerWidth < 760 ? "day" : "week",
+  );
   const [data, setData] = useState<AgendaData | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState<{ day: Date; hour: number } | null>(null);
@@ -168,7 +170,8 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
         </div>
       </div>
 
-      <div className={`ag-grid${mode === "day" ? " one" : ""}${loading ? " loading" : ""}`}>
+      <div className="ag-scroll">
+        <div className={`ag-grid${mode === "day" ? " one" : ""}${loading ? " loading" : ""}`}>
         <div className="ag-gutter" style={{ height: gridH }}>
           {hours.map((h) => (
             <div className="ag-hourlabel" key={h} style={{ top: offsetFor(h * 60) }}>
@@ -268,6 +271,7 @@ export default function Agenda({ onOpenMeeting }: { onOpenMeeting: (name: string
             </div>
           );
         })}
+        </div>
       </div>
 
       {!loading && (data?.events.length ?? 0) === 0 ? (

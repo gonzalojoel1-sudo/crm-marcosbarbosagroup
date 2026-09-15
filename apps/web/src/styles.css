@@ -937,14 +937,47 @@ a.meta-row:hover {
   cursor: default;
 }
 
+.ag-scroll {
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
 @media (max-width: 820px) {
-  .ag-grid:not(.one) {
-    grid-template-columns: 42px repeat(7, minmax(0, 1fr));
+  .ag {
+    padding: 16px 14px 48px;
   }
-  .ag-event .ev-title {
-    display: none;
+  .ag-bar {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .ag-range {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+  .ag-scroll {
+    margin: 0 -14px;
+    padding: 0 14px 2px;
+  }
+  .ag-scroll .ag-grid {
+    min-width: 700px;
+  }
+  .ag-grid.one {
+    min-width: 0;
   }
   .wrap {
     padding-top: 26px;
+  }
+}
+@media (max-width: 560px) {
+  .brand-name {
+    display: none;
+  }
+  .nav {
+    padding: 10px 14px;
+    gap: 12px;
+  }
+  .wrap {
+    padding-left: 16px;
+    padding-right: 16px;
   }
 }
