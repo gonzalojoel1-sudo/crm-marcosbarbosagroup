@@ -9,11 +9,10 @@ dependencies = [
     "requests>=2.32.0",
 ]
 
-# Match Frappe framework pattern (see apps/frappe/pyproject.toml).
-# No explicit [tool.setuptools.packages.find] means pip auto-detects
-# the directory that contains __init__.py. In our case that's
-# apps/crm_core/crm_core/ (the submodule), which gets installed as
-# the Python module `crm_core`.
-#
-# IMPORTANT: DO NOT add root __init__.py to apps/crm_core/. It conflicts
-# with PIP's editable install namespace resolution.
+# Explicit package declaration. Without this, pip auto-discovery fails
+# because setuptools can't find packages by convention (we have a nested
+# apps/crm_core/crm_core/ structure that breaks its heuristic).
+[tool.setuptools.packages.find]
+where = ["crm_core"]
+include = ["*"]
+namespaces = false
