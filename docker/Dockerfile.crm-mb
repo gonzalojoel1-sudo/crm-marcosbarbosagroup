@@ -50,7 +50,8 @@ RUN rm -rf \
       /home/frappe/frappe-bench/apps/crm_core.egg-info \
       /home/frappe/frappe-bench/apps/crm_core.egg-link && \
     echo '/home/frappe/frappe-bench/apps/crm_core/crm_core' > /usr/local/lib/python3.11/site-packages/crm_core.pth && \
-    /usr/local/bin/python3 -c "import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core import OK', crm_core.__file__, m.Task)"
+    echo 'import crm_core' && cat /usr/local/lib/python3.11/site-packages/crm_core.pth && \
+    /usr/local/bin/python3 -c "import sys; print('sys.path[:2]:', sys.path[:3]); print('crm_core.pth exists:', __import__('os').path.exists('/usr/local/lib/python3.11/site-packages/crm_core.pth')); import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core import OK', crm_core.__file__, m.Task)"
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
