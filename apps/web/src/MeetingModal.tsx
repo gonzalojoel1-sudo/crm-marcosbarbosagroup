@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type MeetingDetail } from "./api";
 
+const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
 function fmtDT(s: string | null): string {
   if (!s) return "";
   const d = new Date(s.replace(" ", "T"));
   if (isNaN(d.getTime())) return s;
-  const day = d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" });
-  const time = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-  return `${day.charAt(0).toUpperCase() + day.slice(1)} · ${time}`;
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function relWhen(s: string): string {
   const d = new Date(s.replace(" ", "T"));
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())} ${MON[d.getMonth()]} · ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 export default function MeetingModal({ name, onClose }: { name: string; onClose: () => void }) {
