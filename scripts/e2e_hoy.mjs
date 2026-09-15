@@ -24,6 +24,11 @@ await page.goto(URL, { waitUntil: "networkidle", timeout: 30000 });
 // La app abre en Agenda; ir a la pestaña Hoy (dentro de .tabs).
 await page.locator(".tabs button", { hasText: "Hoy" }).click();
 await page.waitForSelector(".wrap", { timeout: 15000 });
+// Esperar a que carguen los datos (el pill deja de ser "…").
+await page.waitForFunction(() => {
+  const p = document.querySelector(".pill");
+  return p && !p.textContent.includes("…");
+}, { timeout: 15000 });
 
 console.log("title:", await page.title());
 console.log("h1:", (await page.locator("h1").first().textContent())?.trim());
