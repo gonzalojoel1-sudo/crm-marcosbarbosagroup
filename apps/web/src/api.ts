@@ -120,6 +120,10 @@ export const api = {
   }) => post<{ name: string; existing: boolean }>("crm_core.api.create_lead", p),
   addTask: (title: string, reference_name?: string, due_date?: string) =>
     post<MeetingTask>("crm_core.api.add_task", { title, reference_name, due_date }),
+  updateLead: (
+    name: string,
+    fields: { email?: string; mobile_no?: string; organization?: string; status?: string },
+  ) => post<{ ok: boolean }>("crm_core.api.update_lead", { name, ...fields }),
   addNote: (name: string, text: string) =>
     post<MeetingComment>("crm_core.api.add_note", { name, text }),
   toggleTask: (name: string) => post<{ status: string }>("crm_core.api.toggle_task", { name }),

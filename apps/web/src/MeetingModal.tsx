@@ -1,9 +1,60 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type MeetingDetail } from "./api";
-import { IconCheck, IconClock, IconMail, IconPhone, IconPlus, IconUser, IconX } from "./icons";
+import { IconCheck, IconClock, IconMail, IconNotes, IconPhone, IconPlus, IconUser, IconX } from "./icons";
 
 const DOW = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
 const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const STATUSES = ["New", "Contacted", "Qualified", "Nurture", "Unqualified", "Junk", "Converted"];
+
+function EditableMeta({
+  icon,
+  value,
+  placeholder,
+  onSave,
+}: {
+  icon: ReactNode;
+  value: string;
+  placeholder: string;
+  onSave: (v: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+
+  if (editing) {
+    return (
+      <div className="meta-row editing">
+        {icon}
+        <input
+          autoFocus
+          value={v}
+          onChange={(e) => setV(e.target.value)}
+          placeholder={placeholder}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              onSave(v);
+              setEditing(false);
+            }
+            if (e.key === "Escape") {
+              setV(value);
+              setEditing(false);
+            }
+          }}
+          onBlur={() => {
+            onSave(v);
+            setEditing(false);
+          }}
+        />
+      </div>
+    );
+  }
+  return (
+    <button className="meta-row" onClick={() => setEditing(true)}>
+      {icon}
+      <span className={value ? "" : "muted"}>{value || placeholder}</span>
+    </button>
+  );
+}
 
 function fmtDT(s: string | null): string {
   if (!s) return "Sin fecha";
@@ -25,6 +76,7 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
   const [sending, setSending] = useState(false);
   const [newTask, setNewTask] = useState("");
   const [addingTask, setAddingTask] = useState(false);
+  const commentRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setM(null);
@@ -76,6 +128,12 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
     }
   }
 
+  async function saveField(field: "email" | "mobile_no" | "organization" | "status", value: string) {
+    if (!m) return;
+    setM({ ...m, [field]: value });
+    await api.updateLead(m.name, { [field]: value });
+  }
+
   return (
     <div className="drawer-overlay" onClick={onClose}>
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Detalle de reunión">
@@ -99,25 +157,64 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
             </header>
 
             <div className="drawer-body">
+              <div className="actions">
+                {m.mobile_no ? (
+                  <a className="act" href={`tel:${m.mobile_no.replace(/\s/g, "")}`}>
+                    <IconPhone width={15} height={15} />
+                    Llamar
+                  </a>
+                ) : null}
+                {m.email ? (
+                  <a className="act" href={`mailto:${m.email}`}>
+                    <IconMail width={15} height={15} />
+                    Email
+                  </a>
+                ) : null}
+                <button className="act" onClick={() => commentRef.current?.focus()}>
+                  <IconNotes width={15} height={15} />
+                  Nota
+                </button>
+              </div>
+
               <div className="meta">
                 {m.who ? (
-                  <div className="meta-row">
+                  <div className="meta-row static">
                     <IconUser width={16} height={16} />
                     <span>{m.who}</span>
                   </div>
                 ) : null}
-                {m.email ? (
-                  <a className="meta-row" href={`mailto:${m.email}`}>
-                    <IconMail width={16} height={16} />
-                    <span>{m.email}</span>
-                  </a>
-                ) : null}
-                {m.mobile_no ? (
-                  <a className="meta-row" href={`tel:${m.mobile_no.replace(/\s/g, "")}`}>
-                    <IconPhone width={16} height={16} />
-                    <span>{m.mobile_no}</span>
-                  </a>
-                ) : null}
+                <EditableMeta
+                  icon={<IconMail width={16} height={16} />}
+                  value={m.email}
+                  placeholder="Agregar email"
+                  onSave={(v) => saveField("email", v)}
+                />
+                <EditableMeta
+                  icon={<IconPhone width={16} height={16} />}
+                  value={m.mobile_no}
+                  placeholder="Agregar teléfono"
+                  onSave={(v) => saveField("mobile_no", v)}
+                />
+                <EditableMeta
+                  icon={<IconUser width={16} height={16} />}
+                  value={m.organization}
+                  placeholder="Agregar empresa"
+                  onSave={(v) => saveField("organization", v)}
+                />
+                <div className="meta-row static">
+                  <IconCheck width={16} height={16} />
+                  <select
+                    className="status-select"
+                    value={m.status}
+                    onChange={(e) => saveField("status", e.target.value)}
+                  >
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {m.description ? (
@@ -185,6 +282,7 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
 
             <footer className="drawer-foot">
               <textarea
+                ref={commentRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {

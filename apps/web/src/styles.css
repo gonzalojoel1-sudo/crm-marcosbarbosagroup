@@ -873,24 +873,94 @@ h2 {
   flex-direction: column;
   gap: 2px;
 }
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.act {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.act svg {
+  color: var(--accent-2);
+}
+.act:hover {
+  border-color: var(--accent-line);
+  color: var(--fg);
+}
+.act:active {
+  transform: scale(0.98);
+}
 .meta-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 7px 8px;
   margin: 0 -8px;
+  width: calc(100% + 16px);
+  border: none;
+  background: transparent;
   border-radius: 8px;
+  font-family: inherit;
   font-size: 13.5px;
   color: var(--fg);
-  text-decoration: none;
+  text-align: left;
+  cursor: pointer;
   transition: background 0.12s var(--ease);
 }
 .meta-row svg {
   color: var(--fg-faint);
   flex: none;
 }
-a.meta-row:hover {
+.meta-row.static {
+  cursor: default;
+}
+button.meta-row:hover {
   background: var(--surface-2);
+}
+.meta-row.editing {
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--accent);
+  cursor: text;
+}
+.meta-row input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13.5px;
+  min-width: 0;
+}
+.meta-row input::placeholder {
+  color: var(--fg-faint);
+}
+.status-select {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13.5px;
+  cursor: pointer;
+  padding: 0;
+}
+.status-select option {
+  background: var(--surface);
+  color: var(--fg);
 }
 .blk {
   border-top: 1px solid var(--border);

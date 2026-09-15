@@ -252,6 +252,26 @@ def add_task(title, reference_name=None, due_date=None):
 
 
 @frappe.whitelist()
+def update_lead(name, email=None, mobile_no=None, organization=None, status=None, first_name=None, last_name=None):
+    """Actualiza campos de un CRM Lead. Solo escribe los que vienen (no None)."""
+    doc = frappe.get_doc("CRM Lead", name)
+    if first_name is not None:
+        doc.first_name = first_name.strip() or doc.first_name
+    if last_name is not None:
+        doc.last_name = last_name.strip() or "-"
+    if email is not None:
+        doc.email = email.strip() or None
+    if mobile_no is not None:
+        doc.mobile_no = mobile_no.strip() or None
+    if organization is not None:
+        doc.organization = organization.strip() or None
+    if status and frappe.db.exists("CRM Lead Status", status):
+        doc.status = status
+    doc.save(ignore_permissions=True)
+    return {"ok": True}
+
+
+@frappe.whitelist()
 def create_event(subject, starts_on, ends_on=None):
     subject = (subject or "").strip()
     if not subject:
