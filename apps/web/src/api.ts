@@ -40,6 +40,13 @@ export interface DealDTO {
   title: string;
   status: string;
   org: string;
+  contact: string;
+  owner: string;
+  value: number | null;
+  currency: string;
+  date: string | null;
+  next_step: string;
+  probability: number | null;
 }
 
 export interface LeadDTO {  name: string;

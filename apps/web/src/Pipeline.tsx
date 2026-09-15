@@ -2,6 +2,29 @@ import { useEffect, useRef, useState } from "react";
 import { api, type DealDTO } from "./api";
 import { IconPlus } from "./icons";
 
+const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+function fmtDate(s: string | null): string {
+  if (!s) return "";
+  const d = new Date(s.replace(" ", "T"));
+  if (isNaN(d.getTime())) return "";
+  return `${d.getDate()} ${MON[d.getMonth()]}`;
+}
+function fmtMoney(v: number | null, cur: string): string {
+  if (v == null) return "";
+  const sym = cur === "USD" ? "US$" : "$";
+  return sym + v.toLocaleString("es-AR", { maximumFractionDigits: 0 });
+}
+function initials(name: string): string {
+  const p = name.trim().split(/\s+/).filter(Boolean);
+  return (p[0]?.[0] ?? "?") + (p[1]?.[0] ?? "");
+}
+function stageKind(s: string): string {
+  if (s === "Won") return "won";
+  if (s === "Lost") return "lost";
+  return "";
+}
+
 export default function Pipeline() {
   const [deals, setDeals] = useState<DealDTO[] | null>(null);
   const [stages, setStages] = useState<string[]>([]);
@@ -17,7 +40,6 @@ export default function Pipeline() {
     setDeals(r.deals);
     setStages(r.stages);
   }
-
   useEffect(() => {
     load();
   }, []);
@@ -38,7 +60,6 @@ export default function Pipeline() {
     await api.createDeal(t);
     await load();
   }
-
   async function move(name: string, status: string) {
     setMenu(null);
     setDeals((d) => (d ? d.map((x) => (x.name === name ? { ...x, status } : x)) : d));
@@ -46,6 +67,7 @@ export default function Pipeline() {
   }
 
   const byStage = (s: string) => (deals ?? []).filter((d) => d.status === s);
+  const total = (items: DealDTO[]) => items.reduce((a, d) => a + (d.value ?? 0), 0);
 
   return (
     <div className="pipe">
@@ -73,17 +95,23 @@ export default function Pipeline() {
 
       {!deals ? (
         <div className="skeleton">
-          <div className="sk" />
+          <div className="sk" style={{ height: 200 }} />
+        </div>
+      ) : deals.length === 0 ? (
+        <div className="empty">
+          <IconPlus className="empty-ico" />
+          Todavía no hay negocios. Creá uno con "Nuevo negocio" — o convertí un lead en
+          oportunidad desde Contactos.
         </div>
       ) : (
         <div className="pipe-board">
           {stages.map((s) => {
             const items = byStage(s);
-            const won = s === "Won";
-            const lost = s === "Lost";
+            const sum = total(items);
+            const kind = stageKind(s);
             return (
               <section
-                className={`pipe-col${dragOver === s ? " over" : ""}${won ? " won" : lost ? " lost" : ""}`}
+                className={`pipe-col${dragOver === s ? " over" : ""}${kind ? " " + kind : ""}`}
                 key={s}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -96,9 +124,11 @@ export default function Pipeline() {
                 }}
               >
                 <header className="pipe-col-head">
+                  <span className="pipe-dot" />
                   <span className="pipe-col-name">{s}</span>
                   <span className="pipe-count">{items.length}</span>
                 </header>
+
                 <div className="pipe-col-body">
                   {items.map((d) => (
                     <div
@@ -113,9 +143,22 @@ export default function Pipeline() {
                       }}
                     >
                       <span className="pipe-card-title">{d.title}</span>
-                      {d.org && d.org !== d.title ? <span className="pipe-card-sub">{d.org}</span> : null}
+                      {d.org && d.org !== d.title ? (
+                        <span className="pipe-card-sub">{d.org}</span>
+                      ) : null}
+                      {d.next_step ? (
+                        <span className="pipe-card-src">{d.next_step}</span>
+                      ) : null}
+                      <div className="pipe-card-meta">
+                        {d.value != null ? (
+                          <span className="pipe-value">{fmtMoney(d.value, d.currency)}</span>
+                        ) : null}
+                        {d.date ? <span className="pipe-date">{fmtDate(d.date)}</span> : null}
+                        {d.owner ? <span className="pipe-owner" title={d.owner}>{initials(d.owner)}</span> : null}
+                      </div>
                       {menu === d.name ? (
                         <div className="pipe-menu" onClick={(e) => e.stopPropagation()}>
+                          <span className="pipe-menu-label">Mover a</span>
                           {stages
                             .filter((x) => x !== d.status)
                             .map((x) => (
@@ -127,8 +170,14 @@ export default function Pipeline() {
                       ) : null}
                     </div>
                   ))}
-                  {items.length === 0 ? <p className="pipe-empty">—</p> : null}
+                  {items.length === 0 ? (
+                    <p className="pipe-drop">Arrastrá un negocio acá</p>
+                  ) : null}
                 </div>
+
+                {sum > 0 ? (
+                  <footer className="pipe-col-foot">{fmtMoney(sum, items[0]?.currency ?? "")}</footer>
+                ) : null}
               </section>
             );
           })}

@@ -268,19 +268,49 @@ DEAL_STAGES = [
 def get_deals():
     rows = frappe.get_all(
         "CRM Deal",
-        fields=["name", "organization", "status", "contact", "lead", "deal_owner"],
+        fields=[
+            "name",
+            "organization",
+            "organization_name",
+            "lead_name",
+            "first_name",
+            "last_name",
+            "status",
+            "deal_owner",
+            "deal_value",
+            "expected_deal_value",
+            "currency",
+            "expected_closure_date",
+            "next_step",
+            "probability",
+            "contact",
+        ],
         order_by="modified desc",
         limit_page_length=0,
     )
     deals = []
     for r in rows:
-        title = r.get("organization") or r.get("lead") or r.get("contact") or r["name"]
+        title = (
+            r.get("organization")
+            or r.get("lead_name")
+            or f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip()
+            or r["name"]
+        )
+        owner = frappe.db.get_value("User", r["deal_owner"], "full_name") if r.get("deal_owner") else None
+        value = r.get("deal_value") or r.get("expected_deal_value")
         deals.append(
             {
                 "name": r["name"],
                 "title": title,
                 "status": r.get("status") or "Qualification",
-                "org": r.get("organization") or "",
+                "org": r.get("organization_name") or "",
+                "contact": r.get("contact") or "",
+                "owner": owner or "",
+                "value": float(value) if value else None,
+                "currency": r.get("currency") or "",
+                "date": str(r["expected_closure_date"]) if r.get("expected_closure_date") else None,
+                "next_step": r.get("next_step") or "",
+                "probability": r.get("probability"),
             }
         )
     return {"deals": deals, "stages": DEAL_STAGES}
