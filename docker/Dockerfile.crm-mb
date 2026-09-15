@@ -31,6 +31,9 @@
 FROM crm-mb:18
 
 # crm_core — premium custom app (Marcos Barbosa Group, proprietary).
+# IMPORTANT: must rm -rf first; COPY does not remove existing files, and the
+# base image (crm-mb:18) bakes an older flat layout that would conflict.
+RUN rm -rf /home/frappe/frappe-bench/apps/crm_core
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
 
 USER root
