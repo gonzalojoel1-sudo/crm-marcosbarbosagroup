@@ -28,6 +28,13 @@ export interface HoyData {
   count: number;
 }
 
+export interface AgendaData {
+  start: string;
+  end: string;
+  events: EventDTO[];
+  tasks: TaskDTO[];
+}
+
 async function handle<T>(r: Response): Promise<T> {
   if (r.status === 403) {
     window.location.href = "/login";
@@ -38,8 +45,9 @@ async function handle<T>(r: Response): Promise<T> {
   return json.message as T;
 }
 
-async function get<T>(method: string): Promise<T> {
-  return handle<T>(await fetch(`/api/method/${method}`, { credentials: "include" }));
+async function get<T>(method: string, params?: Record<string, string>): Promise<T> {
+  const qs = params ? "?" + new URLSearchParams(params).toString() : "";
+  return handle<T>(await fetch(`/api/method/${method}${qs}`, { credentials: "include" }));
 }
 
 async function post<T>(method: string, body: unknown): Promise<T> {
@@ -55,7 +63,15 @@ async function post<T>(method: string, body: unknown): Promise<T> {
 
 export const api = {
   getHoy: () => get<HoyData>("crm_core.api.get_hoy"),
+  getAgenda: (start: string, end: string) =>
+    get<AgendaData>("crm_core.api.get_agenda", { start, end }),
   quickAdd: (subject: string) =>
     post<{ name: string; subject: string }>("crm_core.api.quick_add_task", { subject }),
   complete: (name: string) => post<{ ok: boolean }>("crm_core.api.complete_task", { name }),
+  createEvent: (subject: string, starts_on: string, ends_on: string) =>
+    post<{ name: string; subject: string }>("crm_core.api.create_event", {
+      subject,
+      starts_on,
+      ends_on,
+    }),
 };
