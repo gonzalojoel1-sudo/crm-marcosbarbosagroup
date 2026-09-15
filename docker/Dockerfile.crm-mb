@@ -41,16 +41,11 @@ RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
     chown -R frappe:frappe /home/frappe/frappe-bench/apps/crm_core
 
 # Install crm_core package into the bench venv so `import crm_core` resolves.
-# Frappe v15 uses uv; use uv pip if available, else pip.
-RUN if [ -x /home/frappe/frappe-bench/env/bin/uv ]; then \
-      cd /home/frappe/frappe-bench/apps/crm_core && \
-      /home/frappe/frappe-bench/env/bin/uv pip install --quiet -e . --python /home/frappe/frappe-bench/env/bin/python; \
-    else \
-      . /home/frappe/frappe-bench/env/bin/activate && \
-      cd /home/frappe/frappe-bench/apps/crm_core && \
-      pip install -e . --quiet; \
-    fi && \
-    rm -rf /home/frappe/frappe-bench/apps/crm_core.egg-info /home/frappe/frappe-bench/apps/crm_core/crm_core/__pycache__
+# Frappe v15 uses uv for sys.path resolution; install editable.
+RUN cd /home/frappe/frappe-bench/apps/crm_core && \
+    pip install --quiet -e . 2>&1 | tail -3 && \
+    rm -rf /home/frappe/frappe-bench/apps/crm_core.egg-info /home/frappe/frappe-bench/apps/crm_core/crm_core/__pycache__ 2>/dev/null && \
+    python3 -c "import crm_core.mbcrm.doctype.task.task as m; print('crm_core.mbcrm.doctype.task.task OK', m.Task)"
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
