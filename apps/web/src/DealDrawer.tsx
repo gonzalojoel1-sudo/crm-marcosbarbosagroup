@@ -168,7 +168,7 @@ export default function DealDrawer({
 
   return (
     <div className="drawer-overlay" onClick={onClose}>
-      <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Negocio">
+      <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Negocio">
         <header className="drawer-head">
           <div className="dh-row">
             <span className="eyebrow">Negocio</span>

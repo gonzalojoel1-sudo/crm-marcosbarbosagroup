@@ -128,9 +128,12 @@ export default function Pipeline() {
                     <span className="avatar sm">{initials(l.who)}</span>
                     <div className="lead-card-main">
                       <span className="lead-who">{l.who}</span>
-                      <span className="lead-sub">{l.organization || l.email || l.mobile_no || "—"}</span>
+                      <span className="lead-sub">
+                        {[leadSourceLabel(l.source), l.organization || l.email || l.mobile_no]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </span>
                     </div>
-                    {l.source ? <span className="tag">{leadSourceLabel(l.source)}</span> : null}
                     <button className="lead-convert" onClick={() => convert(l)} disabled={busy === l.name}>
                       {busy === l.name ? "Creando…" : "Crear negocio"}
                     </button>

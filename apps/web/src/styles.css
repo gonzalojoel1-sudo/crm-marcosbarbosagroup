@@ -789,6 +789,9 @@ h2 {
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.45);
   animation: slide 0.24s var(--ease);
 }
+.drawer.wide {
+  width: min(560px, 100%);
+}
 @keyframes slide {
   from {
     transform: translateX(24px);
@@ -799,8 +802,7 @@ h2 {
   padding: 40px;
   text-align: center;
   color: var(--fg-dim);
-}
-.drawer-head {
+}.drawer-head {
   padding: 20px 22px 16px;
   border-bottom: 1px solid var(--border);
 }
@@ -1552,7 +1554,7 @@ button.meta-row:hover {
 }
 .inbox-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 9px;
 }
 .lead-card {
@@ -1666,10 +1668,10 @@ button.meta-row:hover {
 .quote-head,
 .quote-row {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) 58px 92px 62px 104px 26px;
+  grid-template-columns: minmax(96px, 1fr) 52px 86px 56px 98px 26px;
   gap: 7px;
   align-items: center;
-  min-width: 460px;
+  min-width: 452px;
 }
 .quote-head {
   font-size: 11px;
