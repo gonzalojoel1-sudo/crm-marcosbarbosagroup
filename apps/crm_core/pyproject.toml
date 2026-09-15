@@ -2,15 +2,18 @@
 name = "crm_core"
 version = "0.0.1"
 description = "Premium CRM core (custom app: 9 DocTypes + Google Calendar 2-way sync + Cal.com bridge)"
-requires-python = ">=3.10"
+readme = "README.md"
+requires-python = ">=3.10,<3.15"
 dependencies = [
     "cryptography>=42.0.0",
     "requests>=2.32.0",
 ]
 
-[tool.setuptools.packages.find]
-include = ["crm_core*"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
+# Match Frappe framework pattern (see apps/frappe/pyproject.toml).
+# No explicit [tool.setuptools.packages.find] means pip auto-detects
+# the directory that contains __init__.py. In our case that's
+# apps/crm_core/crm_core/ (the submodule), which gets installed as
+# the Python module `crm_core`.
+#
+# IMPORTANT: DO NOT add root __init__.py to apps/crm_core/. It conflicts
+# with PIP's editable install namespace resolution.
