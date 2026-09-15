@@ -44,8 +44,8 @@ RUN chmod -R u+rwX,g+rwX /home/frappe/frappe-bench/apps/crm_core && \
 # Strategy: create a .pth file that points the system Python's site-packages
 # at the crm_core/crm_core/ subdirectory (the actual Python package).
 # This avoids pip install -e namespace confusion with our nested layout.
-RUN echo '/home/frappe/frappe-bench/apps/crm_core/crm_core' > /usr/local/lib/python3.11/site-packages/crm_core.pth && \
-    rm -rf /usr/local/lib/python3.11/site-packages/crm_core-0.0.1.dist-info /usr/local/lib/python3.11/site-packages/__editable__.crm_core-0.0.1.pth 2>/dev/null && \
+RUN rm -rf /usr/local/lib/python3.11/site-packages/crm_core* /home/frappe/frappe-bench/apps/crm_core/crm_core.egg-info /home/frappe/frappe-bench/apps/crm_core/crm_core.egg-link && \
+    echo '/home/frappe/frappe-bench/apps/crm_core/crm_core' > /usr/local/lib/python3.11/site-packages/crm_core.pth && \
     /usr/local/bin/python3 -c "import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core import OK', crm_core.__file__, m.Task)"
 
 USER frappe
