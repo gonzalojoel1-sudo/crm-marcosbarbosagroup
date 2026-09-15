@@ -124,3 +124,9 @@ export const IconTrophy = (p: SVGProps<SVGSVGElement>) => (
     <path d="M7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3M9 20h6M12 14v6" />
   </Base>
 );
+
+export const IconDownload = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M12 3v12M7 11l5 5 5-5M5 21h14" />
+  </Base>
+);

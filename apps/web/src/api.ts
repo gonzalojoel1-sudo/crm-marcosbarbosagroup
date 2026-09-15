@@ -153,6 +153,21 @@ async function post<T>(method: string, body: unknown): Promise<T> {
   );
 }
 
+async function postBlob(method: string, body: unknown): Promise<Blob> {
+  const r = await fetch(`/api/method/${method}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-Frappe-CSRF-Token": CSRF },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 403) {
+    window.location.href = "/login";
+    throw new Error("forbidden");
+  }
+  if (!r.ok) throw new Error(await r.text());
+  return await r.blob();
+}
+
 export const api = {
   getHoy: () => get<HoyData>("crm_core.api.get_hoy"),
   getAgenda: (start: string, end: string) =>
@@ -173,6 +188,8 @@ export const api = {
     post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", payload),
   saveQuote: (name: string, items: QuoteItem[]) =>
     post<{ ok: boolean; total: number; count: number }>("crm_core.api.save_quote", { name, items }),
+  quotePdf: (name: string, ivaMode: string) =>
+    postBlob("crm_core.api.quote_pdf", { name, iva_mode: ivaMode }),
   convertLeadToDeal: (lead: string, status?: string) =>
     post<{ name: string; title: string; status: string }>("crm_core.api.convert_lead_to_deal", {
       lead,

@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Presupuesto {{ quote_no }} · Marcos Barbosa Group</title>
+<style>
+  @font-face {
+    font-family: "Outfit";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: block;
+    src: url(data:font/woff2;base64,{{ font_b64 }}) format("woff2");
+  }
+
+  @page { size: A4; margin: 13mm 15mm 12mm; }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Outfit", system-ui, sans-serif;
+    color: #17171a;
+    font-size: 10.4pt;
+    line-height: 1.42;
+    font-variant-numeric: tabular-nums;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .doc { display: flex; flex-direction: column; min-height: 261mm; }
+
+  /* ── Membrete ─────────────────────────────────────── */
+  .hdr { display: flex; align-items: flex-start; justify-content: space-between; gap: 18mm; }
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .mark { width: 34px; height: 34px; flex: none; }
+  .brand-name { font-size: 15.5pt; font-weight: 600; letter-spacing: -0.015em; line-height: 1.1; }
+  .brand-name span { font-weight: 300; color: #6b6b73; }
+  .brand-tag {
+    font-size: 7.6pt; font-weight: 500; letter-spacing: 0.14em;
+    text-transform: uppercase; color: #b03413; margin-top: 3px;
+  }
+  .co { text-align: right; font-size: 8.6pt; line-height: 1.6; color: #55555e; }
+  .co .co-strong { color: #17171a; font-weight: 500; }
+  .brandbar { height: 2.6px; background: #FE6634; margin: 9px 0 0; border-radius: 2px; }
+  .brandbar-thin { height: 1px; background: #e7e5e2; margin-top: 1px; }
+
+  /* ── Título ───────────────────────────────────────── */
+  .title-row { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 12mm; }
+  h1 {
+    margin: 0; font-size: 27pt; font-weight: 600; letter-spacing: -0.03em; line-height: 1;
+    color: #17171a;
+  }
+  .quote-no { margin-top: 5px; font-size: 9.6pt; color: #6b6b73; }
+  .quote-no b { color: #17171a; font-weight: 600; letter-spacing: 0.01em; }
+  .meta { display: flex; gap: 11mm; text-align: right; }
+  .meta .m-label {
+    font-size: 7.4pt; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+    color: #9a989e; margin-bottom: 2px;
+  }
+  .meta .m-val { font-size: 10.4pt; font-weight: 500; }
+
+  /* ── Partes ───────────────────────────────────────── */
+  .parties { display: flex; gap: 12mm; margin-top: 9mm; padding-bottom: 5mm; border-bottom: 1px solid #e7e5e2; }
+  .party { flex: 1; min-width: 0; }
+  .party h3 {
+    margin: 0 0 4px; font-size: 7.4pt; font-weight: 600; letter-spacing: 0.13em;
+    text-transform: uppercase; color: #9a989e;
+  }
+  .p-name { font-size: 12.4pt; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 2px; }
+  .p-line { font-size: 9.6pt; color: #55555e; }
+  .p-line .k { color: #9a989e; }
+
+  /* ── Ítems ────────────────────────────────────────── */
+  table.items { width: 100%; border-collapse: collapse; margin-top: 8mm; }
+  table.items thead th {
+    font-size: 7.4pt; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
+    color: #6b6b73; text-align: right; padding: 0 0 5px; border-bottom: 1.6px solid #17171a;
+  }
+  table.items thead th:first-child { text-align: left; }
+  table.items td { padding: 6px 0; border-bottom: 1px solid #eeecea; font-size: 10.2pt; vertical-align: top; }
+  table.items td.num { text-align: right; white-space: nowrap; }
+  table.items td.desc { padding-right: 6mm; }
+  table.items td.desc .d-name { font-weight: 500; }
+  table.items tbody tr:nth-child(even) td { background: #faf9f7; }
+  .col-desc { width: 47%; }
+  .col-qty { width: 9%; }
+  .col-rate { width: 15%; }
+  .col-disc { width: 10%; }
+  .col-amt { width: 19%; }
+
+  /* ── Totales ──────────────────────────────────────── */
+  .totals { display: flex; justify-content: flex-end; margin-top: 6mm; }
+  .totals-inner { width: 74mm; }
+  .t-row { display: flex; justify-content: space-between; padding: 3.4px 0; font-size: 10pt; }
+  .t-row .t-k { color: #55555e; }
+  .t-sep { height: 1px; background: #e7e5e2; margin: 4px 0; }
+  .t-total {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-top: 5px; padding-top: 6px; border-top: 2px solid #FE6634;
+  }
+  .t-total .t-k { font-size: 10.4pt; font-weight: 600; letter-spacing: 0.01em; }
+  .t-total .t-v { font-size: 19pt; font-weight: 700; letter-spacing: -0.02em; }
+
+  /* ── Condiciones ──────────────────────────────────── */
+  .conditions { margin-top: 11mm; padding-top: 5mm; border-top: 1px solid #e7e5e2; }
+  .blk-title {
+    font-size: 7.4pt; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
+    color: #9a989e; margin: 0 0 5px;
+  }
+  .cond-grid { display: flex; flex-wrap: wrap; gap: 4px 10mm; }
+  .cond { width: 46%; display: flex; gap: 4px; font-size: 9.6pt; }
+  .cond .k { color: #9a989e; }
+  .cond .v { color: #17171a; }
+  .note { margin: 5mm 0 0; font-size: 9.4pt; color: #55555e; }
+
+  /* ── Conformidad ──────────────────────────────────── */
+  .conform { margin-top: 10mm; border: 1px solid #e7e5e2; border-radius: 7px; padding: 6mm 6mm 5mm; background: #faf9f7; }
+  .sign-grid { display: flex; gap: 14mm; margin-top: 4mm; }
+  .sign { flex: 1; }
+  .sign-line { height: 0; border-bottom: 1px solid #b9b6b2; margin-bottom: 4px; margin-top: 13mm; }
+  .sign-role { font-size: 8.4pt; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #17171a; }
+  .sign-sub { font-size: 8.4pt; color: #9a989e; }
+
+  /* ── Pie ──────────────────────────────────────────── */
+  .foot { margin-top: auto; padding-top: 6mm; }
+  .foot-rule { height: 1px; background: #e7e5e2; }
+  .foot-row { display: flex; justify-content: space-between; margin-top: 3.4mm; font-size: 8.4pt; color: #9a989e; }
+  .foot-row .thanks { color: #b03413; font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="doc">
+
+  <header class="hdr">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 985 985" xmlns="http://www.w3.org/2000/svg">
+        <rect width="985" height="985" rx="120" fill="#FE6634"/>
+        <path fill="#FFFFFF" d="M168.2 274.2H281.3L332.2 534.7L384.7 274.2H497.7L519.8 725.7H424.8L414.6 428.5L365.4 725.7H304.1L245.1 428.5L238.4 725.7H143.8Z"/>
+        <path fill="#FFFFFF" fill-rule="evenodd" d="M540.1 274.2H671.4C752.6 274.2 791.6 297.6 809.0 339.4C832.0 395.0 812.3 453.8 760.7 483.7C809.0 501.2 830.9 545.4 830.9 602.2C830.9 678.3 798.3 725.7 720.8 725.7H559.1ZM647.7 341.7V454.4H680.6C708.8 454.4 723.1 433.4 723.1 397.9C723.1 362.1 706.8 341.7 678.5 341.7ZM647.7 519.7V656.2H681.2C711.1 656.2 727.1 629.7 727.1 588.5C727.1 547.1 709.1 519.7 680.1 519.7Z"/>
+      </svg>
+      <div>
+        <div class="brand-name">Marcos Barbosa <span>Group</span></div>
+        <div class="brand-tag">Fe · Estrategia · Servicio · Tecnología</div>
+      </div>
+    </div>
+    <div class="co">
+      <div class="co-strong">Córdoba, Argentina</div>
+      {% if company.phone %}<div>{{ company.phone }}</div>{% endif %}
+      {% if company.email %}<div>{{ company.email }}</div>{% endif %}
+      <div>marcosbarbosagroup.com</div>
+    </div>
+  </header>
+  <div class="brandbar"></div>
+  <div class="brandbar-thin"></div>
+
+  <section class="title-row">
+    <div>
+      <h1>Presupuesto</h1>
+      <div class="quote-no">N° <b>{{ quote_no }}</b></div>
+    </div>
+    <div class="meta">
+      <div>
+        <div class="m-label">Fecha</div>
+        <div class="m-val">{{ date }}</div>
+      </div>
+      <div>
+        <div class="m-label">Validez</div>
+        <div class="m-val">{{ validity }}</div>
+      </div>
+      <div>
+        <div class="m-label">Moneda</div>
+        <div class="m-val">{{ currency }}</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="parties">
+    <div class="party">
+      <h3>Cliente</h3>
+      <div class="p-name">{{ client.company }}</div>
+      {% if client.contact %}<div class="p-line">{{ client.contact }}</div>{% endif %}
+      {% if client.email %}<div class="p-line">{{ client.email }}</div>{% endif %}
+      {% if client.phone %}<div class="p-line">{{ client.phone }}</div>{% endif %}
+    </div>
+    <div class="party">
+      <h3>Detalle</h3>
+      <div class="p-line"><span class="k">Negocio</span> {{ deal_name }}</div>
+      {% if owner %}<div class="p-line"><span class="k">Responsable</span> {{ owner }}</div>{% endif %}
+      {% if client.company | lower != deal_title | lower %}
+      <div class="p-line"><span class="k">Empresa</span> {{ deal_title }}</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th class="col-desc">Descripción</th>
+        <th class="col-qty num">Cant.</th>
+        <th class="col-rate num">Precio unit.</th>
+        <th class="col-disc num">Desc.</th>
+        <th class="col-amt num">Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td class="desc"><span class="d-name">{{ it.description }}</span></td>
+        <td class="num">{{ it.qty_fmt }}</td>
+        <td class="num">{{ it.rate_fmt }}</td>
+        <td class="num">{{ it.discount_fmt }}</td>
+        <td class="num">{{ it.net_fmt }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <section class="totals">
+    <div class="totals-inner">
+      <div class="t-row"><span class="t-k">Subtotal</span><span>{{ tot.subtotal_fmt }}</span></div>
+      {% if tot.has_discount %}
+      <div class="t-row"><span class="t-k">Descuento</span><span>− {{ tot.discount_fmt }}</span></div>
+      {% endif %}
+      {% if tot.show_iva %}
+      <div class="t-row">
+        <span class="t-k">IVA 21%{% if tot.iva_included %} (incluido){% endif %}</span>
+        <span>{{ tot.iva_fmt }}</span>
+      </div>
+      {% endif %}
+      <div class="t-total">
+        <span class="t-k">Total</span>
+        <span class="t-v">{{ tot.total_fmt }}</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="conditions">
+    <h3 class="blk-title">Condiciones</h3>
+    <div class="cond-grid">
+      {% for c in conditions %}
+      <div class="cond"><span class="k">{{ c.k }}:</span><span class="v">{{ c.v }}</span></div>
+      {% endfor %}
+    </div>
+    {% if notes %}<p class="note">{{ notes }}</p>{% endif %}
+  </section>
+
+  <section class="conform">
+    <h3 class="blk-title">Conformidad del cliente</h3>
+    <div style="font-size:9.6pt;color:#55555e">
+      La firma de este documento implica la aceptación del presupuesto, el alcance
+      y las condiciones detalladas.
+    </div>
+    <div class="sign-grid">
+      <div class="sign">
+        <div class="sign-line"></div>
+        <div class="sign-role">Aclaración y firma</div>
+        <div class="sign-sub">Nombre, CUIT/DNI y fecha</div>
+      </div>
+      <div class="sign">
+        <div class="sign-line"></div>
+        <div class="sign-role">Por Marcos Barbosa Group</div>
+        <div class="sign-sub">Firma autorizada</div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <div class="foot-rule"></div>
+    <div class="foot-row">
+      <span>{{ company.phone }} · {{ company.email }} · marcosbarbosagroup.com</span>
+      <span class="thanks">Gracias por confiar en Marcos Barbosa Group</span>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

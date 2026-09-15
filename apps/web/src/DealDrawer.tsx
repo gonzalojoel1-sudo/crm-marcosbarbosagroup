@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type DealInput } from "./api";
 import { stageLabel } from "./labels";
-import { IconPlus, IconReceipt, IconTarget, IconTrash, IconX } from "./icons";
+import { IconDownload, IconPlus, IconReceipt, IconTarget, IconTrash, IconX } from "./icons";
 
 const STAGES = [
   "Qualification",
@@ -52,6 +52,7 @@ export default function DealDrawer({
   const [loading, setLoading] = useState(Boolean(name));
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [ivaMode, setIvaMode] = useState<"sumar" | "incluido" | "exento">("sumar");
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -96,6 +97,19 @@ export default function DealDrawer({
   const filledRows = rows.filter((r) => r.description.trim());
   const canSaveDetalle = Boolean(dealName) || Boolean(title.trim());
 
+  const iva = ivaMode === "exento" ? 0 : ivaMode === "incluido" ? total - total / 1.21 : total * 0.21;
+  const grand = ivaMode === "incluido" ? total : total + iva;
+
+  const quoteItems = () =>
+    filledRows.map((r) => ({
+      description: r.description.trim(),
+      qty: num(r.qty),
+      rate: num(r.rate),
+      discount_percentage: num(r.discount),
+      amount: 0,
+      net_amount: 0,
+    }));
+
   async function saveDetalle() {
     if (!canSaveDetalle || saving) return;
     setSaving(true);
@@ -130,20 +144,36 @@ export default function DealDrawer({
     setSaving(true);
     setError(null);
     try {
-      await api.saveQuote(
-        dealName,
-        filledRows.map((r) => ({
-          description: r.description.trim(),
-          qty: num(r.qty),
-          rate: num(r.rate),
-          discount_percentage: num(r.discount),
-          amount: 0,
-          net_amount: 0,
-        })),
-      );
+      await api.saveQuote(dealName, quoteItems());
       onClose();
     } catch (e) {
       setError(String(e));
+      setSaving(false);
+    }
+  }
+
+  async function downloadPdf() {
+    if (!dealName || saving) return;
+    if (filledRows.length === 0) {
+      setError("Agregá al menos un ítem para armar el presupuesto.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await api.saveQuote(dealName, quoteItems());
+      const blob = await api.quotePdf(dealName, ivaMode);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Presupuesto ${title || dealName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) {
+      setError(String(e));
+    } finally {
       setSaving(false);
     }
   }
@@ -160,9 +190,18 @@ export default function DealDrawer({
         </button>
       );
     return (
-      <button className="btn-primary" onClick={saveQuote} disabled={saving || loading}>
-        {saving ? "Guardando…" : "Guardar presupuesto"}
-      </button>
+      <>
+        <button
+          className="ghost"
+          onClick={downloadPdf}
+          disabled={saving || loading || filledRows.length === 0}
+        >
+          <IconDownload width={15} height={15} /> PDF
+        </button>
+        <button className="btn-primary" onClick={saveQuote} disabled={saving || loading}>
+          {saving ? "Guardando…" : "Guardar presupuesto"}
+        </button>
+      </>
     );
   };
 
@@ -326,9 +365,31 @@ export default function DealDrawer({
               <button className="quote-add" onClick={addRow}>
                 <IconPlus width={15} height={15} /> Agregar ítem
               </button>
-              <div className="quote-total">
-                <span>Total del presupuesto</span>
-                <strong>{money(total)}</strong>
+              <div className="quote-iva">
+                <span className="quote-iva-lbl">IVA</span>
+                <div className="seg">
+                  {(["sumar", "incluido", "exento"] as const).map((m) => (
+                    <button key={m} className={ivaMode === m ? "on" : ""} onClick={() => setIvaMode(m)}>
+                      {m === "sumar" ? "Sumar 21%" : m === "incluido" ? "Incluido" : "Exento"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="quote-sum">
+                <div className="qs-row">
+                  <span>Subtotal</span>
+                  <span>{money(total)}</span>
+                </div>
+                {ivaMode !== "exento" ? (
+                  <div className="qs-row">
+                    <span>IVA 21%{ivaMode === "incluido" ? " (incluido)" : ""}</span>
+                    <span>{money(iva)}</span>
+                  </div>
+                ) : null}
+                <div className="qs-total">
+                  <span>Total</span>
+                  <strong>{money(grand)}</strong>
+                </div>
               </div>
               {error ? <p className="error">{error}</p> : null}
             </div>
