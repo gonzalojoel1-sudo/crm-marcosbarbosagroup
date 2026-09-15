@@ -35,6 +35,8 @@ for org, status, value, date, step in DEALS:
             "deal_owner": "Administrator",
         }
     )
+    if status == "Lost":
+        d.lost_reason = "Competition"
     d.insert(ignore_permissions=True)
 
 frappe.db.commit()
