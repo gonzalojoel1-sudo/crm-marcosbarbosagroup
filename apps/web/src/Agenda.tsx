@@ -47,7 +47,8 @@ const MONTH_SHORT = [
 
 function rangeTitle(start: Date, end: Date, mode: "week" | "day"): string {
   if (mode === "day") {
-    return `${DAY_NAMES[(start.getDay() + 6) % 7]} ${start.getDate()} de ${MONTH_SHORT[start.getMonth()]}`;
+    const s = `${DAY_NAMES[(start.getDay() + 6) % 7]} ${start.getDate()} de ${MONTH_SHORT[start.getMonth()]}`;
+    return s.charAt(0).toUpperCase() + s.slice(1);
   }
   const last = addDays(end, -1);
   const sameMonth = start.getMonth() === last.getMonth();
