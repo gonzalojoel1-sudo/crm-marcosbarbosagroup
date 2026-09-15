@@ -2,6 +2,7 @@ import { useState } from "react";
 import Hoy from "./Hoy";
 import Agenda from "./Agenda";
 import MeetingModal from "./MeetingModal";
+import Logo from "./Logo";
 import "./styles.css";
 
 export default function App() {
@@ -12,7 +13,10 @@ export default function App() {
     <div className="app">
       <div className="glow" aria-hidden />
       <nav className="nav">
-        <span className="brand">MB CRM</span>
+        <span className="brand">
+          <Logo size={24} />
+          Marcos Barbosa Group
+        </span>
         <div className="tabs">
           <button className={view === "agenda" ? "on" : ""} onClick={() => setView("agenda")}>
             Agenda
