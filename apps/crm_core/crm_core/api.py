@@ -13,7 +13,7 @@ import frappe
 from frappe.utils import add_days, add_to_date, getdate, nowdate
 
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
-MEETING_FIELDS = ["name", "first_name", "last_name", "email", "custom_meeting_datetime"]
+MEETING_FIELDS = ["name", "first_name", "last_name", "email", "notes", "custom_meeting_datetime"]
 
 
 def _day_bounds(day=None):
@@ -23,11 +23,19 @@ def _day_bounds(day=None):
 
 def _meeting_dto(r):
     when = r["custom_meeting_datetime"]
-    name = f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip() or r.get("email") or "Reunión"
+    # El sync guarda el título real del evento en notes:
+    #   "Reunión agendada: <summary>\nCuando: ...\nEventId: ..."
+    subject = ""
+    notes = (r.get("notes") or "").strip()
+    if notes.startswith("Reunión agendada:"):
+        subject = notes.split("\n", 1)[0].replace("Reunión agendada:", "").strip()
+    who = f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip().strip("-").strip()
+    subject = subject or who or r.get("email") or "Reunión"
     end = add_to_date(when, hours=1)
     return {
         "name": r["name"],
-        "subject": name,
+        "subject": subject,
+        "who": who,
         "email": r.get("email") or "",
         "starts_on": str(when),
         "ends_on": str(end),
