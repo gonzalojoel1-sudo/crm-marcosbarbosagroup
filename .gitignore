@@ -43,3 +43,4 @@ deploy/cal-sidecar/.secrets
 apps/web/dist/
 apps/web/node_modules/
 hoy.png
+agenda.png

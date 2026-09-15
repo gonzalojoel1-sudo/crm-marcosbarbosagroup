@@ -14,30 +14,51 @@ DocTypes (13): Task, Event, Event Attendee, Contact, Contact Email,
 Contact Phone, Account, Lead, Deal, Activity, GCal Connection,
 GCal Sync State, Sync Conflict.
 
-## Página "Hoy" — app React (Nivel 1)
+## Página "Hoy" / "Agenda" — app React (Nivel 1)
 
-Ruta: `crm.marcosbarbosagroup.com/hoy` (requiere login).
+Ruta: `crm.marcosbarbosagroup.com/hoy` (requiere login). La app tiene dos vistas:
+**Agenda** (por defecto) y **Hoy**.
 
-Es una **app React** (Vite + TS) con UI dark premium, servida por Frappe.
-
-- Muestra tareas vencidas + de hoy (incluidas las sin fecha) + eventos del día.
-- Alta rápida: escribir y Enter (optimista). Completar: click en la fila.
-- Atajo `N` para enfocar el input. Skeleton al cargar. Estados vacíos.
+- **Agenda**: calendario semanal (y vista Día) con grid de horas, eventos como
+  bloques posicionados por hora, tareas marcadas en su hora, línea de hora
+  actual, navegación (‹ ›, Hoy), toggle Día/Semana, y **click en un hueco para
+  crear un evento**.
+- **Hoy**: lista de tareas vencidas + de hoy (incluidas las sin fecha) + eventos.
+  Alta rápida (escribir + Enter), completar con click, atajo `N`.
 
 ### Fuente y build
 
 ```
 apps/web/                     # la app React (Vite + React + TS)
-  src/{App.tsx,api.ts,main.tsx,styles.css}
+  src/{App.tsx,Agenda.tsx,Hoy.tsx,api.ts,main.tsx,styles.css}
   gen-shell.mjs               # genera el template de Frappe embebiendo el bundle
 apps/crm_core/crm_core/
   www/hoy.html                # TEMPLATE GENERADO (no editar a mano)
   www/hoy.py                  # gate de login + inyecta CSRF
-  api.py                      # get_hoy / quick_add_task / complete_task
+  api.py                      # get_hoy / get_agenda / quick_add_task /
+                              # complete_task / create_event
 ```
 
-Build: `cd apps/web && npm run build` → compila con Vite y corre `gen-shell.mjs`,
-que escribe `www/hoy.html`.
+Build: `cd apps/web && npm run build` → Vite + `gen-shell.mjs` → `www/hoy.html`.
+
+### DocTypes que usa
+
+- **Task** (`crm_core`): campo `due_datetime` para la hora.
+- **Event** (Frappe, módulo **Desk**): `subject`, `starts_on`, `ends_on`.
+  ⚠️ **NO** crear un DocType propio llamado `Event`: choca con el de Frappe y lo
+  sobrescribe (rompe `sync_with_google_calendar`, etc.). Si alguna vez se
+  corrompe, correr `scripts/restore_frappe_event.py`.
+  Frappe's Event ya trae sync con Google Calendar → es la base para el Nivel 2.
+
+### E2E con navegador (Playwright)
+
+```bash
+# crear key temporal en el server (tmp_admin_key.py MODE=create), luego:
+KEY=... SEC=... node scripts/e2e_agenda.mjs   # screenshot -> agenda.png
+KEY=... SEC=... node scripts/e2e_hoy.mjs      # screenshot -> hoy.png
+# y SIEMPRE borrar la key (MODE=remove)
+```
+
 
 ### Por qué el bundle va embebido en base64 (leer antes de tocar)
 
