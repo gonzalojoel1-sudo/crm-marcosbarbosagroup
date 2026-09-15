@@ -34,7 +34,11 @@ def get_hoy():
     )
     tasks_today = frappe.get_all(
         "Task",
-        filters={"status": "Open", "due_datetime": ["between", [start, end]]},
+        filters={"status": "Open"},
+        or_filters=[
+            ["due_datetime", "between", [start, end]],
+            ["due_datetime", "is", "not set"],
+        ],
         fields=TASK_FIELDS,
         order_by="due_datetime asc",
         limit_page_length=0,

@@ -55,15 +55,21 @@ def test_partition():
     done = _mk("__hecha", f"{today} 09:00:00")
     frappe.db.set_value("Task", done.name, "status", "Done")
 
+    # Tarea sin fecha (alta rápida): debe aparecer en "hoy"
+    from crm_core.api import quick_add_task
+
+    rapid = quick_add_task("__sinfecha")
+
     res = get_hoy()
     subs_o = [t["subject"] for t in res["overdue"]]
     subs_t = [t["subject"] for t in res["tasks_today"]]
 
     assert "__vencida" in subs_o, subs_o
     assert "__dehoy" in subs_t, subs_t
+    assert "__sinfecha" in subs_t, subs_t
     assert "__hecha" not in subs_o and "__hecha" not in subs_t
 
-    for n in (overdue.name, hoyd.name, done.name):
+    for n in (overdue.name, hoyd.name, done.name, rapid["name"]):
         _rm(n)
     frappe.db.commit()
     print("test_partition: PASS")
