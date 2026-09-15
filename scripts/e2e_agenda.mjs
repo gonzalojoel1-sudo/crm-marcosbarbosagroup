@@ -37,4 +37,15 @@ if (process.env.MODAL === "1") {
   console.log("screenshot -> modal.png");
 }
 
+if (process.env.DETAIL === "1") {
+  await page.locator(".ag-event").first().click();
+  await page.waitForSelector(".modal.detail", { timeout: 8000 });
+  await page.waitForSelector(".detail-meta", { timeout: 8000 });
+  console.log("detail subject:", (await page.locator(".detail-head h3").textContent())?.trim());
+  console.log("comments:", await page.locator(".comments li").count());
+  console.log("tasks in detail:", await page.locator(".dtasks li").count());
+  await page.screenshot({ path: "detail.png", fullPage: false });
+  console.log("screenshot -> detail.png");
+}
+
 await browser.close();
