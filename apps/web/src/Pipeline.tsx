@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api, type DealDTO } from "./api";
 import { IconCalendar, IconChevronRight, IconPlus, IconTrash, IconUser } from "./icons";
+import DealDrawer from "./DealDrawer";
 
 const MON = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
@@ -40,10 +41,8 @@ type MenuPos = { name: string; status: string; x: number; y: number };
 export default function Pipeline() {
   const [deals, setDeals] = useState<DealDTO[] | null>(null);
   const [stages, setStages] = useState<string[]>([]);
-  const [creating, setCreating] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [dealDrawer, setDealDrawer] = useState<{ name?: string } | null>(null);
   const [menu, setMenu] = useState<MenuPos | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     const r = await api.getDeals();
@@ -53,9 +52,6 @@ export default function Pipeline() {
   useEffect(() => {
     load();
   }, []);
-  useEffect(() => {
-    if (creating) inputRef.current?.focus();
-  }, [creating]);
   useEffect(() => {
     const close = () => setMenu(null);
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(null);
@@ -67,14 +63,6 @@ export default function Pipeline() {
     };
   }, []);
 
-  async function create() {
-    const t = draft.trim();
-    if (!t) return;
-    setDraft("");
-    setCreating(false);
-    await api.createDeal(t);
-    await load();
-  }
   async function move(name: string, status: string) {
     setMenu(null);
     setDeals((d) => (d ? d.map((x) => (x.name === name ? { ...x, status } : x)) : d));
@@ -93,24 +81,9 @@ export default function Pipeline() {
     <div className="pipe">
       <div className="pipe-bar">
         <h1 className="ag-range">Pipeline</h1>
-        {creating ? (
-          <input
-            ref={inputRef}
-            className="pipe-input"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") create();
-              if (e.key === "Escape") setCreating(false);
-            }}
-            onBlur={() => setCreating(false)}
-            placeholder="Nombre de la empresa…"
-          />
-        ) : (
-          <button className="ghost" onClick={() => setCreating(true)}>
-            <IconPlus width={15} height={15} /> Nuevo negocio
-          </button>
-        )}
+        <button className="ghost" onClick={() => setDealDrawer({})}>
+          <IconPlus width={15} height={15} /> Nuevo negocio
+        </button>
       </div>
 
       {!deals ? (
@@ -140,7 +113,11 @@ export default function Pipeline() {
                 </header>
                 <div className="stage-cards">
                   {items.map((d) => (
-                    <article className="deal" key={d.name}>
+                    <article
+                      className="deal"
+                      key={d.name}
+                      onClick={() => setDealDrawer({ name: d.name })}
+                    >
                       <div className="deal-top">
                         <span className="deal-org">{d.title}</span>
                         {d.value != null ? (
@@ -195,6 +172,17 @@ export default function Pipeline() {
           })}
         </div>
       )}
+
+      {dealDrawer ? (
+        <DealDrawer
+          name={dealDrawer.name}
+          onClose={() => setDealDrawer(null)}
+          onSaved={() => {
+            setDealDrawer(null);
+            load();
+          }}
+        />
+      ) : null}
 
       {menu ? (
         <div

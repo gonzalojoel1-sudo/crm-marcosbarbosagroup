@@ -49,6 +49,29 @@ export interface DealDTO {
   probability: number | null;
 }
 
+export interface DealDetail {
+  name: string;
+  title: string;
+  org: string;
+  contact: string;
+  value: number | null;
+  currency: string;
+  date: string;
+  next_step: string;
+  probability: number | null;
+  status: string;
+  owner: string;
+}
+
+export interface DealInput {
+  contact?: string;
+  deal_value?: string;
+  expected_closure_date?: string;
+  next_step?: string;
+  probability?: string;
+  status?: string;
+}
+
 export interface LeadDTO {  name: string;
   who: string;
   email: string;
@@ -128,8 +151,11 @@ export const api = {
   moveDeal: (name: string, status: string) =>
     post<{ ok: boolean }>("crm_core.api.move_deal", { name, status }),
   deleteDeal: (name: string) => post<{ ok: boolean }>("crm_core.api.delete_deal", { name }),
-  createDeal: (title: string) =>
-    post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", { title }),
+  getDeal: (name: string) => get<DealDetail>("crm_core.api.get_deal", { name }),
+  updateDeal: (name: string, fields: DealInput) =>
+    post<{ ok: boolean }>("crm_core.api.update_deal", { name, ...fields }),
+  createDeal: (payload: { title: string } & DealInput) =>
+    post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", payload),
   createLead: (p: {
     first_name?: string;
     last_name?: string;

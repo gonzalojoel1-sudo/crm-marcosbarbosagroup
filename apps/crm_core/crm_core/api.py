@@ -347,6 +347,52 @@ def get_deals():
 
 
 @frappe.whitelist()
+def get_deal(name):
+    d = frappe.get_doc("CRM Deal", name)
+    owner = frappe.db.get_value("User", d.deal_owner, "full_name") if d.get("deal_owner") else None
+    return {
+        "name": d.name,
+        "title": d.organization or d.lead_name or d.name,
+        "org": d.organization or "",
+        "contact": d.get("lead_name") or "",
+        "value": float(d.deal_value) if d.get("deal_value") else None,
+        "currency": d.currency or "",
+        "date": str(d.expected_closure_date) if d.get("expected_closure_date") else "",
+        "next_step": d.get("next_step") or "",
+        "probability": d.probability,
+        "status": d.get("status") or "",
+        "owner": owner or "",
+    }
+
+
+@frappe.whitelist()
+def update_deal(
+    name,
+    contact=None,
+    deal_value=None,
+    expected_closure_date=None,
+    next_step=None,
+    probability=None,
+    status=None,
+):
+    d = frappe.get_doc("CRM Deal", name)
+    if contact is not None:
+        d.lead_name = contact.strip() or None
+    if deal_value is not None:
+        d.deal_value = float(deal_value) if str(deal_value).strip() != "" else None
+    if expected_closure_date is not None:
+        d.expected_closure_date = expected_closure_date or None
+    if next_step is not None:
+        d.next_step = next_step.strip() or None
+    if probability is not None:
+        d.probability = float(probability) if str(probability).strip() != "" else None
+    if status and frappe.db.exists("CRM Deal Status", status):
+        d.status = status
+    d.save(ignore_permissions=True)
+    return {"ok": True}
+
+
+@frappe.whitelist()
 def delete_deal(name):
     frappe.delete_doc("CRM Deal", name, force=True, ignore_permissions=True)
     return {"ok": True}
@@ -361,7 +407,7 @@ def move_deal(name, status):
 
 
 @frappe.whitelist()
-def create_deal(title, status=None):
+def create_deal(title, status=None, contact=None, deal_value=None, expected_closure_date=None, next_step=None):
     title = (title or "").strip()
     if not title:
         frappe.throw("Poné un nombre")
@@ -371,7 +417,17 @@ def create_deal(title, status=None):
         o.insert(ignore_permissions=True)
         org = o.name
     status = status if (status and frappe.db.exists("CRM Deal Status", status)) else "Qualification"
-    doc = frappe.get_doc({"doctype": "CRM Deal", "organization": org, "status": status})
+    doc = frappe.get_doc(
+        {
+            "doctype": "CRM Deal",
+            "organization": org,
+            "status": status,
+            "lead_name": (contact or "").strip() or None,
+            "deal_value": float(deal_value) if (deal_value not in (None, "")) else None,
+            "expected_closure_date": expected_closure_date or None,
+            "next_step": (next_step or "").strip() or None,
+        }
+    )
     doc.insert(ignore_permissions=True)
     return {"name": doc.name, "title": title, "status": status}
 
