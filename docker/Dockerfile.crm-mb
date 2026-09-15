@@ -1,4 +1,4 @@
-# Dockerfile.crm-mb — crm_core baked into crm-mb:18 → produces crm-mb:19
+# Dockerfile.crm-mb — crm_core baked into crm-mb:19 → produces crm-mb:20
 #
 # Canonical Frappe v15 app registration (mirrors how frappe.pth / crm.pth work):
 #   <venv>/lib/python3.11/site-packages/<app>.pth  contains  <bench>/apps/<app>
@@ -16,7 +16,7 @@
 #         __init__.py
 #         doctype/<X>/{X.json,X.py,__init__.py}
 
-FROM crm-mb:18
+FROM crm-mb:19
 
 RUN rm -rf /home/frappe/frappe-bench/apps/crm_core
 COPY --chown=frappe:frappe apps/crm_core /home/frappe/frappe-bench/apps/crm_core
