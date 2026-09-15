@@ -35,8 +35,10 @@ const shell = `<!DOCTYPE html>
 <script>window.CSRF = "{{ csrf }}";</script>
 <script>
 (function () {
-  var code = atob("${b64}");
-  var blob = new Blob([code], { type: "text/javascript" });
+  var bin = atob("${b64}");
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  var blob = new Blob([bytes], { type: "text/javascript" });
   import(URL.createObjectURL(blob));
 })();
 </script>
