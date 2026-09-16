@@ -99,7 +99,7 @@ def test_pago_mas_credito_que_cubre_el_total_es_pagada_si_hubo_pago():
     assert invoice_status("1000", "400", "600", date(2026, 10, 1), HOY) == "Pagada"
 
 
-def test_las_marcas_explicitas_ganan_sobre_lo_derivado():
+def test_anulada_gana_y_una_incobrable_sin_pagos_es_incobrable():
     assert invoice_status("1000", "0", "0", date(2026, 9, 1), HOY, is_voided=True) == "Anulada"
     assert (
         invoice_status("1000", "0", "0", date(2026, 9, 1), HOY, is_uncollectible=True)
