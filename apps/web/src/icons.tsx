@@ -130,3 +130,11 @@ export const IconDownload = (p: SVGProps<SVGSVGElement>) => (
     <path d="M12 3v12M7 11l5 5 5-5M5 21h14" />
   </Base>
 );
+
+export const IconExternal = (p: SVGProps<SVGSVGElement>) => (
+  <Base {...p}>
+    <path d="M14 4h6v6" />
+    <path d="M20 4l-8 8" />
+    <path d="M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+  </Base>
+);
