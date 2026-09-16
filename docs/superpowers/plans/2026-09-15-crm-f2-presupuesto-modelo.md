@@ -242,6 +242,14 @@ def test_items_fingerprint_normaliza_los_numeros():
     assert items_fingerprint(a) == items_fingerprint(b)
 
 
+def test_items_fingerprint_no_redondea_las_cantidades():
+    """`qty` es Float: si la huella redondeara a 2 decimales, un cambio real de
+    cantidad pasaria invisible y se podria editar un presupuesto congelado."""
+    assert items_fingerprint([item("2.250", "100")]) != items_fingerprint(
+        [item("2.253", "100")]
+    )
+
+
 def test_presupuesto_mixto_separa_las_dos_bases_de_tiempo():
     t = quote_totals([item(1, "850000"), item(1, "210000", 0, "Mensual")])
     assert t["total_one_time"] == Decimal("850000.00")
@@ -329,9 +337,11 @@ def items_fingerprint(items) -> tuple:
 
     Comparar las listas de `Document` con `!=` no sirve: Frappe no define `__eq__`,
     así que compara identidad y dos listas equivalentes dan distintas. Esta huella
-    compara los VALORES que importan, y normaliza los números con `money()` para que
-    `100`, `"100"`, `100.0` y `"100.00"` sean la misma cosa. (`dec()` no alcanza:
-    `str(dec(1000))` es `"1000"` y `str(dec("1000.00"))` es `"1000.00"`.)
+    compara los VALORES que importan. Los números van como `Decimal`, sin `str()`:
+    `Decimal` compara por valor (`Decimal("1000") == Decimal("1000.00")`), así que
+    normaliza solo. Envolverlos en `str()` los volvería distintos, y pasarlos por
+    `money()` los redondearía a 2 decimales — lo que escondería un cambio real de una
+    cantidad (`qty` es Float, sin límite de decimales).
     """
     rows = []
     for it in items or []:
@@ -339,9 +349,9 @@ def items_fingerprint(items) -> tuple:
             (
                 str(_row(it, "description") or "").strip(),
                 str(_row(it, "billing_type") or "").strip(),
-                str(money(_row(it, "qty"))),
-                str(money(_row(it, "rate"))),
-                str(money(_row(it, "discount_percentage"))),
+                dec(_row(it, "qty")),
+                dec(_row(it, "rate")),
+                dec(_row(it, "discount_percentage")),
             )
         )
     return tuple(rows)
@@ -422,7 +432,7 @@ def quote_totals(items, iva_mode: str = "sumar", iva_rate: Decimal = IVA_RATE) -
 - [ ] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/crm_core && python3 -m pytest tests/test_billing.py -v`
-Expected: PASS (16 tests)
+Expected: PASS (17 tests)
 
 - [ ] **Step 5: Commit**
 
@@ -701,7 +711,11 @@ class CRMPresupuesto(Document):
         before = self.get_doc_before_save()
         if not before:
             return
-        if before.status in FROZEN_STATUSES and self.status == before.status:
+        if before.status in FROZEN_STATUSES:
+            # Sin mirar el estado nuevo a propósito: así también se cubre el guardado
+            # que cambia los ítems Y el estado en la misma operación, que si no
+            # esquivaría el congelamiento. Las transiciones legítimas (enviar,
+            # aceptar, anular) no tocan los ítems, así que siguen pasando.
             # Se comparan HUELLAS, no los objetos: comparar listas de Document con
             # `!=` compara identidad (Frappe no define __eq__) y da siempre distinto,
             # lo que bloquearía hasta el guardado que baja is_current al versionar.
