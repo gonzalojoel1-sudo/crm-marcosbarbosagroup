@@ -52,6 +52,9 @@ def test_doctype_link_apunta_a_destinos_conocidos(path: str):
     externos = {
         "User", "File", "Currency", "Country", "Event", "DocType", "CRM Deal", "CRM Lead",
         "CRM Organization", "CRM Task", "CRM Deal Status", "CRM Lead Source",
+        # DocTypes canonicos de Frappe (modulo Contacts). Los DocTypes de la Fase 0 que
+        # los pisaban se borraron; los Links de `deal`/`lead` apuntan a estos.
+        "Contact", "Contact Email", "Contact Phone",
     }
     for f in d["fields"]:
         if f.get("fieldtype") == "Link":
