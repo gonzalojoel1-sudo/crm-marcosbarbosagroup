@@ -91,10 +91,12 @@ class CRMPago(Document):
         for ap in self.applications or []:
             if not ap.factura:
                 continue
+            if billing.dec(ap.applied_amount) < 0:
+                frappe.throw("El monto aplicado no puede ser negativo.")
             f = frappe.db.get_value(
                 "CRM Factura",
                 ap.factura,
-                ["organization", "currency", "status", "outstanding"],
+                ["organization", "currency", "status"],
                 as_dict=True,
             )
             if not f:
@@ -112,17 +114,24 @@ class CRMPago(Document):
                 # (es una decisión explícita del documento), así que cobrarla la dejaría en
                 # borrador CON saldo — un estado que miente. Hay que emitirla primero.
                 frappe.throw(f"La factura {ap.factura} está en borrador: emitila antes de cobrarla.")
-            # Tope por factura (spec §6): no se puede aplicar más que el saldo pendiente de
-            # ESA factura. Sólo se valida contra las filas NUEVAS: una fila ya persistida
-            # (mismo `name`) ya está descontada del `outstanding` guardado, así que compararla
-            # sería un falso positivo. Las filas persistidas no se pueden cambiar (las bloquea
-            # `guard_aplicaciones`), así que su saldo sigue siendo correcto.
-            if ap.name and ap.name in previas:
+
+        # Tope por factura (spec §6), por SUMA: dos filas a la misma factura se validan juntas.
+        # Fila por fila, 100000 + 30000 contra un saldo de 121000 pasa por separado y el exceso
+        # se pierde (saldo clampado a 0). Sólo se suman las filas NUEVAS: una fila persistida ya
+        # está descontada del saldo guardado (y no se puede cambiar: `guard_aplicaciones`).
+        por_factura = {}
+        for ap in self.applications or []:
+            if not ap.factura or (ap.name and ap.name in previas):
                 continue
-            if billing.dec(ap.applied_amount) > billing.dec(f.outstanding):
+            por_factura[ap.factura] = por_factura.get(ap.factura, billing.dec(0)) + billing.dec(
+                ap.applied_amount
+            )
+        for factura, suma in por_factura.items():
+            saldo = billing.dec(frappe.db.get_value("CRM Factura", factura, "outstanding"))
+            if suma > saldo:
                 frappe.throw(
-                    f"El monto aplicado a {ap.factura} ({billing.fmt_money(ap.applied_amount)}) "
-                    f"supera su saldo pendiente ({billing.fmt_money(f.outstanding)})."
+                    f"El monto aplicado a {factura} ({billing.fmt_money(suma)}) "
+                    f"supera su saldo pendiente ({billing.fmt_money(saldo)})."
                 )
 
         try:

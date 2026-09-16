@@ -224,6 +224,22 @@ class TestPagoRecalculo(FrappeTestCase):
         with self.assertRaises(frappe.ValidationError):
             self._pago(200000, [{"factura": f.name, "applied_amount": 200000}])
 
+    def test_dos_filas_a_la_misma_factura_no_pueden_superar_su_saldo(self):
+        """El tope es por SUMA: fila por fila, 100000 + 30000 contra 121000 pasa y el exceso
+        se pierde (saldo clampado a 0)."""
+        f = self._factura(100000)  # total 121000
+        with self.assertRaises(frappe.ValidationError):
+            self._pago(150000, [
+                {"factura": f.name, "applied_amount": 100000},
+                {"factura": f.name, "applied_amount": 30000},
+            ])
+
+    def test_una_aplicacion_negativa_no_tiene_cota(self):
+        """La cota inferior: una aplicación no puede ser negativa."""
+        f = self._factura(100000)
+        with self.assertRaises(frappe.ValidationError):
+            self._pago(100000, [{"factura": f.name, "applied_amount": -5000}])
+
     def test_no_se_aplica_a_una_factura_ya_saldada(self):
         f = self._factura(100000)
         self._pago(121000, [{"factura": f.name, "applied_amount": 121000}])
@@ -231,9 +247,14 @@ class TestPagoRecalculo(FrappeTestCase):
             self._pago(50000, [{"factura": f.name, "applied_amount": 50000}])
 
     def test_no_se_reescriben_las_aplicaciones_de_un_pago_guardado(self):
-        f = self._factura(100000)
-        p = self._pago(50000, [{"factura": f.name, "applied_amount": 50000}])
-        p.applications[0].applied_amount = 90000
+        """La guarda impide REESCRIBIR una fila existente, aunque el monto nuevo sea válido.
+
+        Ojo: el monto tiene que ser válido para `validar_aplicaciones` (<= al pago y <= al
+        saldo), o el test pasaría sin la guarda y no probaría nada.
+        """
+        f = self._factura(100000)  # total 121000
+        p = self._pago(100000, [{"factura": f.name, "applied_amount": 50000}])
+        p.applications[0].applied_amount = 40000  # <= al pago (100000) y <= al saldo (121000)
         with self.assertRaises(frappe.ValidationError):
             p.save(ignore_permissions=True)
 

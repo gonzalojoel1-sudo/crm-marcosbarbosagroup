@@ -201,6 +201,10 @@ def invoice_context(factura_name):
 
     sin_cae = (f.fiscal_status or "No aplica") != "Emitida"
 
+    # El saldo se deriva con la misma función pura que la API y el recálculo: el PDF es el
+    # documento que sale al cliente y no puede discrepar de la lectura por una caché vieja.
+    saldo = billing.outstanding_of(f.total, f.paid_amount, f.credit_total)
+
     return {
         "font_b64": _font_b64(),
         "company": EMPRESA,
@@ -237,8 +241,8 @@ def invoice_context(factura_name):
             "paid": billing.fmt_money(f.paid_amount, symbol),
             "credit": billing.fmt_money(f.credit_total, symbol),
             "show_credit": flt(f.credit_total) > 0.005,
-            "outstanding": billing.fmt_money(f.outstanding, symbol),
-            "show_balance": flt(f.outstanding) > 0.005 and flt(f.paid_amount) > 0,
+            "outstanding": billing.fmt_money(saldo, symbol),
+            "show_balance": flt(saldo) > 0.005 and flt(f.paid_amount) > 0,
         },
         "sin_cae": sin_cae,
         "conditions": f.conditions or "",
