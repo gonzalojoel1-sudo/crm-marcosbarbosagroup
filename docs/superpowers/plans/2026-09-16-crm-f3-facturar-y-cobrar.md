@@ -315,7 +315,7 @@ def invoice_status(
         return "Pagada" if paid > 0 else "Emitida"
     if paid > 0:
         return "Parcial"
-    if due_date and dec(0) == 0 and str(due_date) < str(hoy):
+    if due_date and str(due_date) < str(hoy):
         return "Vencida"
     return "Emitida"
 ```
@@ -641,15 +641,14 @@ DEFAULT_DUE_DAYS = 15
 
 class CRMFactura(Document):
     def validate(self):
-        self.set_interval_months()
         self.calculate_totals()
         self.guard_frozen()
         self.refresh_status()
 
     # ── Contenido ──────────────────────────────────────────────────────
-    def set_interval_months(self):
-        for it in self.items or []:
-            it.interval_months = billing.interval_months(it.billing_type)
+    # (No hay `set_interval_months` como en el presupuesto: acá `billing_type` es
+    # informativo —qué tipo de cargo es— y NO se normaliza a mensual, porque todos los
+    # ítems de una factura están en la misma base de tiempo. Ver Task 1.)
 
     def calculate_totals(self):
         """Los totales SIEMPRE se recalculan: nunca se aceptan de afuera."""
