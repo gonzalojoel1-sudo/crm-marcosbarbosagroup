@@ -14,6 +14,8 @@ import re
 import frappe
 from frappe.utils import add_days, add_to_date, getdate, nowdate
 
+from crm_core import billing
+
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
 MEETING_FIELDS = ["name", "first_name", "last_name", "email", "notes", "custom_meeting_datetime"]
 
@@ -354,11 +356,13 @@ def get_deals():
             "next_step",
             "probability",
             "contact",
-            "total",
         ],
         order_by="modified desc",
         limit_page_length=0,
     )
+    con_presupuesto = {
+        d for d in frappe.get_all("CRM Presupuesto", filters={"is_current": 1}, pluck="deal") if d
+    }
     deals = []
     for r in rows:
         title = (
@@ -386,7 +390,7 @@ def get_deals():
                 "next_step": r.get("next_step") or "",
                 "probability": r.get("probability"),
                 "lead": r.get("lead") or "",
-                "has_quote": bool(r.get("total")),
+                "has_quote": r["name"] in con_presupuesto,
             }
         )
     return {"deals": deals, "stages": DEAL_STAGES, "leads": _unlinked_leads()}
@@ -452,7 +456,9 @@ def get_deal(name):
 
 
 @frappe.whitelist()
-def save_quote(deal, items, iva_mode="sumar", valid_until=None, conditions=None, currency=None):
+def save_quote(
+    deal, items, iva_mode="sumar", valid_until=None, conditions=None, currency=None, vertical=None
+):
     """Crea o actualiza el presupuesto EN BORRADOR del negocio.
 
     Si el vigente ya salió del borrador, NO se edita: se crea la versión siguiente.
@@ -493,10 +499,11 @@ def save_quote(deal, items, iva_mode="sumar", valid_until=None, conditions=None,
     else:
         doc.currency = currency or d.currency or "ARS"
     doc.iva_mode = iva_mode or "sumar"
-    if valid_until is not None:
-        doc.valid_until = valid_until or None
+    # Un borrador sin vencimiento no sirve: si no llega una fecha, se pone el default.
+    doc.valid_until = valid_until or add_days(nowdate(), billing.DEFAULT_VALIDITY_DAYS)
     if conditions is not None:
         doc.conditions = conditions
+    doc.vertical = vertical or doc.get("vertical")
 
     doc.set("items", [])
     for r in rows:
@@ -505,9 +512,11 @@ def save_quote(deal, items, iva_mode="sumar", valid_until=None, conditions=None,
             {
                 "description": str(r.get("description")).strip(),
                 "billing_type": r.get("billing_type") or "Único",
-                "qty": r.get("qty") or 1,
-                "rate": r.get("rate") or 0,
-                "discount_percentage": r.get("discount_percentage") or 0,
+                "qty": r.get("qty") if r.get("qty") is not None else 1,
+                "rate": r.get("rate") if r.get("rate") is not None else 0,
+                "discount_percentage": r.get("discount_percentage")
+                if r.get("discount_percentage") is not None
+                else 0,
             },
         )
     doc.save(ignore_permissions=True)
@@ -621,9 +630,9 @@ def quote_pdf(name):
 
     if not frappe.db.exists("CRM Presupuesto", name):
         # Compatibilidad: si llega el negocio, resolver al presupuesto vigente.
-        name = (
-            frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name") or name
-        )
+        name = frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name")
+    if not name:
+        frappe.throw("El negocio no tiene un presupuesto cargado.")
     ctx = quote_context(name)
     pdf = render_quote_pdf(name)
     fname = f"Presupuesto {ctx['quote_no']} - {ctx['client']['company']}.pdf"

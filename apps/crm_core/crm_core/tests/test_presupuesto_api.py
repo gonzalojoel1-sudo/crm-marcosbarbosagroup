@@ -185,3 +185,49 @@ class TestPresupuestoAPI(FrappeTestCase):
             frappe.db.get_value("CRM Organization", org, "organization_name"),
             "Test F2 Sin Org",
         )
+
+    def test_save_quote_sin_items_falla_en_espanol(self):
+        deal = self._deal()
+        with self.assertRaises(frappe.ValidationError) as ctx:
+            api.save_quote(deal.name, [], "sumar")
+        self.assertIn("ítem", str(ctx.exception))
+        self.assertEqual(frappe.db.count("CRM Presupuesto", {"deal": deal.name}), 0)
+
+    def test_sin_organizacion_no_duplica_al_guardar_dos_veces(self):
+        deal = self._deal(organization=False, lead_name="Test F2 Dup Org")
+        api.save_quote(deal.name, self._items(), "sumar")
+        api.save_quote(deal.name, self._items(), "sumar")
+        self.assertEqual(
+            frappe.db.count(
+                "CRM Organization", {"organization_name": "Test F2 Dup Org"}
+            ),
+            1,
+        )
+
+    def test_new_quote_version_desde_un_enviado(self):
+        deal = self._deal()
+        v1 = api.save_quote(deal.name, self._items(), "sumar")
+        api.send_quote(v1["name"])
+
+        nueva = api.new_quote_version(deal.name)
+        self.assertEqual(nueva["version"], 2)
+        self.assertEqual(frappe.db.get_value("CRM Presupuesto", v1["name"], "is_current"), 0)
+        vigente = frappe.db.get_value(
+            "CRM Presupuesto", {"deal": deal.name, "is_current": 1}, "name"
+        )
+        self.assertEqual(vigente, nueva["name"])
+
+    def test_quote_pdf_de_un_negocio_sin_presupuesto_falla_en_espanol(self):
+        deal = self._deal()
+        with self.assertRaises(frappe.ValidationError) as ctx:
+            api.quote_pdf(deal.name)
+        self.assertIn("presupuesto", str(ctx.exception).lower())
+
+    def test_get_deals_marca_has_quote(self):
+        con = self._deal()
+        api.save_quote(con.name, self._items(), "sumar")
+        sin = self._deal()
+
+        deals = {d["name"]: d for d in api.get_deals()["deals"]}
+        self.assertTrue(deals[con.name]["has_quote"])
+        self.assertFalse(deals[sin.name]["has_quote"])
