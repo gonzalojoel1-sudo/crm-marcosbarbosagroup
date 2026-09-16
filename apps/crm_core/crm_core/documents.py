@@ -162,3 +162,85 @@ def render_quote_pdf(presupuesto_name):
     with open(os.path.join(TEMPLATES, "quote.html"), encoding="utf-8") as f:
         html = frappe.render_template(f.read(), ctx)
     return _html_to_pdf(html)
+
+
+def invoice_context(factura_name):
+    """Contexto del PDF de una factura.
+
+    Sin CAE, una factura NO es un comprobante fiscal: el PDF se rotula como documento
+    INTERNO. La leyenda "X" + "DOCUMENTO NO VÁLIDO COMO FACTURA" es para presupuestos,
+    remitos y recibos (RG 3803/94 art. 9); no se le pone "X" a una factura.
+    """
+    f = frappe.get_doc("CRM Factura", factura_name)
+    items = [it for it in (f.items or []) if (it.description or "").strip()]
+    if not items:
+        frappe.throw("La factura no tiene ítems cargados.")
+
+    currency = f.currency or "ARS"
+    symbol = "US$" if currency == "USD" else "$"
+
+    org_name, org_tax_id = "", ""
+    if f.organization:
+        org = frappe.db.get_value(
+            "CRM Organization", f.organization, ["organization_name"], as_dict=True
+        ) or {}
+        org_name = org.get("organization_name") or f.organization
+
+    sin_cae = (f.fiscal_status or "No aplica") != "Emitida"
+
+    return {
+        "font_b64": _font_b64(),
+        "company": EMPRESA,
+        "emisor": {
+            "razon_social": "Marcos Barbosa Group",
+            "cuit": frappe.db.get_single_value("CRM Emisor", "cuit") or "",
+            "address": frappe.db.get_single_value("CRM Emisor", "address") or "",
+            "cbu_alias": frappe.db.get_single_value("CRM Emisor", "cbu_alias") or "",
+        },
+        "invoice_no": f.name,
+        "issue_date": getdate(f.issue_date).strftime("%d/%m/%Y") if f.issue_date else "",
+        "due_date": getdate(f.due_date).strftime("%d/%m/%Y") if f.due_date else "",
+        "period": _period_label(f),
+        "currency": currency,
+        "client": {"company": org_name or "Cliente", "tax_id": org_tax_id},
+        "items": [
+            {
+                "description": it.description,
+                "qty_fmt": f"{flt(it.qty):g}",
+                "rate_fmt": billing.fmt_money(it.rate, ""),
+                "discount_fmt": f"{flt(it.discount_percentage):g}%" if it.discount_percentage else "—",
+                "net_fmt": billing.fmt_money(it.net_amount, ""),
+                "billing_label": it.billing_type if it.billing_type != "Único" else "",
+            }
+            for it in items
+        ],
+        "tot": {
+            "subtotal": billing.fmt_money(f.subtotal, symbol),
+            "discount": billing.fmt_money(f.discount_total, symbol),
+            "has_discount": flt(f.discount_total) > 0.005,
+            "iva": billing.fmt_money(f.iva_amount, symbol),
+            "show_iva": (f.iva_mode or "sumar") != "exento",
+            "total": billing.fmt_money(f.total, symbol),
+            "paid": billing.fmt_money(f.paid_amount, symbol),
+            "credit": billing.fmt_money(f.credit_total, symbol),
+            "outstanding": billing.fmt_money(f.outstanding, symbol),
+            "show_balance": flt(f.outstanding) > 0.005 and flt(f.paid_amount) > 0,
+        },
+        "sin_cae": sin_cae,
+        "conditions": f.conditions or "",
+        "notes": f.notes or "",
+        "status": f.status,
+    }
+
+
+def _period_label(f):
+    if f.period_start and f.period_end:
+        return f"{getdate(f.period_start).strftime('%d/%m/%Y')} al {getdate(f.period_end).strftime('%d/%m/%Y')}"
+    return ""
+
+
+def render_invoice_pdf(factura_name):
+    ctx = invoice_context(factura_name)
+    with open(os.path.join(TEMPLATES, "invoice.html"), encoding="utf-8") as fh:
+        html = frappe.render_template(fh.read(), ctx)
+    return _html_to_pdf(html)

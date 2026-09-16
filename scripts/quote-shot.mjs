@@ -7,13 +7,19 @@ const MM = 96 / 25.4; // px por mm a 96dpi
 const CONTENT_W = Math.round((210 - 15 - 15) * MM);
 const CONTENT_H = Math.round((297 - 13 - 12) * MM); // caja imprimible en px
 
+// --factura mide el preview de factura; sin flag, el del presupuesto.
+const factura = process.argv.includes("--factura");
+const src = factura ? "/tmp/invoice-preview.html" : "/tmp/quote-preview.html";
+const png = factura ? "invoice-preview.png" : "quote-preview.png";
+const pdf = factura ? "invoice-preview.pdf" : "quote-preview.pdf";
+
 const browser = await chromium.launch();
 const page = await browser.newPage({
   viewport: { width: Math.round(210 * MM), height: 1123 },
   deviceScaleFactor: 2,
 });
 await page.emulateMedia({ media: "print" });
-await page.goto("file:///tmp/quote-preview.html", { waitUntil: "networkidle" });
+await page.goto(`file://${src}`, { waitUntil: "networkidle" });
 // Simula los márgenes de @page para que el PNG se vea como la hoja real.
 await page.addStyleTag({ content: "body { padding: 13mm 15mm 12mm; background: #fff; }" });
 await page.waitForTimeout(400);
@@ -30,6 +36,6 @@ console.log(
     `caja alta: ${CONTENT_H}px (${(CONTENT_H / MM).toFixed(1)}mm) · páginas: ${pages}`,
 );
 
-await page.screenshot({ path: "quote-preview.png", fullPage: true });
-await page.pdf({ path: "quote-preview.pdf", preferCSSPageSize: true, printBackground: true });
+await page.screenshot({ path: png, fullPage: true });
+await page.pdf({ path: pdf, preferCSSPageSize: true, printBackground: true });
 await browser.close();
