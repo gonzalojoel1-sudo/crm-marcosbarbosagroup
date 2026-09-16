@@ -217,22 +217,6 @@ export const api = {
     post<{ ok: boolean }>("crm_core.api.update_deal", { name, ...fields }),
   createDeal: (payload: { title: string; lead?: string } & DealInput) =>
     post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", payload),
-  // Verticales de `CRM Vertical`, en el orden del sitio.
-  getVerticals: () =>
-    get<Array<{ name: string; nombre: string }>>("frappe.client.get_list", {
-      doctype: "CRM Vertical",
-      fields: '["name", "nombre"]',
-      filters: '{"activo": 1}',
-      order_by: "orden asc",
-      limit_page_length: "0",
-    }),
-  // Vertical cargada en el presupuesto vigente del negocio (null si todavía no hay).
-  getQuoteVertical: (deal: string) =>
-    get<string | null>("frappe.client.get_value", {
-      doctype: "CRM Presupuesto",
-      filters: JSON.stringify({ deal, is_current: 1 }),
-      fieldname: "vertical",
-    }),
   saveQuote: (
     deal: string,
     items: Array<{

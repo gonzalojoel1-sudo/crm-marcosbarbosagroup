@@ -231,3 +231,68 @@ class TestPresupuestoAPI(FrappeTestCase):
         deals = {d["name"]: d for d in api.get_deals()["deals"]}
         self.assertTrue(deals[con.name]["has_quote"])
         self.assertFalse(deals[sin.name]["has_quote"])
+
+    def _vertical(self, nombre, activo=1, orden=0):
+        existente = frappe.db.exists("CRM Vertical", nombre)
+        if existente:
+            return existente
+        doc = frappe.get_doc(
+            {"doctype": "CRM Vertical", "nombre": nombre, "activo": activo, "orden": orden}
+        )
+        doc.insert(ignore_permissions=True)
+        return doc.name
+
+    def test_get_deal_expone_la_vertical_del_presupuesto(self):
+        deal = self._deal()
+        self._vertical("Servicios")
+        api.save_quote(deal.name, self._items(), "sumar", vertical="Servicios")
+
+        quote = api.get_deal(deal.name)["quote"]
+        self.assertEqual(quote["vertical"], "Servicios")
+
+    def test_save_quote_persiste_la_vertical(self):
+        deal = self._deal()
+        self._vertical("Servicios")
+        res = api.save_quote(deal.name, self._items(), "sumar", vertical="Servicios")
+
+        self.assertEqual(
+            frappe.db.get_value("CRM Presupuesto", res["name"], "vertical"), "Servicios"
+        )
+        self.assertEqual(api.get_deal(deal.name)["quote"]["vertical"], "Servicios")
+
+    def test_save_quote_conserva_o_limpia_la_vertical(self):
+        deal = self._deal()
+        self._vertical("Servicios")
+        api.save_quote(deal.name, self._items(), "sumar", vertical="Servicios")
+
+        # Omitir `vertical` es "no me mandaron nada": conserva el valor.
+        api.save_quote(deal.name, self._items(), "sumar")
+        self.assertEqual(api.get_deal(deal.name)["quote"]["vertical"], "Servicios")
+
+        # `vertical=""` es "me mandaron vacío": limpia.
+        api.save_quote(deal.name, self._items(), "sumar", vertical="")
+        self.assertEqual(api.get_deal(deal.name)["quote"]["vertical"], "")
+        self.assertIsNone(
+            frappe.db.get_value("CRM Presupuesto", {"deal": deal.name, "is_current": 1}, "vertical")
+        )
+
+    def test_get_deals_verticals_solo_activas_y_en_orden(self):
+        primera = self._vertical("Vertical F2 Test A", activo=1, orden=-5)
+        inactiva = self._vertical("Vertical F2 Test Inactiva", activo=0, orden=0)
+        ultima = self._vertical("Vertical F2 Test Z", activo=1, orden=9999)
+        try:
+            verticales = api.get_deals()["verticals"]
+            self.assertIn("Vertical F2 Test A", verticales)
+            self.assertIn("Vertical F2 Test Z", verticales)
+            self.assertNotIn("Vertical F2 Test Inactiva", verticales)
+            self.assertLess(
+                verticales.index("Vertical F2 Test A"),
+                verticales.index("Vertical F2 Test Z"),
+            )
+        finally:
+            for nombre in (primera, inactiva, ultima):
+                if frappe.db.exists("CRM Vertical", nombre):
+                    frappe.delete_doc(
+                        "CRM Vertical", nombre, force=True, ignore_permissions=True
+                    )
+

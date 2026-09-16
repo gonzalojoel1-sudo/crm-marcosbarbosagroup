@@ -276,14 +276,106 @@ export default function DealDrawer({
     }
   }
 
-  const detallePrimary = (
-    <button
-      className="btn-primary"
-      onClick={saveDetalle}
-      disabled={!canSaveDetalle || saving || loading}
-    >
-      {busy === "detalle" ? "Guardando…" : dealName ? "Guardar" : "Crear negocio"}
-    </button>
+  // El pie vive fuera del cuerpo: se ve incluso mientras carga (acción deshabilitada).
+  const drawerFooter = (
+    <footer className="drawer-foot">
+      <div className="foot-actions">
+        <button className="ghost" onClick={onClose}>
+          {tab === "presupuesto" ? "Cerrar" : "Cancelar"}
+        </button>
+        <button
+          className="btn-primary"
+          onClick={saveDetalle}
+          disabled={!canSaveDetalle || saving || loading}
+        >
+          {busy === "detalle" ? "Guardando…" : dealName ? "Guardar" : "Crear negocio"}
+        </button>
+      </div>
+    </footer>
+  );
+
+  const detalleForm = (
+    <div className="form">
+      {!dealName ? (
+        <label className="field">
+          <span>Empresa</span>
+          <input
+            ref={firstRef}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Constructora Del Sur"
+          />
+        </label>
+      ) : null}
+      <label className="field">
+        <span>Contacto</span>
+        <input
+          value={form.contact}
+          onChange={(e) => set("contact", e.target.value)}
+          placeholder="Nombre del contacto"
+        />
+      </label>
+      <div className="row2">
+        <label className="field">
+          <span>Valor</span>
+          <input
+            value={form.value}
+            onChange={(e) => set("value", e.target.value)}
+            placeholder="0"
+            inputMode="numeric"
+          />
+        </label>
+        <label className="field">
+          <span>Cierre estimado</span>
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+        </label>
+      </div>
+      <label className="field">
+        <span>
+          <IconTarget width={14} height={14} className="lbl-ico" /> Próxima acción
+        </span>
+        <input
+          value={form.next_step}
+          onChange={(e) => set("next_step", e.target.value)}
+          placeholder="Enviar presupuesto"
+        />
+      </label>
+      <div className="row2">
+        <label className="field">
+          <span>Etapa</span>
+          <select value={form.status} onChange={(e) => set("status", e.target.value)}>
+            {STAGES.map((s) => (
+              <option key={s} value={s}>
+                {stageLabel(s)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          <span>Probabilidad %</span>
+          <input
+            value={form.probability}
+            onChange={(e) => set("probability", e.target.value)}
+            placeholder="50"
+            inputMode="numeric"
+          />
+        </label>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+    </div>
+  );
+
+  const emptySoft = (
+    <>
+      <div className="empty soft">
+        <IconReceipt className="empty-ico" />
+        <p>Guardá los datos del negocio para armar el presupuesto.</p>
+        <button className="btn-primary" onClick={saveDetalle} disabled={!canSaveDetalle || saving}>
+          {busy === "detalle" ? "Guardando…" : "Guardar y continuar"}
+        </button>
+      </div>
+      {error ? <p className="error">{error}</p> : null}
+    </>
   );
 
   return (
@@ -320,8 +412,16 @@ export default function DealDrawer({
         </header>
 
         {loading ? (
-          <div className="drawer-loading">Cargando…</div>
-        ) : tab === "presupuesto" && dealName ? (
+          <>
+            <div className="drawer-loading">Cargando…</div>
+            {drawerFooter}
+          </>
+        ) : tab === "detalle" || !dealName ? (
+          <>
+            <div className="drawer-body">{tab === "detalle" ? detalleForm : emptySoft}</div>
+            {drawerFooter}
+          </>
+        ) : (
           <QuotePanel
             quote={quote}
             rows={rows}
@@ -347,100 +447,6 @@ export default function DealDrawer({
             onNewVersion={makeVersion}
             onClose={onClose}
           />
-        ) : (
-          <>
-            <div className="drawer-body">
-              {tab === "detalle" ? (
-                <div className="form">
-                  {!dealName ? (
-                    <label className="field">
-                      <span>Empresa</span>
-                      <input
-                        ref={firstRef}
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Constructora Del Sur"
-                      />
-                    </label>
-                  ) : null}
-                  <label className="field">
-                    <span>Contacto</span>
-                    <input
-                      value={form.contact}
-                      onChange={(e) => set("contact", e.target.value)}
-                      placeholder="Nombre del contacto"
-                    />
-                  </label>
-                  <div className="row2">
-                    <label className="field">
-                      <span>Valor</span>
-                      <input
-                        value={form.value}
-                        onChange={(e) => set("value", e.target.value)}
-                        placeholder="0"
-                        inputMode="numeric"
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Cierre estimado</span>
-                      <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
-                    </label>
-                  </div>
-                  <label className="field">
-                    <span>
-                      <IconTarget width={14} height={14} className="lbl-ico" /> Próxima acción
-                    </span>
-                    <input
-                      value={form.next_step}
-                      onChange={(e) => set("next_step", e.target.value)}
-                      placeholder="Enviar presupuesto"
-                    />
-                  </label>
-                  <div className="row2">
-                    <label className="field">
-                      <span>Etapa</span>
-                      <select value={form.status} onChange={(e) => set("status", e.target.value)}>
-                        {STAGES.map((s) => (
-                          <option key={s} value={s}>
-                            {stageLabel(s)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Probabilidad %</span>
-                      <input
-                        value={form.probability}
-                        onChange={(e) => set("probability", e.target.value)}
-                        placeholder="50"
-                        inputMode="numeric"
-                      />
-                    </label>
-                  </div>
-                  {error ? <p className="error">{error}</p> : null}
-                </div>
-              ) : (
-                <>
-                  <div className="empty soft">
-                    <IconReceipt className="empty-ico" />
-                    <p>Guardá los datos del negocio para armar el presupuesto.</p>
-                    <button className="btn-primary" onClick={saveDetalle} disabled={!canSaveDetalle || saving}>
-                      {busy === "detalle" ? "Guardando…" : "Guardar y continuar"}
-                    </button>
-                  </div>
-                  {error ? <p className="error">{error}</p> : null}
-                </>
-              )}
-            </div>
-            <footer className="drawer-foot">
-              <div className="foot-actions">
-                <button className="ghost" onClick={onClose}>
-                  {tab === "presupuesto" ? "Cerrar" : "Cancelar"}
-                </button>
-                {detallePrimary}
-              </div>
-            </footer>
-          </>
         )}
       </aside>
         </div>,
