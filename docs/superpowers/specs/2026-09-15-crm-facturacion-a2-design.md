@@ -123,7 +123,7 @@ Es el patrón de "dimensión" de los ERP: la vertical es una **dimensión analí
 | `discount_total` | Currency | neto |
 | `conditions` | Small Text | validez, forma de pago, plazo |
 | `notes` | Text | |
-| `snapshot_hash` | Data | SHA-256 del PDF al enviar (§8) |
+| `snapshot_hash` | Data | SHA-256 del contenido comercial al enviar (§8.3) |
 | `emisor` | Link CRM Emisor | default |
 
 **Un presupuesto tiene DOS totales, no uno.** Sumar una inversión inicial con un
@@ -193,7 +193,7 @@ Nace **al aceptar** un presupuesto, una por cada ítem recurrente.
 | `cae` / `cae_due` | Data / Date | vacíos hoy |
 | `fiscal_status` | Select | No aplica · Pendiente · Emitida · Error |
 | `fiscal_response` | Long Text | respuesta cruda del webservice (auditoría) |
-| `snapshot_hash` | Data | hash del PDF emitido |
+| `snapshot_hash` | Data | hash del contenido comercial emitido (§8.3) |
 
 **La factura tiene UN solo `total`** (a diferencia del presupuesto, que tiene dos):
 una factura es un cargo puntual —de un período o de pago único—, no una relación
@@ -385,8 +385,12 @@ Al pasar a `Aceptado`:
   (mismo `snapshot_hash`), no una recalculada después.
 
 ### 8.3 Congelamiento
-`snapshot_hash` = SHA-256 del PDF renderizado al enviar. Si más adelante el
-documento "no coincide", se puede detectar. Es el principio de integridad
+`snapshot_hash` = SHA-256 del **contenido comercial enviado** (negocio, modo de
+IVA, moneda, condiciones e ítems), no del PDF renderizado. El PDF es una función
+determinista del contenido + la plantilla: hashear el binario haría que una mejora
+de plantilla ("no coincide") invalide presupuestos ya enviados, que es lo contrario
+de lo que se quiere. El hash de contenido es el invariante correcto y es lo que se
+compara para detectar ediciones posteriores. Es el principio de integridad
 documental que usan los sistemas con validez probatoria.
 
 ---

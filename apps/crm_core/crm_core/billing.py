@@ -9,6 +9,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 IVA_RATE = Decimal("0.21")
 CENT = Decimal("0.01")
+DEFAULT_VALIDITY_DAYS = 15
 
 BILLING_TYPES = ("Único", "Mensual", "Trimestral", "Anual")
 

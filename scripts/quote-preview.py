@@ -62,9 +62,9 @@ ctx = {
         "email": "consultora.marcosbarbosa@gmail.com",
         "web": "marcosbarbosagroup.com",
     },
-    "quote_no": "P-00021",
+    "quote_no": "P-2026-0021",
     "date": "15/09/2026",
-    "validity": "15 días",
+    "validity": "30/09/2026",
     "currency": "ARS",
     "client": {
         "company": "Constructora Del Sur S.A.",
@@ -91,7 +91,7 @@ ctx = {
         "iva_included": False,
     },
     "conditions": [
-        {"k": "Validez", "v": "15 días desde la emisión"},
+        {"k": "Validez", "v": "30/09/2026"},
         {"k": "Forma de pago", "v": "A convenir con el cliente"},
         {"k": "Moneda", "v": "Pesos argentinos (ARS)"},
     ],

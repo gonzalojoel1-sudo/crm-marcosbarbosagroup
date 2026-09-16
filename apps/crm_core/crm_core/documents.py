@@ -20,7 +20,6 @@ EMPRESA = {
     "email": "consultora.marcosbarbosa@gmail.com",
     "web": "marcosbarbosagroup.com",
 }
-QUOTE_VALIDITY_DAYS = 15
 
 
 def _font_b64():
@@ -31,8 +30,14 @@ def _font_b64():
 
 
 def quote_number(name):
-    """P-00025 a partir del sufijo numérico del nombre."""
-    m = re.search(r"(\d+)$", name or "")
+    """Número a mostrar: se respeta la serie (`P-YYYY-NNNN`) tal cual viene.
+
+    Sólo se arma `P-NNNN` como fallback para nombres que no son de la serie.
+    """
+    name = name or ""
+    if re.fullmatch(r"P-\d{4}-\d+", name):
+        return name
+    m = re.search(r"(\d+)$", name)
     return f"P-{m.group(1)}" if m else (name or "S/N")
 
 
@@ -65,7 +70,11 @@ def quote_context(presupuesto_name):
             or p.organization
         )
     email = phone = ""
+    owner = ""
     if p.deal:
+        deal_owner = frappe.db.get_value("CRM Deal", p.deal, "deal_owner")
+        if deal_owner:
+            owner = frappe.db.get_value("User", deal_owner, "full_name") or ""
         lead = frappe.db.get_value("CRM Deal", p.deal, "lead")
         if lead:
             r = frappe.db.get_value("CRM Lead", lead, ["email", "mobile_no"], as_dict=True) or {}
@@ -79,7 +88,9 @@ def quote_context(presupuesto_name):
         "company": EMPRESA,
         "quote_no": quote_number(p.name),
         "date": getdate(p.creation).strftime("%d/%m/%Y"),
-        "validity": str(p.valid_until) if p.valid_until else f"{QUOTE_VALIDITY_DAYS} días",
+        "validity": getdate(p.valid_until).strftime("%d/%m/%Y")
+        if p.valid_until
+        else f"{billing.DEFAULT_VALIDITY_DAYS} días",
         "currency": currency,
         "client": {
             "company": org_name or "Cliente",
@@ -89,7 +100,7 @@ def quote_context(presupuesto_name):
         },
         "deal_name": p.deal,
         "deal_title": org_name or p.deal,
-        "owner": "",
+        "owner": owner,
         "items": rows,
         "has_recurring": flt(p.total_recurring_monthly) > 0,
         "recurring_summary": p.recurring_summary or "",
@@ -108,7 +119,9 @@ def quote_context(presupuesto_name):
         "conditions": [
             {
                 "k": "Validez",
-                "v": str(p.valid_until) if p.valid_until else f"{QUOTE_VALIDITY_DAYS} días desde la emisión",
+                "v": getdate(p.valid_until).strftime("%d/%m/%Y")
+                if p.valid_until
+                else f"{billing.DEFAULT_VALIDITY_DAYS} días desde la emisión",
             },
             {"k": "Forma de pago", "v": "A convenir con el cliente"},
             {

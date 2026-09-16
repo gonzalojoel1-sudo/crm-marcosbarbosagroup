@@ -3,6 +3,7 @@ import json
 
 import frappe
 from frappe.model.document import Document
+from frappe.utils import add_days, nowdate
 
 from crm_core import billing
 
@@ -57,8 +58,8 @@ class CRMPresupuesto(Document):
     def guard_frozen(self):
         """Congelado: si ya salió del borrador, el contenido comercial no se toca.
 
-        No bloquea el cambio de estado (eso lo hacen las transiciones), sólo la
-        edición de los ítems.
+        No bloquea las transiciones de estado legítimas (eso lo hacen las
+        transiciones), sólo la edición del contenido comercial.
         """
         if self.is_new():
             return
@@ -67,13 +68,27 @@ class CRMPresupuesto(Document):
             return
         if before.status in FROZEN_STATUSES:
             # Sin mirar el estado nuevo a propósito: así también se cubre el guardado
-            # que cambia los ítems Y el estado en la misma operación, que si no
-            # esquivaría el congelamiento. Las transiciones legítimas (enviar,
-            # aceptar, anular) no tocan los ítems, así que siguen pasando.
+            # que cambia el contenido Y el estado en la misma operación.
             # Se comparan HUELLAS, no los objetos: comparar listas de Document con
             # `!=` compara identidad (Frappe no define __eq__) y da siempre distinto,
             # lo que bloquearía hasta el guardado que baja is_current al versionar.
-            if billing.items_fingerprint(self.items) != billing.items_fingerprint(before.items):
+            if self.status == "Borrador":
+                frappe.throw(
+                    "Un presupuesto enviado no vuelve a borrador: creá una versión nueva."
+                )
+            comercial_antes = (
+                billing.items_fingerprint(before.items),
+                before.iva_mode,
+                before.currency,
+                (before.conditions or "").strip(),
+            )
+            comercial_ahora = (
+                billing.items_fingerprint(self.items),
+                self.iva_mode,
+                self.currency,
+                (self.conditions or "").strip(),
+            )
+            if comercial_ahora != comercial_antes:
                 frappe.throw(
                     "Este presupuesto ya fue enviado y no se puede editar. "
                     "Creá una versión nueva para cambiarlo."
@@ -125,6 +140,7 @@ class CRMPresupuesto(Document):
                 "deal": self.deal,
                 "iva_mode": self.iva_mode,
                 "currency": self.currency,
+                "conditions": (self.conditions or "").strip(),
                 "items": [
                     [it.description, it.billing_type, it.qty, it.rate, it.discount_percentage]
                     for it in (self.items or [])
@@ -150,6 +166,8 @@ def new_version(deal):
 
     if origen.status == "Borrador":
         frappe.throw("El presupuesto vigente ya es un borrador: editalo en vez de versionar.")
+    if origen.status not in ("Enviado", "Aceptado", "Rechazado"):
+        frappe.throw(f"No se puede versionar un presupuesto en estado «{origen.status}».")
 
     for otro in frappe.get_all("CRM Presupuesto", filters={"deal": deal, "is_current": 1}, pluck="name"):
         frappe.db.set_value("CRM Presupuesto", otro, "is_current", 0)
@@ -158,6 +176,7 @@ def new_version(deal):
     nuevo.status = "Borrador"
     nuevo.version = (origen.version or 1) + 1
     nuevo.is_current = 1
+    nuevo.valid_until = add_days(nowdate(), billing.DEFAULT_VALIDITY_DAYS)
     nuevo.sent_on = None
     nuevo.accepted_on = None
     nuevo.rejected_on = None

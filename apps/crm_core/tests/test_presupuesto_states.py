@@ -84,3 +84,37 @@ class TestPresupuestoEstados(FrappeTestCase):
         q = self._quote(self._deal())
         with self.assertRaises(frappe.ValidationError):
             q.accept()
+
+    def test_no_se_puede_cambiar_el_iva_de_un_enviado(self):
+        q = self._quote(self._deal())
+        q.send()
+        q.iva_mode = "exento"
+        with self.assertRaises(frappe.ValidationError):
+            q.save()
+
+    def test_un_enviado_no_vuelve_a_borrador(self):
+        q = self._quote(self._deal())
+        q.send()
+        q.status = "Borrador"
+        with self.assertRaises(frappe.ValidationError):
+            q.save()
+
+    def test_no_se_versiona_un_anulado(self):
+        q = self._quote(self._deal())
+        q.void()
+        with self.assertRaises(frappe.ValidationError):
+            new_version(q.deal)
+
+    def test_versionar_un_vencido_nace_con_validez_nueva(self):
+        q = self._quote(self._deal())
+        q.send()
+        q.status = "Vencido"
+        q.save()
+        nueva = new_version(q.deal)
+        self.assertGreaterEqual(str(nueva.valid_until), str(frappe.utils.nowdate()))
+
+    def test_enviar_dos_veces_falla(self):
+        q = self._quote(self._deal())
+        q.send()
+        with self.assertRaises(frappe.ValidationError):
+            q.send()

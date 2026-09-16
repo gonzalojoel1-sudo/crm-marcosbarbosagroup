@@ -201,7 +201,7 @@
     {
       "fieldname": "snapshot_hash",
       "fieldtype": "Data",
-      "label": "Hash del PDF",
+      "label": "Hash del contenido enviado",
       "read_only": 1
     }
   ],

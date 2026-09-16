@@ -502,9 +502,9 @@ def quote_pdf(name):
     from crm_core.documents import quote_context, render_quote_pdf
 
     if not frappe.db.exists("CRM Presupuesto", name):
-        name = (
-            frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name") or name
-        )
+        name = frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name")
+    if not name:
+        frappe.throw("El negocio no tiene un presupuesto cargado.")
     ctx = quote_context(name)
     pdf = render_quote_pdf(name)
     fname = f"Presupuesto {ctx['quote_no']} - {ctx['client']['company']}.pdf"
