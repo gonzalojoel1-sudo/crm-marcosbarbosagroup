@@ -96,6 +96,7 @@
   /* ── Totales ──────────────────────────────────────── */
   .totals { display: block; margin-top: 2mm; }
   .tot-wrap { display: flex; justify-content: flex-end; margin-top: 2mm; }
+  .totals-note { font-size: 9pt; color: #6b6b73; margin-top: 2mm; }
   .totals-inner { width: 74mm; }
   .t-row { display: flex; justify-content: space-between; padding: 1.6px 0; font-size: 9.6pt; }
   .t-row .t-k { color: #55555e; }
@@ -228,12 +229,12 @@
   </table>
 
   <section class="totals">
+    {% if tot.has_discount %}
+    <div class="totals-note">Descuentos aplicados: {{ tot.discount }}</div>
+    {% endif %}
     <div class="tot-wrap">
       <div class="totals-inner">
         <div class="t-row"><span class="t-k">Subtotal</span><span>{{ tot.subtotal }}</span></div>
-        {% if tot.has_discount %}
-        <div class="t-row"><span class="t-k">Descuentos</span><span>-{{ tot.discount }}</span></div>
-        {% endif %}
         {% if tot.show_iva %}
         <div class="t-row"><span class="t-k">IVA 21%{% if tot.iva_included %} (incluido){% endif %}</span><span>{{ tot.iva }}</span></div>
         {% endif %}
@@ -241,10 +242,15 @@
           <span class="t-k">Total</span>
           <span class="t-v">{{ tot.total }}</span>
         </div>
-        {% if tot.show_balance %}
+        {% if tot.show_balance or tot.show_credit %}
         <div class="t-balance">
+          {% if tot.show_credit %}
+          <div class="t-row"><span class="t-k">Acreditado</span><span>{{ tot.credit }}</span></div>
+          {% endif %}
+          {% if tot.show_balance %}
           <div class="t-row"><span class="t-k">Cobrado</span><span>{{ tot.paid }}</span></div>
           <div class="t-row t-saldo"><span class="t-k">Saldo</span><span>{{ tot.outstanding }}</span></div>
+          {% endif %}
         </div>
         {% endif %}
       </div>

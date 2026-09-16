@@ -131,7 +131,6 @@ def invoice_preview():
         "font_b64": font_b64(),
         "company": EMPRESA,
         "emisor": {
-            "razon_social": "Marcos Barbosa Group",
             "cuit": "20-12345678-9",
             "address": "Av. Colón 1234, Córdoba",
             "cbu_alias": "MBGROUP.COBROS",
@@ -153,6 +152,7 @@ def invoice_preview():
             "total": money(total, "$"),
             "paid": money(paid, "$"),
             "credit": money(0, "$"),
+            "show_credit": False,
             "outstanding": money(outstanding, "$"),
             "show_balance": outstanding > 0.005 and paid > 0,
         },

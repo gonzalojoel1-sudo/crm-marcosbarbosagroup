@@ -205,7 +205,6 @@ def invoice_context(factura_name):
         "font_b64": _font_b64(),
         "company": EMPRESA,
         "emisor": {
-            "razon_social": "Marcos Barbosa Group",
             "cuit": frappe.db.get_single_value("CRM Emisor", "cuit") or "",
             "address": frappe.db.get_single_value("CRM Emisor", "address") or "",
             "cbu_alias": frappe.db.get_single_value("CRM Emisor", "cbu_alias") or "",
@@ -237,6 +236,7 @@ def invoice_context(factura_name):
             "total": billing.fmt_money(f.total, symbol),
             "paid": billing.fmt_money(f.paid_amount, symbol),
             "credit": billing.fmt_money(f.credit_total, symbol),
+            "show_credit": flt(f.credit_total) > 0.005,
             "outstanding": billing.fmt_money(f.outstanding, symbol),
             "show_balance": flt(f.outstanding) > 0.005 and flt(f.paid_amount) > 0,
         },
