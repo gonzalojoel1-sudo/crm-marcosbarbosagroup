@@ -127,7 +127,13 @@ addopts = --ignore=tests/test_rest_smoke.py --ignore=tests/test_hoy_api.py
 """Tests de la matemática de presupuestos. Puros: sin Frappe, sin base, sin red."""
 from decimal import Decimal
 
-from crm_core.billing import interval_months, line_amounts, money, quote_totals
+from crm_core.billing import (
+    interval_months,
+    items_fingerprint,
+    line_amounts,
+    money,
+    quote_totals,
+)
 
 
 def item(qty, rate, discount=0, billing_type="Único"):
@@ -215,6 +221,27 @@ def test_descuento_total_suma_las_diferencias():
     assert t["discount_total"] == Decimal("20000.00")
 
 
+def test_items_fingerprint_ignora_la_identidad_de_los_objetos():
+    """Dos listas con los mismos valores deben dar la misma huella.
+
+    Es la razon de existir de la funcion: comparar los objetos Document con `!=`
+    compara identidad y siempre da distinto, lo que bloqueaba todo guardado de un
+    presupuesto congelado.
+    """
+    assert items_fingerprint([item(1, "1000")]) == items_fingerprint([item(1, "1000")])
+
+
+def test_items_fingerprint_detecta_un_cambio():
+    assert items_fingerprint([item(1, "1000")]) != items_fingerprint([item(1, "1001")])
+    assert items_fingerprint([item(1, "1000")]) != items_fingerprint([item(2, "1000")])
+
+
+def test_items_fingerprint_normaliza_los_numeros():
+    a = [{"description": "x", "billing_type": "Único", "qty": 1, "rate": 1000, "discount_percentage": 0}]
+    b = [{"description": "x", "billing_type": "Único", "qty": "1", "rate": "1000.00", "discount_percentage": ""}]
+    assert items_fingerprint(a) == items_fingerprint(b)
+
+
 def test_presupuesto_mixto_separa_las_dos_bases_de_tiempo():
     t = quote_totals([item(1, "850000"), item(1, "210000", 0, "Mensual")])
     assert t["total_one_time"] == Decimal("850000.00")
@@ -288,6 +315,35 @@ def fmt_money(value, symbol="$") -> str:
     raw = f"{money(value):,.2f}"
     raw = raw.replace(",", "X").replace(".", ",").replace("X", ".")
     return f"{symbol} {raw}" if symbol else raw
+
+
+def _row(item, key):
+    """Lee una clave tanto de un dict como de un objeto (Document de Frappe)."""
+    if isinstance(item, dict):
+        return item.get(key)
+    return getattr(item, key, None)
+
+
+def items_fingerprint(items) -> tuple:
+    """Huella comparable de los ítems de un presupuesto.
+
+    Comparar las listas de `Document` con `!=` no sirve: Frappe no define `__eq__`,
+    así que compara identidad y dos listas equivalentes dan distintas. Esta huella
+    compara los VALORES que importan, y normaliza los números con `dec()` para que
+    `100`, `"100"` y `100.0` sean la misma cosa.
+    """
+    rows = []
+    for it in items or []:
+        rows.append(
+            (
+                str(_row(it, "description") or "").strip(),
+                str(_row(it, "billing_type") or "").strip(),
+                str(dec(_row(it, "qty"))),
+                str(dec(_row(it, "rate"))),
+                str(dec(_row(it, "discount_percentage"))),
+            )
+        )
+    return tuple(rows)
 
 
 def _apply_iva(net: Decimal, iva_mode: str, iva_rate: Decimal) -> tuple:
@@ -365,7 +421,7 @@ def quote_totals(items, iva_mode: str = "sumar", iva_rate: Decimal = IVA_RATE) -
 - [ ] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/crm_core && python3 -m pytest tests/test_billing.py -v`
-Expected: PASS (13 tests)
+Expected: PASS (16 tests)
 
 - [ ] **Step 5: Commit**
 
@@ -645,7 +701,10 @@ class CRMPresupuesto(Document):
         if not before:
             return
         if before.status in FROZEN_STATUSES and self.status == before.status:
-            if self.get("items") != before.get("items"):
+            # Se comparan HUELLAS, no los objetos: comparar listas de Document con
+            # `!=` compara identidad (Frappe no define __eq__) y da siempre distinto,
+            # lo que bloquearía hasta el guardado que baja is_current al versionar.
+            if billing.items_fingerprint(self.items) != billing.items_fingerprint(before.items):
                 frappe.throw(
                     "Este presupuesto ya fue enviado y no se puede editar. "
                     "Creá una versión nueva para cambiarlo."
@@ -687,6 +746,17 @@ def seed_verticales():
         ).insert(ignore_permissions=True)
     frappe.db.commit()
 ```
+
+Y **cablearlo** en `apps/crm_core/crm_core/hooks.py`, para que corra solo en cada migrate
+(el seed es idempotente). En la sección de stubs, después de `doc_events = {}`:
+
+```python
+# Datos base idempotentes: las 7 verticales se siembran en cada migrate.
+after_migrate = ["crm_core.fixtures.seed_verticales"]
+```
+
+Sin este cableado las verticales nunca se siembran solas: quedan dependiendo de que alguien
+se acuerde de correr el comando a mano.
 
 - [ ] **Step 5: Validación offline de los 3 nuevos**
 
