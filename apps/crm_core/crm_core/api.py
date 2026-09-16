@@ -1031,7 +1031,10 @@ def get_invoices(status=None, organization=None, solo_impagas=False, limit=100):
         if solo_impagas and dto["outstanding"] <= 0:
             continue
         out.append(dto)
-        if len(out) >= int(limit):
+        # El corte por `limit` es para el camino que filtra por estado (donde hay que traer
+        # todas las filas y recortar después). Sin filtro, `limit_page_length` ya lo hizo:
+        # cortar acá rompería `limit=0`, que en Frappe significa "sin límite".
+        if status and len(out) >= int(limit):
             break
     return {"facturas": out}
 
