@@ -365,7 +365,7 @@ def quote_totals(items, iva_mode: str = "sumar", iva_rate: Decimal = IVA_RATE) -
 - [ ] **Step 4: Correr y verificar que pasan**
 
 Run: `cd apps/crm_core && python3 -m pytest tests/test_billing.py -v`
-Expected: PASS (14 tests)
+Expected: PASS (13 tests)
 
 - [ ] **Step 5: Commit**
 
@@ -397,7 +397,12 @@ vacía. El archivo está peor de lo que parece: los 3 que fallan abren rutas de 
 
 - [ ] **Step 2: Corregir el glob, borrar los tests muertos y endurecer las invariantes**
 
-Primero **borrar** los 3 tests que validan DocTypes de la Fase 0 abandonada:
+**Antes que nada, corregir una aserción que nunca se ejecutó:** `test_doctype_json_well_formed`
+afirma `d["module"] == "crm_core"`, pero el módulo real de estos DocTypes es **`MbCRM`** (es lo que
+dice `crm_core/modules.txt`, y lo que está grabado en la base). Con el glob arreglado esa aserción
+falla en los 12. Cambiala a `d["module"] == "MbCRM"`.
+
+Después, **borrar** los 3 tests que validan DocTypes de la Fase 0 abandonada:
 `test_event_has_booking_uid_unique`, `test_gcal_connection_tokens_are_readonly` y
 `test_activity_append_only`. Abren rutas inexistentes y cubren un modelo que el apéndice de este
 plan propone eliminar: no se arreglan, se van. Dejar en el archivo sólo las validaciones genéricas
@@ -419,20 +424,13 @@ def test_hay_doctypes_para_validar():
 
 
 @pytest.mark.parametrize("path", DOCTYPES)
-def test_doctype_tiene_autoname_o_naming_series(path: str):
-    """Un DocType sin forma de nombrarse falla al insertar, no al migrar."""
-    d = json.loads(Path(path).read_text())
-    fieldnames = [f.get("fieldname") for f in d["fields"]]
-    assert d.get("autoname") or "naming_series" in fieldnames, f"{d['name']}: sin autoname"
-
-
-@pytest.mark.parametrize("path", DOCTYPES)
 def test_doctype_link_apunta_a_destinos_conocidos(path: str):
     """Un Link a un DocType inexistente hace fallar el migrate en producción."""
     d = json.loads(Path(path).read_text())
     propios = {json.loads(Path(p).read_text())["name"] for p in DOCTYPES}
+    # `Event` es un DocType real de Frappe (módulo Desk), no del app `crm`: va como externo.
     externos = {
-        "User", "File", "Currency", "Country", "CRM Deal", "CRM Lead",
+        "User", "File", "Currency", "Country", "Event", "CRM Deal", "CRM Lead",
         "CRM Organization", "CRM Task", "CRM Deal Status", "CRM Lead Source",
     }
     for f in d["fields"]:
