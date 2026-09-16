@@ -534,22 +534,21 @@ invoice_pdf(name) / quote_pdf(name, version)
 
 ---
 
-## 13. Migración de los datos actuales
+## 13. Datos actuales — no se migra nada
 
-Hoy hay presupuestos **dentro** de `CRM Deal.products` (y datos reales: 2 negocios,
-uno con ítems). Migración idempotente:
+**Resuelto por el usuario el 2026-09-15:** los presupuestos que existen hoy
+(`CRM Deal.products`) son **datos de prueba** y se borran. No hay migración.
 
-1. Por cada `CRM Deal` con ítems ⇒ crear `CRM Presupuesto` v1:
-   `status = Borrador` (o `Enviado` si el negocio está en etapa avanzada — **se
-   decide con el usuario negocio por negocio**, no se adivina),
-   `billing_type = Único` en todos los ítems (es lo que son hoy), `iva_mode = Sumar`.
-2. `deal_value` del negocio se mantiene como campo denormalizado del embudo
-   (= `total_one_time_gross` del presupuesto vigente, o el abono mensual si el
-   presupuesto es solo recurrente) para no romper el pipeline.
-3. `CRM Deal.products` queda **en solo lectura** (no se borra): red de seguridad y
-   trazabilidad. Se elimina en una fase posterior.
-4. Script `scripts/migrate_quotes_to_doctype.py`, con `--dry-run` y reporte de qué
-   haría. Se corre en el sitio de prueba primero.
+Qué implica en F2:
+1. Vaciar `CRM Deal.products` de los negocios existentes (los de prueba). El campo
+   queda en desuso y se elimina en una fase posterior.
+2. `deal_value` del negocio sigue siendo el campo denormalizado del embudo: pasa a
+   espejar `total_one_time_gross` del presupuesto vigente (o el abono mensual si el
+   presupuesto es solo recurrente).
+3. No hace falta script de migración ni dry-run: se arranca limpio.
+
+Esto elimina el mayor riesgo del proyecto (tocar datos reales): no hay datos reales
+que tocar.
 
 ---
 
@@ -558,7 +557,7 @@ uno con ítems). Migración idempotente:
 | Fase | Contenido | Resultado visible |
 |---|---|---|
 | **F1** | Visor previo + congelamiento (`snapshot_hash`) | Ver el PDF antes de bajarlo/enviarlo |
-| **F2** | `CRM Vertical`, `CRM Presupuesto` + items con `billing_type` + versiones y estados + migración | Presupuesto con estados y versiones; totales único vs abono |
+| **F2** | `CRM Vertical`, `CRM Presupuesto` + items con `billing_type` + versiones y estados + limpieza de los presupuestos de prueba | Presupuesto con estados y versiones; totales único vs abono |
 | **F3** | `CRM Factura`, `CRM Factura Item`, `CRM Pago` + estados + PDF de factura | Facturar y cobrar (con parciales) |
 | **F4** | `CRM Suscripcion` + bandeja **Por facturar** + job diario | Suscripciones y cobro recurrente propuesto |
 | **F5** | Dashboard + Informes + CSV | Los números del negocio |
@@ -579,7 +578,7 @@ modelo.
 - **E2E Playwright**: enviar presupuesto → aceptar → ver suscripción → facturar el
   período → registrar pago → ver el dashboard actualizado.
 - **Visual del PDF**: `scripts/quote-preview.py` + `quote-shot.mjs` (altura, páginas).
-- **Migración**: dry-run sobre copia de la base productiva.
+- **Limpieza**: que vaciar `CRM Deal.products` no rompa el embudo (§13).
 
 Regla transversal: toda la matemática de dinero en `Decimal` (nunca `float`), y se
 redondea **solo al mostrar** (2 decimales), no en los pasos intermedios.
@@ -593,11 +592,15 @@ redondea **solo al mostrar** (2 decimales), no en los pasos intermedios.
 | Complejidad del ciclo (6 documentos) | Fases con valor en cada una; F1 sin tocar el modelo |
 | Doble facturación de un período | El avance depende de la factura **emitida** (§6.3), con test que lo fija |
 | Inflación / cambio de precio en ARS | El precio vive en la suscripción y se puede editar **antes** de facturar el período; queda el histórico |
-| Datos reales en producción | Migración con dry-run y sitio de prueba primero |
+| Datos reales en producción | **Eliminado**: no se migra nada, los presupuestos actuales son de prueba (§13) |
 | RAM del VPS al límite (2.6/3.7 GB) | Todo se construye en `crm_core` (sin ERPNext); resize a CX33 recomendado antes de F5 |
 | Facturas fiscales | Campo fiscal separado desde el día 1 (§7) |
 
-**Decisiones abiertas para el usuario:**
-1. ¿Los presupuestos que hoy existen se migran como `Borrador` o como `Enviado`?
-2. ¿Vencimiento de factura = emisión + 15 días, o hay plazos distintos por cliente?
-3. ¿En qué moneda facturás los abonos (ARS o USD)?
+**Decisiones resueltas por el usuario (2026-09-15):**
+1. **No hay migración.** Los presupuestos que existen hoy son datos de prueba: se
+   **borran** (la tabla `CRM Deal.products` queda vacía y en desuso). Se elimina el §13.
+2. **Vencimiento de factura editable a mano.** `due_date` es un campo normal con
+   default `emisión + 15 días`; nunca se bloquea ni se recalcula solo.
+3. **Moneda según el cliente.** El presupuesto/factura/suscripción toman la moneda por
+   defecto de `CRM Organization.currency` (el campo ya existe) y se puede cambiar por
+   documento. Los informes siguen mostrando **por moneda**, sin convertir (§10.4).
