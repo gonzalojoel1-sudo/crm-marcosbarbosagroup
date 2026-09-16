@@ -911,15 +911,28 @@ from crm_core.mbcrm.doctype.crm_presupuesto.crm_presupuesto import new_version
 
 class TestPresupuestoEstados(FrappeTestCase):
     def _deal(self):
-        return frappe.get_doc({"doctype": "CRM Deal", "lead_name": "Test F2"}).insert(
-            ignore_permissions=True
-        )
+        # `status` es REQD en CRM Deal (Link a CRM Deal Status) y los valores válidos
+        # son los del embudo: Qualification es el inicial.
+        org = frappe.get_doc(
+            {"doctype": "CRM Organization", "organization_name": "Test F2 Org"}
+        ).insert(ignore_permissions=True)
+        return frappe.get_doc(
+            {
+                "doctype": "CRM Deal",
+                "lead_name": "Test F2",
+                "status": "Qualification",
+                "organization": org.name,
+            }
+        ).insert(ignore_permissions=True)
 
     def _quote(self, deal):
+        # `organization` es REQD en CRM Presupuesto (denormalizado para informar):
+        # se copia del negocio, que es lo que va a hacer `save_quote`.
         return frappe.get_doc(
             {
                 "doctype": "CRM Presupuesto",
                 "deal": deal.name,
+                "organization": deal.organization,
                 "iva_mode": "sumar",
                 "items": [
                     {"description": "Servicio", "billing_type": "Único", "qty": 1, "rate": 100000}
@@ -1176,9 +1189,30 @@ def render_quote_pdf(presupuesto_name):
     return _html_to_pdf(html)
 ```
 
-En `api.py`, borrar `_font_b64`, `_html_to_pdf`, `_quote_context`, `_quote_number`, `COMPANY`,
-`QUOTE_VALIDITY_DAYS`, `IVA_RATE`, `_es_money` y el `quote_pdf` viejo (Task 6 lo reescribe). Dejar
-`TEMPLATES`/`_TEMPLATES` sólo si algo más lo usa; si no, se va también.
+En `api.py`, borrar el render que se mudó (`_font_b64`, `_html_to_pdf`, `_quote_context`,
+`_quote_number`, `COMPANY`, `QUOTE_VALIDITY_DAYS`, `IVA_RATE`, `_es_money`) y **dejar `quote_pdf`
+funcionando** como puente: no se puede quedar roto entre esta tarea y la Task 6, porque el visor de
+F1 lo consume. Reemplazá su cuerpo por:
+
+```python
+@frappe.whitelist()
+def quote_pdf(name):
+    """Puente: resuelve negocio -> presupuesto vigente y delega el render a documents."""
+    from crm_core.documents import quote_context, render_quote_pdf
+
+    if not frappe.db.exists("CRM Presupuesto", name):
+        name = (
+            frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name") or name
+        )
+    ctx = quote_context(name)
+    pdf = render_quote_pdf(name)
+    fname = f"Presupuesto {ctx['quote_no']} - {ctx['client']['company']}.pdf"
+    frappe.local.response.filename = re.sub(r'[\\/:*?"<>|]', "-", fname)
+    frappe.local.response.filecontent = pdf
+    frappe.local.response.type = "download"
+```
+
+(La Task 6 lo reescribe junto con el resto de los endpoints.)
 
 - [ ] **Step 2: Los dos totales en la plantilla**
 
