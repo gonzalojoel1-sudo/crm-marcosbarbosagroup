@@ -26,7 +26,19 @@ SERVICES="crm_backend crm_websocket crm_worker crm_scheduler crm_frontend"
 HEALTH_URL=https://crm.marcosbarbosagroup.com/hoy
 
 cd "$REPO_DIR"
+
+# El script se actualiza a SI MISMO: si el `git pull` lo cambia, hay que re-ejecutarlo.
+# Bash lee el archivo por offset mientras lo ejecuta; si el archivo cambia en el medio,
+# sigue leyendo desde la posicion vieja y se saltea lineas. Paso de verdad: se agrego el
+# flag `--migrate` al script, se lo invoco con el flag, y la corrida no lo vio (el migrate
+# no corrio y los DocTypes no se crearon). Re-ejecutar con el archivo nuevo lo resuelve.
+BEFORE=$(md5sum "$0" | cut -d" " -f1)
 git pull -q
+AFTER=$(md5sum "$0" | cut -d" " -f1)
+if [ "$BEFORE" != "$AFTER" ]; then
+  echo "el script cambio con el pull: re-ejecutando para no saltearme lineas…"
+  exec bash "$0" "$@"
+fi
 
 CURRENT=$(docker service inspect crm_backend \
   --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' | sed 's/.*\(crm-mb:[^ ]*\)/\1/')
