@@ -2,10 +2,15 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from crm_core.billing import (
+    aging_buckets,
     invoice_status,
     invoice_totals,
     outstanding_of,
+    reparto_fifo,
+    validar_aplicaciones,
 )
 
 
@@ -155,3 +160,66 @@ def test_nota_de_credito_anulada_es_anulada():
         invoice_status("1000", "0", "0", date(2026, 9, 1), HOY, is_return=True, is_voided=True)
         == "Anulada"
     )
+
+
+# ── Cobranza ───────────────────────────────────────────────────────────
+def factura(name, outstanding, due, org="ORG-1", currency="ARS"):
+    return {
+        "name": name,
+        "outstanding": outstanding,
+        "due_date": due,
+        "organization": org,
+        "currency": currency,
+    }
+
+
+def test_reparto_fifo_aplica_a_lo_mas_viejo_primero():
+    fs = [factura("F3", "100", date(2026, 10, 1)), factura("F1", "100", date(2026, 8, 1)),
+          factura("F2", "100", date(2026, 9, 1))]
+    assert reparto_fifo("250", fs) == [("F1", Decimal("100.00")), ("F2", Decimal("100.00")),
+                                       ("F3", Decimal("50.00"))]
+
+
+def test_reparto_fifo_no_aplica_mas_que_el_saldo_de_cada_factura():
+    fs = [factura("F1", "50", date(2026, 8, 1))]
+    assert reparto_fifo("200", fs) == [("F1", Decimal("50.00"))]
+
+
+def test_reparto_fifo_sin_monto_no_aplica_nada():
+    assert reparto_fifo("0", [factura("F1", "100", date(2026, 8, 1))]) == []
+
+
+def test_reparto_fifo_ignora_facturas_sin_saldo():
+    fs = [factura("F1", "0", date(2026, 8, 1)), factura("F2", "100", date(2026, 9, 1))]
+    assert reparto_fifo("100", fs) == [("F2", Decimal("100.00"))]
+
+
+def test_aplicaciones_no_pueden_superar_el_pago():
+    with pytest.raises(ValueError):
+        validar_aplicaciones("100", [("F1", "150")])
+
+
+def test_aplicaciones_pueden_dejar_saldo_a_cuenta():
+    validar_aplicaciones("100", [("F1", "60")])   # no levanta: 40 queda a cuenta
+
+
+def test_aging_por_tramos():
+    hoy = date(2026, 9, 16)
+    fs = [
+        factura("F1", "100", date(2026, 9, 10)),   # 6 dias -> 0-30
+        factura("F2", "200", date(2026, 8, 10)),   # 37 dias -> 31-60
+        factura("F3", "300", date(2026, 7, 1)),    # 77 dias -> 61-90
+        factura("F4", "400", date(2026, 5, 1)),    # +90
+    ]
+    b = aging_buckets(fs, hoy)
+    assert b["0-30"] == Decimal("100.00")
+    assert b["31-60"] == Decimal("200.00")
+    assert b["61-90"] == Decimal("300.00")
+    assert b["+90"] == Decimal("400.00")
+
+
+def test_aging_ignora_lo_que_no_vencio():
+    hoy = date(2026, 9, 16)
+    b = aging_buckets([factura("F1", "100", date(2026, 10, 1))], hoy)
+    assert b["0-30"] == Decimal("0.00")
+    assert b["corriente"] == Decimal("100.00")

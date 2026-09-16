@@ -250,3 +250,92 @@ def invoice_status(
     if due_date and str(due_date) < str(hoy):
         return "Vencida"
     return "Emitida"
+
+
+# ── Cobranza ───────────────────────────────────────────────────────────
+
+def validar_aplicaciones(pago_amount, aplicaciones) -> None:
+    """La suma de las aplicaciones no puede superar el monto del pago.
+
+    Dejar saldo sin aplicar es correcto (queda a cuenta); sobreaplicar es corrupción:
+    el mismo peso cobraría dos deudas. Un monto de pago negativo no tiene aplicaciones
+    posibles (cualquier aplicación > 0 lo supera), así que también levanta.
+
+    `aplicaciones` es un iterable de pares `(nombre_factura, monto)`.
+    """
+    total = sum((dec(m) for _, m in aplicaciones), Decimal("0"))
+    if money(total) > money(pago_amount):
+        raise ValueError(
+            f"Las aplicaciones ({money(total)}) no pueden superar el monto del pago ({money(pago_amount)})."
+        )
+
+
+def reparto_fifo(amount, facturas) -> list:
+    """Reparte un monto entre facturas, de la más vieja a la más nueva.
+
+    FIFO por vencimiento es la práctica contable estándar: evita que la deuda vieja
+    quede abierta para siempre mientras se cobra la nueva.
+
+    `facturas` debe venir YA filtrada por organización y moneda (la guarda vive en la
+    capa que llama: esta función es pura y no sabe de clientes).
+    Devuelve [(nombre_factura, monto_a_aplicar)].
+
+    Casos borde decididos:
+      - `amount` en 0 o negativo: no hay nada que repartir; devuelve [].
+      - Una factura sin `due_date` ordena primero (clave vacía), como si fuera la más
+        vieja. Es una decisión determinista: sin vencimiento no hay forma de ubicarla
+        en el tiempo, y dejarla al final postergaría deuda por tiempo indefinido.
+      - Una factura con saldo 0 o negativo se ignora (nunca se le aplica nada).
+    """
+    restante = money(amount)
+    aplicaciones = []
+    for f in sorted(facturas, key=lambda x: (str(x.get("due_date") or ""), str(x.get("name")))):
+        if restante <= 0:
+            break
+        cupo = outstanding_of(f.get("outstanding"), 0, 0)
+        if cupo <= 0:
+            continue
+        monto = money(min(cupo, restante))
+        aplicaciones.append((f["name"], monto))
+        restante = money(restante - monto)
+    return aplicaciones
+
+
+AGING_TRAMOS = ("corriente", "0-30", "31-60", "61-90", "+90")
+
+
+def aging_buckets(facturas, today=None) -> dict:
+    """Antigüedad de la deuda, por tramos de días desde el vencimiento.
+
+    Lo que todavía no venció va a `corriente` (no es deuda vencida y sumarlo al tramo
+    0-30 infla la mora). Base: NetSuite / QuickBooks.
+
+    `today` es inyectable para poder testear sin depender del día real.
+
+    Casos borde decididos:
+      - Vencimiento hoy o en el futuro (días <= 0) → `corriente`.
+      - Factura sin `due_date` → `corriente`: no hay vencimiento del que calcular mora.
+      - Saldo 0 o negativo → se ignora (no suma a ningún tramo).
+    """
+    hoy = today or datetime.date.today()
+    out = {t: Decimal("0") for t in AGING_TRAMOS}
+    for f in facturas:
+        saldo = outstanding_of(f.get("outstanding"), 0, 0)
+        if saldo <= 0:
+            continue
+        if not f.get("due_date"):
+            out["corriente"] += saldo
+            continue
+        dias = (hoy - f["due_date"]).days
+        if dias <= 0:
+            tramo = "corriente"
+        elif dias <= 30:
+            tramo = "0-30"
+        elif dias <= 60:
+            tramo = "31-60"
+        elif dias <= 90:
+            tramo = "61-90"
+        else:
+            tramo = "+90"
+        out[tramo] += saldo
+    return {k: money(v) for k, v in out.items()}
