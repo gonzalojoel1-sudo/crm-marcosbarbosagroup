@@ -152,54 +152,100 @@ una factura.
 
 ## 5. Máquinas de estado
 
-### 5.1 Factura
+> **Corrección de la auditoría (2026-09-16).** La primera versión de esta sección tenía
+> contradicciones internas (transiciones ofrecidas por una fila y no aceptadas por la otra, un
+> `Incobrable → Pagada` imposible y retornos de `Pagada` que sólo existían en el diagrama). Se
+> reescribe separando **transiciones de usuario** de **recomputación automática**, que era la raíz
+> del problema.
+
+### 5.1 Dos capas: lo que hace el usuario y lo que recalcula el sistema
+
+**Capa A — transiciones de usuario** (las únicas que se pueden disparar por API/UI; cada una valida
+su origen):
+
+| Acción | Origen permitido | Efecto |
+|---|---|---|
+| `issue` | `Borrador` | Fija `issue_date`/`due_date`, `snapshot_hash`, pasa a `Emitida` |
+| `send` | `Emitida` | Marca `sent_on` (no cambia de estado) |
+| `void` (Anular) | `Borrador`, `Emitida`, `Parcial`, `Vencida`, `Incobrable` | Exige `paid_amount == 0`; pasa a `Anulada` |
+| `mark_uncollectible` | `Emitida`, `Parcial`, `Vencida` | Pasa a `Incobrable` (**marca** que se dejó de esperar el cobro; la deuda sigue en AR) |
+| `add_credit_note` | `Emitida`, `Parcial`, `Pagada`, `Vencida`, `Incobrable` | No cambia el estado: recalcula saldos (§5.2) |
+
+**Capa B — recomputación automática** (`billing.invoice_status`): el estado **se deriva** de los
+montos y de la fecha, no se mantiene a mano. Es la única forma de que anular un pago, acreditar o
+emitir una NC deje todo consistente sin escribir una transición por cada combinación:
 
 ```
-Borrador ──emitir──▶ Emitida ──pago total──▶ Pagada
-   │                    │  ▲                    │
-   │                    │  └──desasignar pago────┘   (Stripe: paid → open al soltar pagos)
-   │                    ├──pago parcial──▶ Parcial ──pago total──▶ Pagada
-   │                    ├──(job diario) due_date pasada──▶ Vencida ──pago total──▶ Pagada
-   │                    ├──marcar incobrable──▶ Incobrable ──▶ Anulada | Pagada
-   │                    └──anular──▶ Anulada
-   └──anular──▶ Anulada
+si total == 0 y es nota de crédito          -> Emitida (es una NC emitida)
+si paid_amount > 0 y outstanding == 0       -> Pagada
+si paid_amount > 0 y outstanding  > 0       -> Parcial
+si paid_amount == 0 y credit_total == total  -> Emitida  (Acreditada: derivado, no estado)
+si paid_amount == 0 y due_date < hoy        -> Vencida
+si paid_amount == 0                          -> Emitida
 ```
 
-| Estado | Origen permitido | Acciones | Sale a |
-|---|---|---|---|
-| `Borrador` | — | Editar todo, **Emitir**, Anular | `Emitida`, `Anulada` |
-| `Emitida` | `Borrador` | **Enviar**, **Registrar pago**, **Nota de crédito**, Anular, Marcar incobrable | `Parcial`, `Pagada`, `Vencida`, `Anulada`, `Incobrable` |
-| `Parcial` | `Emitida`, `Vencida` | Registrar pago, Nota de crédito, Anular | `Pagada`, `Vencida`, `Anulada` |
-| `Pagada` | `Emitida`, `Parcial`, `Vencida`, `Incobrable` | **Nota de crédito**, **desasignar un pago** | `Emitida`/`Parcial` (si se suelta el pago) |
-| `Vencida` | `Emitida`, `Parcial` (por el job diario) | Registrar pago, Nota de crédito, Anular, Incobrable | `Pagada`, `Anulada` |
-| `Incobrable` | `Emitida`, `Vencida` | Nota de crédito, Anular, Marcar pagada | `Pagada`, `Anulada` |
-| `Anulada` | `Borrador`, `Emitida`, `Parcial`, `Incobrable` | **ninguna** | — |
+`Incobrable` y `Anulada` **no** los toca la recomputación: son marcas explícitas del usuario.
+Si una factura `Incobrable` recibe un pago y llega a `outstanding == 0`, queda `Pagada` (la capa B
+sólo aplica después de una acción que cambie montos, y esa acción ES registrar el pago).
 
 **Reglas duras** (todas con test):
-1. `Anulada` exige **`paid_amount == 0`**: para anular algo cobrado hay que **desasignar los pagos
-   primero**. (F2 tenía esta regla para el presupuesto; acá se hereda `paid_amount`.)
-2. `Pagada` requiere `outstanding == 0`.
-3. `Emitida`/`Parcial`/`Vencida` con `due_date` pasada ⇒ el **job diario** las pasa a `Vencida`.
-4. **Un pago aplicado no se edita ni se borra: se anula** (y sus aplicaciones se deshacen, dejando a
-   las facturas recalcular su estado). Es la lección de Stripe (`detach_payment`) y de F2.
-5. **Una factura emitida no se edita.** Para corregirla: **nota de crédito**. (Excepción acotada:
-   `due_date`, que el usuario pidió editable a mano.)
-6. `Incobrable` **no** es "anulada": la deuda sigue existiendo, se dejó de esperar el cobro
-   (es el `uncollectible` de Stripe, que existe para el registro de incobrables).
+1. `Anulada` exige **`paid_amount == 0`**: para anular algo cobrado hay que **liberar los pagos
+   primero** (desasignar la aplicación, no anular el pago entero — ver §6).
+2. `Pagada` exige **`outstanding == 0` y `paid_amount > 0`**. Sin la segunda condición, una factura
+   **acreditada al 100% y nunca cobrada** quedaría `Pagada`, que es mentir sobre la realidad
+   (hallazgo de la auditoría). Una factura totalmente acreditada expone el derivado **`Acreditada`**.
+3. El **job diario** sólo toca `Emitida`/`Parcial` con `due_date` pasada (y **nunca** filas con
+   `is_return = 1`). Además `invoice_status` se **computa en lectura** en la UI, así que una factura
+   no se muestra `Emitida` un día de más por esperar al job.
+4. **Un pago aplicado no se edita ni se borra: se anula** (y sus aplicaciones se deshacen, con las
+   facturas recalculando). Lección de Stripe (`detach_payment`) y de F2.
+5. **Una factura emitida no se edita.** Para corregirla: **nota de crédito**. Excepción acotada y
+   explícita: `due_date` (el usuario pidió poder ajustarlo a mano).
+6. `Incobrable` **no** es "anulada": la deuda **sigue en AR** (se informa aparte para no inflar la
+   cobranza esperada) — es el `uncollectible` de Stripe.
 
 ### 5.2 Nota de crédito (mismo DocType, `is_return = 1`)
 
 ```
 Borrador ──emitir──▶ Emitida   (monto NEGATIVO, return_against = F-2026-0007)
 ```
-- Requiere `return_against` y una factura de origen **emisible** (`Emitida`, `Parcial`, `Pagada`,
-  `Vencida`, `Incobrable`) — no se puede acreditar un borrador ni una anulada.
-- **Tope**: la suma acreditada contra una factura **no puede superar** su `total` (regla de Stripe
-  y de AFIP: una nota de crédito no puede exceder el comprobante que corrige).
-- Al emitirse, la factura de origen **recalcula**: `paid_amount` baja (si estaba cobrada) y
-  `outstanding` baja. Si la factura tenía pagos, el excedente se convierte en **saldo a favor**.
-- **`Credit Note Issued`** no es un estado aparte: la factura de origen lo expone como hecho
-  derivado (mismo criterio que "Facturado" en el presupuesto de F2), y se ve como badge.
+
+> **Corrección de la auditoría (2026-09-16).** La primera versión dejaba `outstanding` **negativo**
+> (factura de 100 cobrada 100, NC de 100 ⇒ `100 − 100 − 100 = −100`) y mandaba el excedente a un
+> "saldo a favor" que **no existía en ningún campo**. Además la NC se contaba **dos veces** en AR.
+> Se corrige con una regla de tope explícita, un hogar real para el crédito y la exclusión de
+> `is_return` de todos los agregados.
+
+**Tope (dos límites, no uno):**
+- `credit_total(factura) ≤ factura.total` — límite legal: una NC no puede exceder el comprobante
+  que corrige (regla de AFIP).
+- El efecto sobre el saldo se aplica **hasta `outstanding`**: una NC nunca deja `outstanding < 0`.
+  Si el crédito supera lo pendiente de cobro (factura ya cobrada), **el excedente no se pierde**: se
+  convierte en **saldo a favor de la organización** (§5.4), con su propio registro.
+
+**Al emitir una NC, en este orden:**
+1. `outstanding_a_reducir = min(nc.total, factura.outstanding)`.
+2. La factura origen baja su `outstanding` en ese monto (y su `credit_total` sube en `nc.total`).
+3. **Si la factura tenía cobros**, el pago aplicado **libera aplicación** por el monto acreditado:
+   sube su `unapplied_amount` (el pago sigue registrado; lo que cambia es a qué está imputado). **No
+   se toca `paid_amount` a mano**: `paid_amount` es la suma de las aplicaciones y se recalcula.
+4. **El excedente** (`nc.total − outstanding_a_reducir`) genera un **crédito a favor** de la
+   organización (§5.4).
+
+**Requiere** `return_against` y una factura de origen emitida (`Emitida`, `Parcial`, `Pagada`,
+`Vencida`, `Incobrable`) — no se puede acreditar un borrador ni una anulada. Si la factura de origen
+se **anula**, sus NC quedan anuladas en cascada (no se puede anular un comprobante dejando vivas sus
+correcciones).
+
+**Reversión:** una NC mal cargada se **anula** (`void`), nunca se edita; al anularla se deshacen sus
+efectos (la factura origen y el crédito vuelven a calcular).
+
+**`Credit Note Issued`** no es un estado: es un **hecho derivado** (existe ≥1 NC vigente contra la
+factura), que se ve como badge. Mismo criterio que "Facturado" en F2.
+
+**`is_return` se excluye de TODO agregado**: AR, aging, DSO, "Facturado del período" y el job diario.
+El acreditado es una **métrica aparte** (§10). Esto estaba sólo insinuado en la versión anterior y
+era la causa del doble conteo.
 
 ### 5.3 Pago
 ```
@@ -406,3 +452,38 @@ Cada fase se despliega y se verifica en pantalla por separado.
 | Nota de crédito con signo negativo rompe informes | Los informes **excluyen** `is_return` del facturado y lo muestran como acreditado, explícitamente |
 | La leyenda legal cambia el PDF ya validado en F2 | Cambio de una línea en la plantilla + verificación con el harness de preview |
 | Migración: `CRM Presupuesto` ya está en producción con datos | F3 sólo **agrega** DocTypes; ninguna migración destructiva |
+
+---
+
+## 15. Auditoría adversarial del spec (2026-09-16)
+
+Este spec se escribió, se auditó con un revisor adversarial **antes** de planificar, y se corrigió.
+Queda registrado porque el valor está en el ciclo, no en el documento prolijo.
+
+### Corregido en el cuerpo
+
+| # | Hallazgo | Severidad | Corrección aplicada |
+|---|---|---|---|
+| 1 | `outstanding` podía quedar **negativo** y el "saldo a favor" no tenía **ningún campo** donde vivir | **Crítico** | Tope doble (`≤ total` legal y `≤ outstanding` real) + `CRM Pago.kind = Crédito` como hogar del excedente (§5.2, §6) |
+| 2 | Las notas de crédito se **contaban dos veces** en AR/aging/DSO y el job diario podía vencerlas | **Crítico** | `is_return` excluido de **todos** los agregados y del job; acreditado como métrica aparte (§5.2, §10) |
+| 3 | La máquina de estados **se contradecía**: `Vencida` ofrecía Anular y `Anulada` no lo aceptaba; `Vencida → Incobrable` faltaba; `Parcial → Incobrable` no existía; `Incobrable → Pagada` era imposible | Importante | Se separó **transiciones de usuario** de **recomputación automática** (`billing.invoice_status`) y se eliminaron las combinaciones muertas (§5.1) |
+| 4 | Una factura **acreditada al 100% y nunca cobrada** quedaba `Pagada` | Importante | `Pagada` exige `outstanding == 0` **y** `paid_amount > 0`; totalmente acreditada expone `Acreditada` (§5.1) |
+| 5 | La NC "bajaba `paid_amount`" a mano, desincronizando el rollup del pago | Importante | La NC hace que el **pago libere aplicación**; `paid_amount` sólo se recalcula (§5.2) |
+| 6 | Una aplicación podía unir un pago con la factura de **otro cliente u otra moneda** | Importante | Guardas de organización y moneda + `reparto_fifo` recibe facturas pre-filtradas (§6) |
+| 7 | `overpaid` en la factura era un **tercer lugar** para el mismo dato | Menor | Eliminado (§4.1) |
+| 8 | El spec afirmaba que **F2 ya había reservado** los campos fiscales | Importante | **Era falso** (verificado en `crm_presupuesto.json`): el plan los crea (§7) |
+| 9 | **Secreto privado de AFIP en campos de texto plano** | Importante (seguridad) | `afip_cert`/`afip_key` **fuera de F3**; van a F6 con cifrado y roles (§4.5) |
+| 10 | La leyenda legal se extendía por error a las facturas | Importante | La "X" es para presupuestos/remitos/recibos; una factura sin CAE se rotula como documento **interno** (§8.2). Cita corregida a RG 3803/94 art. 9 |
+| 11 | El "un solo lugar" de `outstanding` no alcanzaba: **≥6 caminos** lo tocan | Importante | Choke point real (`on_update`/`after_insert`/`on_trash`), cálculo en vivo para informes, y job de reconciliación (§6) |
+| 12 | Faltaban **roles** para operaciones con dinero; sin guarda de concurrencia | Importante | `Finance User` / `Finance Manager`; lock del pago en la transacción (§11) |
+| 13 | **DSO dividía por cero**; `Vencida` podía mostrarse un día de más | Menor | DSO devuelve `—`; el estado se computa **en lectura** (§10, §5.1) |
+
+### Huecos que se cerraron al corregir
+
+- **Devolver el excedente**: no existía. Ahora `CRM Pago.kind = Devolución` (amount negativo).
+- **Desasignar una aplicación puntual**: sólo se podía anular el pago entero. Se agrega
+  `remove_application` (§6), necesario para poder anular una factura bajo la regla 1.
+- **Factura suelta sin presupuesto**: el modelo lo permitía y la API no. Se agrega
+  `create_invoice` (§11).
+- **Revertir una nota de crédito**: se agrega `void_credit_note`, y al anular la factura de origen
+  sus NC se anulan **en cascada** (§5.2).
