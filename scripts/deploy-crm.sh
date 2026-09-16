@@ -11,7 +11,16 @@
 #   - No enmascara errores: cualquier fallo de build corta antes de tocar Swarm.
 set -euo pipefail
 
-NEW="${1:?uso: deploy-crm.sh <tag-nuevo, ej 56>}"
+NEW="${1:?uso: deploy-crm.sh <tag-nuevo, ej 56> [--migrate]}"
+
+# `--migrate` corre `bench migrate`. Es OBLIGATORIO cuando el deploy agrega o cambia
+# DocTypes: en Frappe un DocType existe en la base recien despues del migrate.
+# Hace backup previo (la red de seguridad si el migrate sale mal).
+MIGRATE=0
+for arg in "$@"; do
+  if [ "$arg" = "--migrate" ]; then MIGRATE=1; fi
+done
+SITE=crm.marcosbarbosagroup.com
 REPO_DIR=/opt/crm-marcosbarbosagroup
 SERVICES="crm_backend crm_websocket crm_worker crm_scheduler crm_frontend"
 HEALTH_URL=https://crm.marcosbarbosagroup.com/hoy
@@ -37,6 +46,15 @@ for svc in $SERVICES; do
   echo "  $svc -> crm-mb:$NEW"
 done
 
+if [ "$MIGRATE" = "1" ]; then
+  echo "backup previo al migrate…"
+  docker exec "$(docker ps -qf name=crm_backend)" \
+    bench --site "$SITE" backup >/dev/null
+  echo "migrate…"
+  docker exec "$(docker ps -qf name=crm_backend)" \
+    bench --site "$SITE" migrate 2>&1 | tail -20
+fi
+
 echo "esperando arranque…"
 sleep 40
 
@@ -52,6 +70,13 @@ if [ "$FAIL" != "0" ]; then
   for svc in $SERVICES; do docker service update --image "$CURRENT" "$svc" >/dev/null; done
   sleep 30
   exit 1
+fi
+
+if [ "$MIGRATE" = "1" ]; then
+  CANT=$(docker exec "$(docker ps -qf name=crm_backend)" \
+    bench --site "$SITE" execute frappe.client.get_count \
+    --kwargs '{"doctype":"DocType","filters":{"module":"MbCRM"}}' 2>/dev/null | tail -1)
+  echo "DocTypes en MbCRM tras el migrate: $CANT"
 fi
 
 CODE=$(curl -s -o /dev/null -w '%{http_code}' "$HEALTH_URL")
