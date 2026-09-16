@@ -2123,7 +2123,7 @@ cd /opt/crm-marcosbarbosagroup
 bash scripts/deploy-crm.sh 63 --migrate
 ```
 Expected: `DEPLOY OK: crm-mb:63`, los 5 servicios en `1/1`, el migrate sin errores y el conteo de
-DocTypes de `MbCRM` subiendo de 15 a **21** (los 6 nuevos: Factura, Factura Item, Pago, Pago
+DocTypes de `MbCRM` subiendo de **10 a 16** (los 6 nuevos: Factura, Factura Item, Pago, Pago
 Aplicacion, Punto de Venta, Emisor). El script ya hace **backup previo al migrate**.
 
 - [ ] **Step 2: Verificar los DocTypes en producción**
@@ -2132,7 +2132,7 @@ Aplicacion, Punto de Venta, Emisor). El script ya hace **backup previo al migrat
 BE=$(docker ps -qf name=crm_backend.1)
 docker exec "$BE" bash -lc "cd /home/frappe/frappe-bench && bench --site crm.marcosbarbosagroup.com execute frappe.client.get_count --kwargs '{\"doctype\":\"DocType\",\"filters\":{\"module\":\"MbCRM\"}}'"
 ```
-Expected: 21.
+Expected: 16.
 
 - [ ] **Step 3: El E2E en pantalla (obligatorio)**
 
@@ -2211,3 +2211,30 @@ Task 7.
 - **F3.4** — Informes: dashboard de cobranzas con aging y DSO en pantalla, y export.
 - **F4** — Suscripciones: `CRM Suscripcion`, bandeja **Por facturar** de períodos vencidos, job diario.
 - **F6** — AFIP: `AfipIssuer`, y el `CAE` que hoy está reservado y vacío.
+
+---
+
+## Hallazgos del pre-flight audit (2026-09-16) — no son parte del alcance, pero afectan la verificación
+
+1. **El conteo de DocTypes que asumía el plan estaba mal.** Decía "15 → 21"; la base tiene **10**
+   hoy, así que el objetivo es **16**. El error venía de contar los archivos del app (12) más los 3
+   de F2, sin verificar contra la base. Corregido en Task 11. **Lección: los números de verificación
+   se miden contra la base, no se deducen de los archivos.**
+
+2. **Dos DocTypes declarados en el app nunca se crean: `GCal Connection` y `GCal Sync State`.**
+   El `migrate` lo dice explícitamente: `Orphaned DocType(s) found: GCal Connection, GCal Sync State`.
+   La causa es que **sus tablas quedaron de la Fase 0** (la tabla `tabGCal Connection` existe, el
+   registro de DocType no), y Frappe **no recrea un DocType cuya tabla ya existe pero cuyo registro
+   falta**. Verificado en producción **y** en `crm-test`: el migrate no los crea en ninguno de los dos.
+   - **Impacto en F3:** **ninguno** (son DocTypes de un modelo abandonado; el sync de Google Calendar
+     real usa un script externo y no los toca). El impacto es de **ruido**: un warning en cada
+     migrate y dos tablas muertas.
+   - **Opciones (necesita autorización del usuario porque toca la base):**
+     (a) **Borrar los 2 archivos JSON** del app y **dropear las 2 tablas huérfanas** — son código
+     muerto del mismo modelo abandonado que los 12 DocTypes que la auditoría de F2 ya marcó;
+     (b) Dropear sólo las tablas y dejar que el migrate los recree (mantiene dos DocTypes que nadie
+     usa, con 0 filas).
+   - **Recomendación: (a).** Es coherente con el hallazgo 3 del audit de F2 y elimina el warning.
+
+3. **Los "placeholders" del self-review son falsos positivos** del grep (`TODOS` contiene `TOD`).
+   No hay `TBD`/`TODO`/`FIXME` reales en el plan.
