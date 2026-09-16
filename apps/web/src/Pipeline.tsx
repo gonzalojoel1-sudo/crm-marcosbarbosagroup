@@ -52,6 +52,7 @@ export default function Pipeline() {
   const [deals, setDeals] = useState<DealDTO[] | null>(null);
   const [leads, setLeads] = useState<LeadDTO[]>([]);
   const [stages, setStages] = useState<string[]>([]);
+  const [verticals, setVerticals] = useState<string[]>([]);
   const [dealDrawer, setDealDrawer] = useState<{ name?: string; organization?: string } | null>(null);
   const [menu, setMenu] = useState<MenuPos | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -61,6 +62,7 @@ export default function Pipeline() {
     setDeals(r.deals);
     setStages(r.stages);
     setLeads(r.leads);
+    setVerticals(r.verticals ?? []);
   }
   useEffect(() => {
     load();
@@ -243,6 +245,7 @@ export default function Pipeline() {
         <DealDrawer
           name={dealDrawer.name}
           organization={dealDrawer.organization}
+          verticals={verticals}
           onClose={() => {
             setDealDrawer(null);
             load();

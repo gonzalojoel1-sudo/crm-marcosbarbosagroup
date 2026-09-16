@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, type BillingType, type DealDetail, type DealInput, type IvaMode, type QuoteDTO } from "./api";
+import { api, type DealDetail, type DealInput, type IvaMode, type QuoteDTO } from "./api";
 import PdfViewer from "./PdfViewer";
+import QuotePanel, { EMPTY_ROW, itemsFromRows, type EditableKey, type Row } from "./QuotePanel";
 import { stageLabel } from "./labels";
-import { IconPlus, IconReceipt, IconTarget, IconTrash, IconX } from "./icons";
+import { IconReceipt, IconTarget, IconX } from "./icons";
 
 const STAGES = [
   "Qualification",
@@ -17,28 +18,17 @@ const STAGES = [
   "Lost",
 ];
 
-const BILLING_TYPES: BillingType[] = ["Único", "Mensual", "Trimestral", "Anual"];
-const IVA_MODES: IvaMode[] = ["sumar", "incluido", "exento"];
-
-type Row = { description: string; billing_type: BillingType; qty: string; rate: string; discount: string };
 type Tab = "detalle" | "presupuesto";
-
-const EMPTY_ROW: Row = { description: "", billing_type: "Único", qty: "1", rate: "", discount: "" };
-
-const money = (v: number) =>
-  "$" + v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const num = (v: string) => {
-  const n = parseFloat(String(v).replace(",", "."));
-  return isNaN(n) ? 0 : n;
-};
 
 export default function DealDrawer({
   name,
   organization,
+  verticals,
   onClose,
 }: {
   name?: string;
   organization?: string;
+  verticals: string[];
   onClose: () => void;
 }) {
   const [dealName, setDealName] = useState<string | undefined>(name);
@@ -55,9 +45,6 @@ export default function DealDrawer({
   const [rows, setRows] = useState<Row[]>([{ ...EMPTY_ROW }]);
   const [quote, setQuote] = useState<QuoteDTO | null>(null);
   const [vertical, setVertical] = useState("");
-  const [verticals, setVerticals] = useState<string[]>([]);
-  const [rejecting, setRejecting] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(name));
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +54,7 @@ export default function DealDrawer({
   const firstRef = useRef<HTMLInputElement>(null);
 
   const saving = busy !== null;
+  const isEditable = quote ? quote.is_editable : true;
 
   useEffect(() => {
     firstRef.current?.focus();
@@ -80,13 +68,6 @@ export default function DealDrawer({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose, viewer]);
-
-  useEffect(() => {
-    api
-      .getVerticals()
-      .then((list) => setVerticals(list.map((v) => v.nombre || v.name)))
-      .catch(() => setVerticals([]));
-  }, []);
 
   useEffect(() => {
     if (!name) return;
@@ -112,12 +93,6 @@ export default function DealDrawer({
         setError(String(e));
         setLoading(false);
       });
-    api
-      .getQuoteVertical(name)
-      .then((v) => {
-        if (alive) setVertical(v ?? "");
-      })
-      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -133,11 +108,14 @@ export default function DealDrawer({
           qty: String(i.qty),
           rate: String(i.rate),
           discount: i.discount_percentage ? String(i.discount_percentage) : "",
+          net_amount: i.net_amount,
         })),
       );
       setIvaMode(q.iva_mode);
+      setVertical(q.vertical || "");
     } else {
       setRows([{ ...EMPTY_ROW }]);
+      setVertical("");
     }
   }
 
@@ -148,26 +126,16 @@ export default function DealDrawer({
   }
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const setRow = (i: number, k: keyof Row, v: string) =>
+  const setRow = (i: number, k: EditableKey, v: string) =>
     setRows((r) => r.map((row, j) => (j === i ? { ...row, [k]: v } : row)));
   const addRow = () => setRows((r) => [...r, { ...EMPTY_ROW }]);
   const delRow = (i: number) => setRows((r) => r.filter((_, j) => j !== i));
 
-  const rowNet = (r: Row) => num(r.qty) * num(r.rate) * (1 - num(r.discount) / 100);
   const filledRows = rows.filter((r) => r.description.trim());
   const canSaveDetalle = Boolean(dealName) || Boolean(title.trim());
 
-  const quoteItems = () =>
-    filledRows.map((r) => ({
-      description: r.description.trim(),
-      billing_type: r.billing_type,
-      qty: num(r.qty),
-      rate: num(r.rate),
-      discount_percentage: num(r.discount),
-    }));
-
   const persistQuote = () =>
-    api.saveQuote(dealName as string, quoteItems(), { ivaMode, vertical: vertical || undefined });
+    api.saveQuote(dealName as string, itemsFromRows(filledRows), { ivaMode, vertical });
 
   async function saveDetalle() {
     if (!canSaveDetalle || saving) return;
@@ -276,35 +244,18 @@ export default function DealDrawer({
     }
   }
 
-  function startReject() {
-    setRejecting(true);
-    setRejectReason("");
-    setError(null);
-  }
-
-  function cancelReject() {
-    setRejecting(false);
-    setRejectReason("");
-    setError(null);
-  }
-
-  async function rejectIt() {
-    if (!quote || saving) return;
-    const reason = rejectReason.trim();
-    if (!reason) {
-      setError("Escribí el motivo del rechazo.");
-      return;
-    }
+  async function rejectIt(reason: string): Promise<boolean> {
+    if (!quote || saving) return false;
     setBusy("reject");
     setError(null);
     try {
       await api.rejectQuote(quote.name, reason);
-      setRejecting(false);
-      setRejectReason("");
       await reload();
       setFlash("Presupuesto rechazado.");
+      return true;
     } catch (e) {
       setError(String(e));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -325,70 +276,15 @@ export default function DealDrawer({
     }
   }
 
-  const isEditable = quote ? quote.is_editable : true;
-  const status = quote?.status ?? "Borrador";
-  const verticalOptions =
-    vertical && !verticals.includes(vertical) ? [vertical, ...verticals] : verticals;
-
-  function quoteActions() {
-    if (status === "Borrador") {
-      const noItems = filledRows.length === 0;
-      return (
-        <>
-          <button className="ghost" onClick={viewQuote} disabled={saving || loading || noItems}>
-            <IconReceipt width={15} height={15} /> {busy === "view" ? "Generando…" : "Ver presupuesto"}
-          </button>
-          <button className="ghost" onClick={sendIt} disabled={saving || loading || noItems}>
-            {busy === "send" ? "Enviando…" : "Enviar"}
-          </button>
-          <button className="btn-primary" onClick={saveDraft} disabled={saving || loading || noItems}>
-            {busy === "quote" ? "Guardando…" : "Guardar presupuesto"}
-          </button>
-        </>
-      );
-    }
-    if (status === "Enviado") {
-      return (
-        <>
-          <button className="ghost" onClick={viewQuote} disabled={saving || loading}>
-            <IconReceipt width={15} height={15} /> Ver presupuesto
-          </button>
-          <button className="ghost danger" onClick={startReject} disabled={saving || loading}>
-            Rechazar
-          </button>
-          <button className="btn-primary" onClick={acceptIt} disabled={saving || loading}>
-            {busy === "accept" ? "Aceptando…" : "Aceptar"}
-          </button>
-        </>
-      );
-    }
-    return (
-      <>
-        <button className="ghost" onClick={viewQuote} disabled={saving || loading}>
-          <IconReceipt width={15} height={15} /> Ver presupuesto
-        </button>
-        <button className="btn-primary" onClick={makeVersion} disabled={saving || loading}>
-          {busy === "version" ? "Creando…" : "Crear versión nueva"}
-        </button>
-      </>
-    );
-  }
-
-  const primary = () => {
-    if (tab === "detalle")
-      return (
-        <button
-          className="btn-primary"
-          onClick={saveDetalle}
-          disabled={!canSaveDetalle || saving || loading}
-        >
-          {busy === "detalle" ? "Guardando…" : dealName ? "Guardar" : "Crear negocio"}
-        </button>
-      );
-    return quoteActions();
-  };
-
-  const totals = quote?.totals;
+  const detallePrimary = (
+    <button
+      className="btn-primary"
+      onClick={saveDetalle}
+      disabled={!canSaveDetalle || saving || loading}
+    >
+      {busy === "detalle" ? "Guardando…" : dealName ? "Guardar" : "Crear negocio"}
+    </button>
+  );
 
   return (
     <>
@@ -425,292 +321,127 @@ export default function DealDrawer({
 
         {loading ? (
           <div className="drawer-loading">Cargando…</div>
-        ) : tab === "detalle" ? (
-          <div className="drawer-body">
-            <div className="form">
-              {!dealName ? (
-                <label className="field">
-                  <span>Empresa</span>
-                  <input
-                    ref={firstRef}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Constructora Del Sur"
-                  />
-                </label>
-              ) : null}
-              <label className="field">
-                <span>Contacto</span>
-                <input
-                  value={form.contact}
-                  onChange={(e) => set("contact", e.target.value)}
-                  placeholder="Nombre del contacto"
-                />
-              </label>
-              <div className="row2">
-                <label className="field">
-                  <span>Valor</span>
-                  <input
-                    value={form.value}
-                    onChange={(e) => set("value", e.target.value)}
-                    placeholder="0"
-                    inputMode="numeric"
-                  />
-                </label>
-                <label className="field">
-                  <span>Cierre estimado</span>
-                  <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
-                </label>
-              </div>
-              <label className="field">
-                <span>
-                  <IconTarget width={14} height={14} className="lbl-ico" /> Próxima acción
-                </span>
-                <input
-                  value={form.next_step}
-                  onChange={(e) => set("next_step", e.target.value)}
-                  placeholder="Enviar presupuesto"
-                />
-              </label>
-              <div className="row2">
-                <label className="field">
-                  <span>Etapa</span>
-                  <select value={form.status} onChange={(e) => set("status", e.target.value)}>
-                    {STAGES.map((s) => (
-                      <option key={s} value={s}>
-                        {stageLabel(s)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Probabilidad %</span>
-                  <input
-                    value={form.probability}
-                    onChange={(e) => set("probability", e.target.value)}
-                    placeholder="50"
-                    inputMode="numeric"
-                  />
-                </label>
-              </div>
-              <label className="field">
-                <span>Vertical</span>
-                <select
-                  value={vertical}
-                  onChange={(e) => setVertical(e.target.value)}
-                  disabled={saving}
-                >
-                  <option value="">Sin asignar</option>
-                  {verticalOptions.map((v) => (
-                    <option key={v} value={v}>
-                      {v}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {error ? <p className="error">{error}</p> : null}
-            </div>
-          </div>
-        ) : !dealName ? (
-          <div className="drawer-body">
-            <div className="empty soft">
-              <IconReceipt className="empty-ico" />
-              <p>Guardá los datos del negocio para armar el presupuesto.</p>
-              <button className="btn-primary" onClick={saveDetalle} disabled={!canSaveDetalle || saving}>
-                {busy === "detalle" ? "Guardando…" : "Guardar y continuar"}
-              </button>
-            </div>
-            {error ? <p className="error">{error}</p> : null}
-          </div>
+        ) : tab === "presupuesto" && dealName ? (
+          <QuotePanel
+            quote={quote}
+            rows={rows}
+            editable={isEditable}
+            ivaMode={ivaMode}
+            vertical={vertical}
+            verticals={verticals}
+            busy={busy}
+            loading={loading}
+            error={error}
+            flash={flash}
+            onRowChange={setRow}
+            onAddRow={addRow}
+            onDelRow={delRow}
+            onIvaChange={setIvaMode}
+            onVerticalChange={setVertical}
+            onClearError={() => setError(null)}
+            onView={viewQuote}
+            onSave={saveDraft}
+            onSend={sendIt}
+            onAccept={acceptIt}
+            onReject={rejectIt}
+            onNewVersion={makeVersion}
+            onClose={onClose}
+          />
         ) : (
-          <div className="drawer-body">
-            {flash ? <p className="flash">{flash}</p> : null}
-            {quote && !isEditable ? (
-              <div className="quote-frozen">
-                Este presupuesto está {quote.status.toLowerCase()} y quedó congelado. Para cambiarlo,
-                creá una versión nueva.
-              </div>
-            ) : null}
-            <div className="quote">
-              <div className="quote-state">
-                <span className="quote-state-txt">
-                  {quote ? `Presupuesto v${quote.version}` : "Presupuesto nuevo"}
-                </span>
-                <span className={`pill st-${status.toLowerCase()}`}>{status}</span>
-                {quote ? <span className="quote-no">{quote.name}</span> : null}
-              </div>
-              <div className="quote-grid">
-                <div className="quote-head">
-                  <span>Descripción</span>
-                  <span>Cobro</span>
-                  <span>Cant.</span>
-                  <span>Precio</span>
-                  <span>Desc. %</span>
-                  <span>Importe</span>
-                  <span />
-                </div>
-                {rows.map((r, i) => (
-                  <div className="quote-row" key={i}>
+          <>
+            <div className="drawer-body">
+              {tab === "detalle" ? (
+                <div className="form">
+                  {!dealName ? (
+                    <label className="field">
+                      <span>Empresa</span>
+                      <input
+                        ref={firstRef}
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="Constructora Del Sur"
+                      />
+                    </label>
+                  ) : null}
+                  <label className="field">
+                    <span>Contacto</span>
                     <input
-                      value={r.description}
-                      onChange={(e) => setRow(i, "description", e.target.value)}
-                      placeholder="Servicio o producto"
-                      disabled={!isEditable}
+                      value={form.contact}
+                      onChange={(e) => set("contact", e.target.value)}
+                      placeholder="Nombre del contacto"
                     />
-                    <select
-                      value={r.billing_type}
-                      onChange={(e) => setRow(i, "billing_type", e.target.value)}
-                      disabled={!isEditable}
-                      aria-label="Tipo de cobro"
-                    >
-                      {BILLING_TYPES.map((b) => (
-                        <option key={b} value={b}>
-                          {b}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      value={r.qty}
-                      onChange={(e) => setRow(i, "qty", e.target.value)}
-                      inputMode="decimal"
-                      disabled={!isEditable}
-                    />
-                    <input
-                      value={r.rate}
-                      onChange={(e) => setRow(i, "rate", e.target.value)}
-                      placeholder="0"
-                      inputMode="decimal"
-                      disabled={!isEditable}
-                    />
-                    <input
-                      value={r.discount}
-                      onChange={(e) => setRow(i, "discount", e.target.value)}
-                      placeholder="0"
-                      inputMode="decimal"
-                      disabled={!isEditable}
-                    />
-                    <span className="quote-amt">{money(rowNet(r))}</span>
-                    <button
-                      className="icon-btn danger"
-                      onClick={() => delRow(i)}
-                      aria-label="Quitar ítem"
-                      disabled={!isEditable}
-                    >
-                      <IconTrash width={14} height={14} />
-                    </button>
+                  </label>
+                  <div className="row2">
+                    <label className="field">
+                      <span>Valor</span>
+                      <input
+                        value={form.value}
+                        onChange={(e) => set("value", e.target.value)}
+                        placeholder="0"
+                        inputMode="numeric"
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Cierre estimado</span>
+                      <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} />
+                    </label>
                   </div>
-                ))}
-              </div>
-              {isEditable && filledRows.length === 0 ? (
-                <p className="quote-hint">
-                  Un presupuesto sin ítems es un borrador: agregá el primero para empezar.
-                </p>
-              ) : null}
-              {isEditable ? (
-                <button className="quote-add" onClick={addRow}>
-                  <IconPlus width={15} height={15} /> Agregar ítem
-                </button>
-              ) : null}
-              <div className="quote-iva">
-                <span className="quote-iva-lbl">IVA</span>
-                <div className="seg">
-                  {IVA_MODES.map((m) => (
-                    <button
-                      key={m}
-                      className={ivaMode === m ? "on" : ""}
-                      onClick={() => setIvaMode(m)}
-                      disabled={!isEditable}
-                    >
-                      {m === "sumar" ? "Sumar 21%" : m === "incluido" ? "Incluido" : "Exento"}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {quote && totals ? (
-                <div className="quote-sum">
-                  {totals.recurring_net > 0 ? (
-                    <div className="qs-block rec">
-                      <div className="qs-row">
-                        <span>Abono mensual (neto)</span>
-                        <span>{money(totals.recurring_net)}</span>
-                      </div>
-                      {quote.iva_mode !== "exento" ? (
-                        <div className="qs-row">
-                          <span>IVA 21%{quote.iva_mode === "incluido" ? " (incluido)" : ""}</span>
-                          <span>{money(totals.recurring_iva)}</span>
-                        </div>
-                      ) : null}
-                      <div className="qs-total">
-                        <span>Abono mensual</span>
-                        <strong>{money(totals.recurring_gross)}</strong>
-                      </div>
-                      {quote.recurring_summary ? (
-                        <div className="qs-sub">{quote.recurring_summary}</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {totals.one_time_net > 0 ? (
-                    <div className="qs-block once">
-                      <div className="qs-row">
-                        <span>Inversión inicial (neto)</span>
-                        <span>{money(totals.one_time_net)}</span>
-                      </div>
-                      {quote.iva_mode !== "exento" ? (
-                        <div className="qs-row">
-                          <span>IVA 21%{quote.iva_mode === "incluido" ? " (incluido)" : ""}</span>
-                          <span>{money(totals.one_time_iva)}</span>
-                        </div>
-                      ) : null}
-                      <div className="qs-total">
-                        <span>Inversión inicial</span>
-                        <strong>{money(totals.one_time_gross)}</strong>
-                      </div>
-                    </div>
-                  ) : null}
-                  {totals.discount > 0 ? (
-                    <div className="qs-sub">Descuentos aplicados: {money(totals.discount)}</div>
-                  ) : null}
+                  <label className="field">
+                    <span>
+                      <IconTarget width={14} height={14} className="lbl-ico" /> Próxima acción
+                    </span>
+                    <input
+                      value={form.next_step}
+                      onChange={(e) => set("next_step", e.target.value)}
+                      placeholder="Enviar presupuesto"
+                    />
+                  </label>
+                  <div className="row2">
+                    <label className="field">
+                      <span>Etapa</span>
+                      <select value={form.status} onChange={(e) => set("status", e.target.value)}>
+                        {STAGES.map((s) => (
+                          <option key={s} value={s}>
+                            {stageLabel(s)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Probabilidad %</span>
+                      <input
+                        value={form.probability}
+                        onChange={(e) => set("probability", e.target.value)}
+                        placeholder="50"
+                        inputMode="numeric"
+                      />
+                    </label>
+                  </div>
+                  {error ? <p className="error">{error}</p> : null}
                 </div>
               ) : (
-                <p className="quote-hint">Los totales se calculan al guardar el presupuesto.</p>
+                <>
+                  <div className="empty soft">
+                    <IconReceipt className="empty-ico" />
+                    <p>Guardá los datos del negocio para armar el presupuesto.</p>
+                    <button className="btn-primary" onClick={saveDetalle} disabled={!canSaveDetalle || saving}>
+                      {busy === "detalle" ? "Guardando…" : "Guardar y continuar"}
+                    </button>
+                  </div>
+                  {error ? <p className="error">{error}</p> : null}
+                </>
               )}
-              {error ? <p className="error">{error}</p> : null}
             </div>
-          </div>
-        )}
-
-        <footer className="drawer-foot">
-          {rejecting ? (
-            <>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="Motivo del rechazo"
-                aria-label="Motivo del rechazo"
-                autoFocus
-              />
+            <footer className="drawer-foot">
               <div className="foot-actions">
-                <button className="ghost" onClick={cancelReject} disabled={saving}>
-                  Cancelar
+                <button className="ghost" onClick={onClose}>
+                  {tab === "presupuesto" ? "Cerrar" : "Cancelar"}
                 </button>
-                <button
-                  className="btn-danger"
-                  onClick={rejectIt}
-                  disabled={saving || !rejectReason.trim()}
-                >
-                  {busy === "reject" ? "Rechazando…" : "Confirmar rechazo"}
-                </button>
+                {detallePrimary}
               </div>
-            </>
-          ) : (
-            <div className="foot-actions">
-              <button className="ghost" onClick={onClose}>
-                {tab === "presupuesto" ? "Cerrar" : "Cancelar"}
-              </button>
-              {primary()}
-            </div>
-          )}
-        </footer>
+            </footer>
+          </>
+        )}
       </aside>
         </div>,
         document.body,

@@ -393,7 +393,18 @@ def get_deals():
                 "has_quote": r["name"] in con_presupuesto,
             }
         )
-    return {"deals": deals, "stages": DEAL_STAGES, "leads": _unlinked_leads()}
+    return {"deals": deals, "stages": DEAL_STAGES, "leads": _unlinked_leads(), "verticals": _verticals()}
+
+
+def _verticals():
+    """Verticales activas, en el orden del sitio. Las usa el selector del presupuesto."""
+    return frappe.get_all(
+        "CRM Vertical",
+        filters={"activo": 1},
+        pluck="nombre",
+        order_by="orden asc",
+        limit_page_length=0,
+    )
 
 
 @frappe.whitelist()
@@ -412,6 +423,7 @@ def get_deal(name):
             "status": p.status,
             "currency": p.currency or "",
             "iva_mode": p.iva_mode or "sumar",
+            "vertical": p.get("vertical") or "",
             "valid_until": str(p.valid_until) if p.valid_until else "",
             "conditions": p.conditions or "",
             "notes": p.notes or "",
@@ -505,7 +517,9 @@ def save_quote(
     )
     if conditions is not None:
         doc.conditions = conditions
-    doc.vertical = vertical or doc.get("vertical")
+    # None = no cambiar; "" = limpiar (elegir "Sin asignar").
+    if vertical is not None:
+        doc.vertical = vertical or None
 
     doc.set("items", [])
     for r in rows:

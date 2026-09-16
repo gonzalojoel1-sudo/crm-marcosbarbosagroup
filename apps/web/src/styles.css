@@ -1841,6 +1841,7 @@ button.meta-row:hover {
 .quote-iva {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 15px;
 }
@@ -1848,6 +1849,34 @@ button.meta-row:hover {
   font-size: 12.5px;
   color: var(--fg-dim);
   font-weight: 500;
+}
+.quote-vert-lbl {
+  margin-left: 6px;
+}
+.quote-vert {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  outline: none;
+  max-width: 220px;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.quote-vert:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.quote-vert:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.quote-vert option {
+  background: var(--surface);
+  color: var(--fg);
 }
 .seg {
   display: inline-flex;
@@ -1921,6 +1950,12 @@ button.meta-row:hover {
   color: var(--fg-faint);
   text-align: right;
   margin-top: 3px;
+}
+.quote-discount {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  text-align: right;
 }
 .drawer-foot .ghost,
 .btn-danger {

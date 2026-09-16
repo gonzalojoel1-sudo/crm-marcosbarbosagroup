@@ -80,6 +80,7 @@ export interface QuoteDTO {
   status: QuoteStatus;
   currency: string;
   iva_mode: IvaMode;
+  vertical: string;
   valid_until: string;
   conditions: string;
   notes: string;
@@ -203,7 +204,9 @@ export const api = {
   getMeeting: (name: string) => get<MeetingDetail>("crm_core.api.get_meeting", { name }),
   getLeads: () => get<{ leads: LeadDTO[] }>("crm_core.api.get_leads"),
   getDeals: () =>
-    get<{ deals: DealDTO[]; stages: string[]; leads: LeadDTO[] }>("crm_core.api.get_deals"),
+    get<{ deals: DealDTO[]; stages: string[]; leads: LeadDTO[]; verticals: string[] }>(
+      "crm_core.api.get_deals",
+    ),
   getReminders: () =>
     get<{ meetings: EventDTO[]; overdue: number; now: string }>("crm_core.api.get_reminders"),
   moveDeal: (name: string, status: string) =>
@@ -214,7 +217,7 @@ export const api = {
     post<{ ok: boolean }>("crm_core.api.update_deal", { name, ...fields }),
   createDeal: (payload: { title: string; lead?: string } & DealInput) =>
     post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", payload),
-  // Verticales de `CRM Vertical` (Frappe `client.get_list`: no requiere backend propio).
+  // Verticales de `CRM Vertical`, en el orden del sitio.
   getVerticals: () =>
     get<Array<{ name: string; nombre: string }>>("frappe.client.get_list", {
       doctype: "CRM Vertical",
