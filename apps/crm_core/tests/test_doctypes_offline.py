@@ -43,6 +43,25 @@ def test_hay_doctypes_para_validar():
 
 
 @pytest.mark.parametrize("path", DOCTYPES)
+def test_doctype_define_la_clase_que_frappe_busca(path: str):
+    """Frappe obtiene el controller con `getattr(module, doctype.replace(" ", ""))`.
+
+    Si la clase no se llama EXACTAMENTE así, el DocType es invisible: `get_controller`
+    hace ImportError y `remove_orphan_doctypes()` lo BORRA en el migrate. Paso de verdad:
+    `CRM Punto de Venta` tenia la clase `CRMPuntoDeVenta` y Frappe busca `CRMPuntodeVenta`.
+    """
+    d = json.loads(Path(path).read_text())
+    py = Path(path).with_suffix(".py")
+    if not py.exists():
+        return  # sin controller: Frappe usa Document por defecto
+    clase_esperada = d["name"].replace(" ", "").replace("-", "")
+    assert f"class {clase_esperada}(" in py.read_text(), (
+        f"{d['name']}: el controller debe declarar `class {clase_esperada}(...)`, "
+        f"que es lo que Frappe busca"
+    )
+
+
+@pytest.mark.parametrize("path", DOCTYPES)
 def test_doctype_link_apunta_a_destinos_conocidos(path: str):
     """Un Link a un DocType inexistente hace fallar el migrate en producción."""
     d = json.loads(Path(path).read_text())

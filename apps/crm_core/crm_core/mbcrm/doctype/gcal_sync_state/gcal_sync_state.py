@@ -2,7 +2,7 @@ import frappe
 from frappe.model.document import Document
 
 
-class GcalSyncState(Document):
+class GCalSyncState(Document):
     """Stub controller for GcalSyncState.
 
     Phase 0: business logic lives in on_update / on_submit / etc.
