@@ -255,14 +255,20 @@ def invoice_status(
 # ── Cobranza ───────────────────────────────────────────────────────────
 
 def validar_aplicaciones(pago_amount, aplicaciones) -> None:
-    """La suma de las aplicaciones no puede superar el monto del pago.
-
-    Dejar saldo sin aplicar es correcto (queda a cuenta); sobreaplicar es corrupción:
-    el mismo peso cobraría dos deudas. Un monto de pago negativo no tiene aplicaciones
-    posibles (cualquier aplicación > 0 lo supera), así que también levanta.
+    """Valida que las aplicaciones entren en el monto del pago.
 
     `aplicaciones` es un iterable de pares `(nombre_factura, monto)`.
+
+    Dos reglas, ambas sobre el SIGNO (esta función no sabe de tipos de movimiento):
+      - Un monto NEGATIVO (una devolución: plata que sale) no puede llevar aplicaciones.
+      - Con monto >= 0, la suma de las aplicaciones no puede superarlo. Dejar saldo sin
+        aplicar es correcto (queda a cuenta); sobreaplicar es corrupción: el mismo peso
+        cobraría dos deudas.
     """
+    if dec(pago_amount) < 0:
+        if any(dec(m) for _, m in aplicaciones):
+            raise ValueError("Un movimiento negativo (devolución) no puede tener aplicaciones.")
+        return
     total = sum((dec(m) for _, m in aplicaciones), Decimal("0"))
     if money(total) > money(pago_amount):
         raise ValueError(

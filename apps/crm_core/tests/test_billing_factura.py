@@ -1,5 +1,5 @@
 """Matemática pura de facturación. Sin Frappe, sin base, sin red."""
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -200,7 +200,11 @@ def test_aplicaciones_no_pueden_superar_el_pago():
 
 
 def test_aplicaciones_pueden_dejar_saldo_a_cuenta():
-    validar_aplicaciones("100", [("F1", "60")])   # no levanta: 40 queda a cuenta
+    aplicaciones = [("F1", "60")]
+    validar_aplicaciones("100", aplicaciones)   # no levanta: 40 queda a cuenta
+    aplicado = sum((Decimal(m) for _, m in aplicaciones), Decimal("0"))
+    assert aplicado == Decimal("60")
+    assert Decimal("100") - aplicado == Decimal("40")
 
 
 def test_aging_por_tramos():
@@ -223,3 +227,68 @@ def test_aging_ignora_lo_que_no_vencio():
     b = aging_buckets([factura("F1", "100", date(2026, 10, 1))], hoy)
     assert b["0-30"] == Decimal("0.00")
     assert b["corriente"] == Decimal("100.00")
+
+
+# ── Cobranza: bordes (fix round 1) ─────────────────────────────────────
+def test_reparto_fifo_pone_primero_la_factura_sin_vencimiento():
+    """Sin vencimiento no hay forma de ubicarla en el tiempo: se cobra primero.
+
+    Si la clave de orden pasara de `str(x.get("due_date") or "")` a `str(x.get("due_date"))`,
+    el None se volveria "None", que ordena DESPUES de cualquier fecha ISO: la deuda sin
+    vencimiento quedaria postergada para siempre.
+    """
+    fs = [factura("F1", "100", date(2026, 9, 1)), factura("SIN", "100", None)]
+    assert reparto_fifo("150", fs) == [("SIN", Decimal("100.00")), ("F1", Decimal("50.00"))]
+
+
+def test_reparto_fifo_con_monto_negativo_no_aplica_nada():
+    assert reparto_fifo("-50", [factura("F1", "100", date(2026, 8, 1))]) == []
+
+
+def test_aging_en_la_frontera_de_cada_tramo():
+    """Las fronteras 30/31/60/61/90/91: un `<=` que se vuelva `<` mueve el dia 30 de tramo."""
+    hoy = date(2026, 9, 30)
+    casos = [
+        (0, "corriente"), (1, "0-30"), (30, "0-30"),
+        (31, "31-60"), (60, "31-60"),
+        (61, "61-90"), (90, "61-90"),
+        (91, "+90"),
+    ]
+    for dias, tramo in casos:
+        venc = hoy - timedelta(days=dias)
+        b = aging_buckets([factura("F", "100", venc)], hoy)
+        assert b[tramo] == Decimal("100.00"), f"dias={dias} deberia ir a {tramo}"
+
+
+def test_aging_sin_vencimiento_es_corriente():
+    b = aging_buckets([factura("F", "100", None)], date(2026, 9, 16))
+    assert b["corriente"] == Decimal("100.00")
+    assert b["0-30"] == Decimal("0.00")
+
+
+def test_aging_ignora_las_facturas_sin_saldo():
+    b = aging_buckets([factura("F", "0", date(2026, 5, 1))], date(2026, 9, 16))
+    assert all(v == Decimal("0.00") for v in b.values())
+
+
+def test_validar_aplicaciones_en_el_limite_exacto_no_levanta():
+    """La comparacion es estricta (`>`): sumar EXACTAMENTE el monto es valido."""
+    validar_aplicaciones("100", [("F1", "60"), ("F2", "40")])
+
+
+def test_validar_aplicaciones_rechaza_el_monto_negativo_con_aplicaciones():
+    with pytest.raises(ValueError):
+        validar_aplicaciones("-100", [("F1", "10")])
+    # y sin aplicaciones (una devolucion legitima) NO levanta
+    validar_aplicaciones("-100", [])
+
+
+def test_validar_aplicaciones_con_aplicacion_de_cero_no_cuenta():
+    """Una aplicacion de monto 0 no es una aplicacion: no debe bloquear una devolucion."""
+    validar_aplicaciones("-100", [("F1", "0")])
+
+
+def test_reparto_fifo_desempata_por_nombre():
+    """Mismo vencimiento: el orden tiene que ser determinista, no el del diccionario."""
+    fs = [factura("B", "100", date(2026, 9, 1)), factura("A", "100", date(2026, 9, 1))]
+    assert reparto_fifo("150", fs) == [("A", Decimal("100.00")), ("B", Decimal("50.00"))]
