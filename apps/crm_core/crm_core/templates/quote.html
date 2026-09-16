@@ -51,6 +51,13 @@
   }
   .quote-no { margin-top: 5px; font-size: 9.6pt; color: #6b6b73; }
   .quote-no b { color: #17171a; font-weight: 600; letter-spacing: 0.01em; }
+  .legal-mark { display: flex; align-items: center; gap: 7px; margin-top: 4px; }
+  .legal-x {
+    font-size: 13pt; font-weight: 700; color: #17171a;
+    border: 1.5px solid #17171a; border-radius: 3px;
+    padding: 0 5px; line-height: 1.25;
+  }
+  .legal-legend { font-size: 8.4pt; font-weight: 600; letter-spacing: 0.08em; color: #17171a; }
   .meta { display: flex; gap: 11mm; text-align: right; }
   .meta .m-label {
     font-size: 7.4pt; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
@@ -160,6 +167,10 @@
   <section class="title-row">
     <div>
       <h1>Presupuesto</h1>
+      <div class="legal-mark">
+        <span class="legal-x">X</span>
+        <span class="legal-legend">DOCUMENTO NO VÁLIDO COMO FACTURA</span>
+      </div>
       <div class="quote-no">N° <b>{{ quote_no }}</b></div>
     </div>
     <div class="meta">

@@ -1,0 +1,79 @@
+{
+  "actions": [],
+  "creation": "2026-09-16 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "razon_social",
+    "cuit",
+    "iva_condition",
+    "address",
+    "phone",
+    "email",
+    "cbu_alias"
+  ],
+  "fields": [
+    {
+      "fieldname": "razon_social",
+      "fieldtype": "Data",
+      "label": "Razón social"
+    },
+    {
+      "fieldname": "cuit",
+      "fieldtype": "Data",
+      "label": "CUIT"
+    },
+    {
+      "fieldname": "iva_condition",
+      "fieldtype": "Select",
+      "label": "Condición frente al IVA",
+      "options": "\nResponsable Inscripto\nMonotributo\nExento"
+    },
+    {
+      "fieldname": "address",
+      "fieldtype": "Small Text",
+      "label": "Domicilio"
+    },
+    {
+      "fieldname": "phone",
+      "fieldtype": "Data",
+      "label": "Teléfono"
+    },
+    {
+      "fieldname": "email",
+      "fieldtype": "Data",
+      "label": "Email",
+      "options": "Email"
+    },
+    {
+      "fieldname": "cbu_alias",
+      "fieldtype": "Data",
+      "label": "CBU / Alias"
+    }
+  ],
+  "index_web_pages_for_search": 0,
+  "issingle": 1,
+  "istable": 0,
+  "links": [],
+  "modified": "2026-09-16 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "CRM Emisor",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}
