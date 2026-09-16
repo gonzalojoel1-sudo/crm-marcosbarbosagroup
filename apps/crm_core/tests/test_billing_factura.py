@@ -112,3 +112,46 @@ def test_una_nota_de_credito_emitida_se_reporta_como_emitida():
     assert (
         invoice_status("1000", "0", "0", date(2026, 9, 1), HOY, is_return=True) == "Emitida"
     )
+
+
+def test_una_incobrable_que_se_cobra_deja_de_ser_incobrable():
+    """Spec §5.1: si el saldo llega a 0 con un pago, la factura esta cobrada."""
+    assert (
+        invoice_status("1000", "1000", "0", date(2026, 9, 1), HOY, is_uncollectible=True)
+        == "Pagada"
+    )
+
+
+def test_una_incobrable_con_saldo_sigue_incobrable():
+    assert (
+        invoice_status("1000", "300", "0", date(2026, 9, 1), HOY, is_uncollectible=True)
+        == "Incobrable"
+    )
+
+
+def test_anulada_gana_sobre_incobrable():
+    assert (
+        invoice_status(
+            "1000", "0", "0", date(2026, 9, 1), HOY, is_voided=True, is_uncollectible=True
+        )
+        == "Anulada"
+    )
+
+
+def test_total_cero_es_emitida():
+    assert invoice_status("0", "0", "0", date(2026, 10, 1), HOY) == "Emitida"
+
+
+def test_sin_vencimiento_no_vence():
+    assert invoice_status("1000", "0", "0", None, HOY) == "Emitida"
+
+
+def test_pago_mayor_al_total_es_pagada():
+    assert invoice_status("1000", "1200", "0", date(2026, 9, 1), HOY) == "Pagada"
+
+
+def test_nota_de_credito_anulada_es_anulada():
+    assert (
+        invoice_status("1000", "0", "0", date(2026, 9, 1), HOY, is_return=True, is_voided=True)
+        == "Anulada"
+    )

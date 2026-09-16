@@ -1,4 +1,4 @@
-"""Matemática de presupuestos. Puro Python: sin Frappe, sin base, sin red.
+"""Matemática de presupuestos, facturación y cobranza. Puro Python: sin Frappe, sin base, sin red.
 
 Todo el dinero viaja en Decimal. Los importes se redondean a 2 decimales al
 cerrarse cada uno (nunca en pasos intermedios), que es lo que evita el centavo
@@ -217,17 +217,23 @@ def invoice_status(
     """Estado DERIVADO de la factura. La única fuente de verdad del estado.
 
     Reglas, en orden:
-      1. Las marcas explícitas del usuario ganan (Anulada, Incobrable).
+      1. Anulada gana sobre todo: un documento anulado no existe para el cobro.
       2. Una nota de crédito emitida no tiene ciclo de cobro: es un comprobante.
       3. Pagada exige saldo 0 **y** que haya entrado plata: una factura acreditada al
          100% y nunca cobrada NO está pagada (hallazgo de la auditoría).
-      4. Parcial gana sobre Vencida: si ya entró plata, lo útil es cuánto falta.
-      5. Sin pagos: Vencida si el vencimiento pasó, Emitida si no.
+      4. `Incobrable` es una marca sobre una deuda VIVA: si el saldo llegó a 0 con un pago,
+         la factura se cobró y deja de ser incobrable (spec §5.1, corrección #3).
+      5. Parcial gana sobre Vencida: si ya entró plata, lo útil es cuánto falta.
+      6. Sin pagos: Vencida si el vencimiento pasó, Emitida si no.
+
+    Semántica de `is_uncollectible`:
+      - con saldo > 0 → "Incobrable";
+      - cobrada al 100% → "Pagada";
+      - con pago parcial → "Incobrable" (sigue habiendo deuda viva; la marca no se limpia
+        sola mientras quede saldo).
     """
     if is_voided:
         return "Anulada"
-    if is_uncollectible:
-        return "Incobrable"
     if is_return:
         return "Emitida"
 
@@ -237,6 +243,8 @@ def invoice_status(
 
     if saldo == 0:
         return "Pagada" if paid > 0 else "Emitida"
+    if is_uncollectible:
+        return "Incobrable"
     if paid > 0:
         return "Parcial"
     if due_date and str(due_date) < str(hoy):
