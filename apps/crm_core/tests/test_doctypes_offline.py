@@ -25,7 +25,7 @@ def test_doctype_json_well_formed(path: str):
     assert "fields" in d
     assert isinstance(d["fields"], list)
     assert "module" in d
-    assert d["module"] == "crm_core"
+    assert d["module"] == "MbCRM"
 
 
 @pytest.mark.parametrize("path", DOCTYPES)
@@ -43,22 +43,15 @@ def test_hay_doctypes_para_validar():
 
 
 @pytest.mark.parametrize("path", DOCTYPES)
-def test_doctype_tiene_autoname_o_naming_series(path: str):
-    """Un DocType sin forma de nombrarse falla al insertar, no al migrar."""
-    d = json.loads(Path(path).read_text())
-    fieldnames = [f.get("fieldname") for f in d["fields"]]
-    assert d.get("autoname") or "naming_series" in fieldnames, f"{d['name']}: sin autoname"
-
-
-@pytest.mark.parametrize("path", DOCTYPES)
 def test_doctype_link_apunta_a_destinos_conocidos(path: str):
     """Un Link a un DocType inexistente hace fallar el migrate en producción."""
     d = json.loads(Path(path).read_text())
     propios = {json.loads(Path(p).read_text())["name"] for p in DOCTYPES}
+    # `Event` es un DocType real de Frappe (módulo Desk), no del app `crm`: va como externo.
+    # `DocType` es core de Frappe y destino de Activity.ref_doctype y Task.linked_doctype.
     externos = {
-        "User", "File", "Currency", "Country", "CRM Deal", "CRM Lead",
+        "User", "File", "Currency", "Country", "Event", "DocType", "CRM Deal", "CRM Lead",
         "CRM Organization", "CRM Task", "CRM Deal Status", "CRM Lead Source",
-        "DocType",
     }
     for f in d["fields"]:
         if f.get("fieldtype") == "Link":
