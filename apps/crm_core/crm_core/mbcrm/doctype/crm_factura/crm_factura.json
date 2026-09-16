@@ -1,0 +1,366 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "naming_series:",
+  "creation": "2026-09-16 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "status",
+    "is_return",
+    "return_against",
+    "deal",
+    "organization",
+    "vertical",
+    "presupuesto",
+    "sb_fechas",
+    "issue_date",
+    "due_date",
+    "period_start",
+    "period_end",
+    "sent_on",
+    "paid_on",
+    "voided_on",
+    "marked_uncollectible_on",
+    "sb_cobro",
+    "currency",
+    "iva_mode",
+    "sb_items",
+    "items",
+    "sb_totales",
+    "subtotal",
+    "discount_total",
+    "iva_amount",
+    "total",
+    "credit_total",
+    "paid_amount",
+    "outstanding",
+    "sb_fiscal",
+    "comprobante_clase",
+    "comprobante_code",
+    "point_of_sale",
+    "fiscal_number",
+    "cae",
+    "cae_due",
+    "fiscal_status",
+    "fiscal_response",
+    "sb_condiciones",
+    "conditions",
+    "notes",
+    "snapshot_hash"
+  ],
+  "fields": [
+    {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "label": "Serie",
+      "options": "F-.YYYY.-.####",
+      "default": "F-.YYYY.-.####",
+      "reqd": 1,
+      "hidden": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Estado",
+      "options": "Borrador\nEmitida\nParcial\nPagada\nVencida\nIncobrable\nAnulada",
+      "default": "Borrador",
+      "read_only": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "is_return",
+      "fieldtype": "Check",
+      "label": "Es nota de crédito",
+      "read_only": 1
+    },
+    {
+      "fieldname": "return_against",
+      "fieldtype": "Link",
+      "label": "Corrige a",
+      "options": "CRM Factura",
+      "read_only": 1
+    },
+    {
+      "fieldname": "deal",
+      "fieldtype": "Link",
+      "label": "Negocio",
+      "options": "CRM Deal",
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "organization",
+      "fieldtype": "Link",
+      "label": "Organización",
+      "options": "CRM Organization",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "vertical",
+      "fieldtype": "Link",
+      "label": "Vertical",
+      "options": "CRM Vertical",
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "presupuesto",
+      "fieldtype": "Link",
+      "label": "Presupuesto",
+      "options": "CRM Presupuesto"
+    },
+    {
+      "fieldname": "sb_fechas",
+      "fieldtype": "Section Break",
+      "label": "Fechas"
+    },
+    {
+      "fieldname": "issue_date",
+      "fieldtype": "Date",
+      "label": "Fecha de emisión"
+    },
+    {
+      "fieldname": "due_date",
+      "fieldtype": "Date",
+      "label": "Vencimiento"
+    },
+    {
+      "fieldname": "period_start",
+      "fieldtype": "Date",
+      "label": "Período desde"
+    },
+    {
+      "fieldname": "period_end",
+      "fieldtype": "Date",
+      "label": "Período hasta"
+    },
+    {
+      "fieldname": "sent_on",
+      "fieldtype": "Datetime",
+      "label": "Enviada el",
+      "read_only": 1
+    },
+    {
+      "fieldname": "paid_on",
+      "fieldtype": "Datetime",
+      "label": "Pagada el",
+      "read_only": 1
+    },
+    {
+      "fieldname": "voided_on",
+      "fieldtype": "Datetime",
+      "label": "Anulada el",
+      "read_only": 1
+    },
+    {
+      "fieldname": "marked_uncollectible_on",
+      "fieldtype": "Datetime",
+      "label": "Incobrable desde",
+      "read_only": 1
+    },
+    {
+      "fieldname": "sb_cobro",
+      "fieldtype": "Section Break",
+      "label": "Cobro"
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Moneda",
+      "options": "Currency"
+    },
+    {
+      "fieldname": "iva_mode",
+      "fieldtype": "Select",
+      "label": "IVA",
+      "options": "sumar\nincluido\nexento",
+      "default": "sumar",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_items",
+      "fieldtype": "Section Break",
+      "label": "Ítems"
+    },
+    {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "label": "Ítems",
+      "options": "CRM Factura Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "sb_totales",
+      "fieldtype": "Section Break",
+      "label": "Totales"
+    },
+    {
+      "fieldname": "subtotal",
+      "fieldtype": "Currency",
+      "label": "Subtotal",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "discount_total",
+      "fieldtype": "Currency",
+      "label": "Descuentos",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "iva_amount",
+      "fieldtype": "Currency",
+      "label": "IVA",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total",
+      "fieldtype": "Currency",
+      "label": "Total",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "credit_total",
+      "fieldtype": "Currency",
+      "label": "Acreditado",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "paid_amount",
+      "fieldtype": "Currency",
+      "label": "Cobrado",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "outstanding",
+      "fieldtype": "Currency",
+      "label": "Saldo",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "sb_fiscal",
+      "fieldtype": "Section Break",
+      "label": "Fiscal (se completa en F6)",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "comprobante_clase",
+      "fieldtype": "Select",
+      "label": "Clase de comprobante",
+      "options": "\nA\nB\nC\nM\nE",
+      "read_only": 1
+    },
+    {
+      "fieldname": "comprobante_code",
+      "fieldtype": "Data",
+      "label": "Código AFIP",
+      "read_only": 1,
+      "description": "001 Factura A · 006 B · 011 C · 003/008/013 nota de crédito (RG 4290)"
+    },
+    {
+      "fieldname": "point_of_sale",
+      "fieldtype": "Link",
+      "label": "Punto de venta",
+      "options": "CRM Punto de Venta",
+      "read_only": 1
+    },
+    {
+      "fieldname": "fiscal_number",
+      "fieldtype": "Data",
+      "label": "Número fiscal",
+      "read_only": 1
+    },
+    {
+      "fieldname": "cae",
+      "fieldtype": "Data",
+      "label": "CAE",
+      "read_only": 1
+    },
+    {
+      "fieldname": "cae_due",
+      "fieldtype": "Date",
+      "label": "Vencimiento del CAE",
+      "read_only": 1
+    },
+    {
+      "fieldname": "fiscal_status",
+      "fieldtype": "Select",
+      "label": "Estado fiscal",
+      "options": "No aplica\nPendiente\nEmitida\nError",
+      "default": "No aplica",
+      "read_only": 1
+    },
+    {
+      "fieldname": "fiscal_response",
+      "fieldtype": "Long Text",
+      "label": "Respuesta AFIP",
+      "read_only": 1
+    },
+    {
+      "fieldname": "sb_condiciones",
+      "fieldtype": "Section Break",
+      "label": "Condiciones"
+    },
+    {
+      "fieldname": "conditions",
+      "fieldtype": "Small Text",
+      "label": "Condiciones"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Text",
+      "label": "Notas"
+    },
+    {
+      "fieldname": "snapshot_hash",
+      "fieldtype": "Data",
+      "label": "Hash del contenido emitido",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 0,
+  "links": [],
+  "modified": "2026-09-16 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "CRM Factura",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 0,
+      "role": "All",
+      "share": 0,
+      "write": 1
+    }
+  ],
+  "search_fields": "organization,deal",
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}
