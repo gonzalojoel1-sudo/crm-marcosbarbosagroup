@@ -1617,6 +1617,11 @@ class CRMPago(Document):
                 frappe.throw("Sólo se puede aplicar un pago a facturas de la misma moneda.")
             if f.status == "Anulada":
                 frappe.throw(f"La factura {ap.factura} está anulada.")
+            if f.status == "Borrador":
+                # Una factura en borrador no se cobra: el estado `Borrador` no se deriva
+                # (es una decisión explícita del documento), así que cobrarla la dejaría en
+                # borrador CON saldo — un estado que miente. Hay que emitirla primero.
+                frappe.throw(f"La factura {ap.factura} está en borrador: emitila antes de cobrarla.")
             facturas.append(ap.factura)
 
         try:
@@ -1930,6 +1935,12 @@ class TestPagoApi(FrappeTestCase):
         f1.reload()
         assert f1.outstanding == 60500.0
         assert f1.status == "Emitida"
+
+    def test_no_se_aplica_a_una_factura_en_borrador(self):
+        org = self._org()
+        d = api.create_invoice(org, [{"description": "x", "qty": 1, "rate": 1000}])  # queda Borrador
+        with self.assertRaises(frappe.ValidationError):
+            api.add_payment(org, 50000, applications=[{"factura": d["name"], "applied_amount": 1210}])
 
     def test_no_se_aplica_a_una_factura_anulada(self):
         f = self._factura(100000)
