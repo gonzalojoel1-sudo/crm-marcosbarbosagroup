@@ -1,0 +1,244 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "naming_series:",
+  "creation": "2026-09-15 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "deal",
+    "organization",
+    "vertical",
+    "version",
+    "is_current",
+    "status",
+    "currency",
+    "iva_mode",
+    "valid_until",
+    "sent_on",
+    "accepted_on",
+    "rejected_on",
+    "rejected_reason",
+    "items",
+    "total_one_time",
+    "total_one_time_iva",
+    "total_one_time_gross",
+    "total_recurring_monthly",
+    "total_recurring_monthly_iva",
+    "total_recurring_monthly_gross",
+    "recurring_summary",
+    "discount_total",
+    "conditions",
+    "notes",
+    "snapshot_hash"
+  ],
+  "fields": [
+    {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "label": "Serie",
+      "options": "P-.YYYY.-.####",
+      "default": "P-.YYYY.-.####",
+      "reqd": 1,
+      "hidden": 1
+    },
+    {
+      "fieldname": "deal",
+      "fieldtype": "Link",
+      "label": "Negocio",
+      "options": "CRM Deal",
+      "reqd": 1
+    },
+    {
+      "fieldname": "organization",
+      "fieldtype": "Link",
+      "label": "Organización",
+      "options": "CRM Organization",
+      "reqd": 1
+    },
+    {
+      "fieldname": "vertical",
+      "fieldtype": "Link",
+      "label": "Vertical",
+      "options": "CRM Vertical"
+    },
+    {
+      "fieldname": "version",
+      "fieldtype": "Int",
+      "label": "Versión",
+      "default": "1",
+      "read_only": 1
+    },
+    {
+      "fieldname": "is_current",
+      "fieldtype": "Check",
+      "label": "Vigente",
+      "default": "1"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Estado",
+      "options": "Borrador\nEnviado\nAceptado\nRechazado\nVencido\nAnulado",
+      "default": "Borrador",
+      "reqd": 1
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Moneda",
+      "options": "Currency"
+    },
+    {
+      "fieldname": "iva_mode",
+      "fieldtype": "Select",
+      "label": "Modo de IVA",
+      "options": "sumar\nincluido\nexento",
+      "default": "sumar",
+      "reqd": 1
+    },
+    {
+      "fieldname": "valid_until",
+      "fieldtype": "Date",
+      "label": "Válido hasta"
+    },
+    {
+      "fieldname": "sent_on",
+      "fieldtype": "Datetime",
+      "label": "Enviado el",
+      "read_only": 1
+    },
+    {
+      "fieldname": "accepted_on",
+      "fieldtype": "Datetime",
+      "label": "Aceptado el",
+      "read_only": 1
+    },
+    {
+      "fieldname": "rejected_on",
+      "fieldtype": "Datetime",
+      "label": "Rechazado el",
+      "read_only": 1
+    },
+    {
+      "fieldname": "rejected_reason",
+      "fieldtype": "Small Text",
+      "label": "Motivo de rechazo"
+    },
+    {
+      "fieldname": "items",
+      "fieldtype": "Table",
+      "label": "Ítems",
+      "options": "CRM Presupuesto Item",
+      "reqd": 1
+    },
+    {
+      "fieldname": "total_one_time",
+      "fieldtype": "Currency",
+      "label": "Total inversión inicial (neto)",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_one_time_iva",
+      "fieldtype": "Currency",
+      "label": "IVA inversión inicial",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_one_time_gross",
+      "fieldtype": "Currency",
+      "label": "Inversión inicial",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_recurring_monthly",
+      "fieldtype": "Currency",
+      "label": "Abono mensual equivalente (neto)",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_recurring_monthly_iva",
+      "fieldtype": "Currency",
+      "label": "IVA abono mensual",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_recurring_monthly_gross",
+      "fieldtype": "Currency",
+      "label": "Abono mensual equivalente",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "recurring_summary",
+      "fieldtype": "Small Text",
+      "label": "Resumen de abonos",
+      "read_only": 1
+    },
+    {
+      "fieldname": "discount_total",
+      "fieldtype": "Currency",
+      "label": "Total descuentos",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "conditions",
+      "fieldtype": "Small Text",
+      "label": "Condiciones"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Text",
+      "label": "Notas"
+    },
+    {
+      "fieldname": "snapshot_hash",
+      "fieldtype": "Data",
+      "label": "Hash del PDF",
+      "read_only": 1
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 0,
+  "links": [],
+  "modified": "2026-09-15 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "CRM Presupuesto",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 0,
+      "role": "All",
+      "share": 0,
+      "write": 1
+    }
+  ],
+  "sort_field": "modified",
+  "sort_order": "DESC",
+  "states": []
+}
