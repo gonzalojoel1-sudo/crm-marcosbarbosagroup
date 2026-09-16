@@ -2211,7 +2211,10 @@ git commit -m "test(facturacion): E2E en pantalla del ciclo facturar-cobrar + ru
 - §10 métricas: la Deuda excluye `is_return` y el aging separa lo **corriente** de lo vencido →
   Task 6 (`aging_buckets`) y Task 8 (`get_billing_summary`).
 - §11 roles y concurrencia → **no** se implementan en este plan (hay un solo usuario); quedan
-  anotados como deuda con el modelo listo. **Declarado, no olvidado.**
+  anotados como deuda con el modelo listo. **Declarado, no olvidado.** El caso concreto que la
+  revisión de la Task 7 dejó identificado: dos pagos **distintos** aplicados a la **misma factura** en
+  simultáneo leen el mismo `outstanding` (TOCTOU) y el exceso se pierde por el clamp a 0; se cierra con
+  lock de la **factura** (no sólo del pago) o re-verificando después de escribir.
 - **Fuera de este plan y declarado:** F3.3 notas de crédito (`is_return` ya está en el DocType, las
   reglas en §5.2 del spec) y F3.4 informes.
 
