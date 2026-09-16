@@ -14,8 +14,6 @@ import re
 import frappe
 from frappe.utils import add_days, add_to_date, getdate, nowdate
 
-from crm_core import documents
-
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
 MEETING_FIELDS = ["name", "first_name", "last_name", "email", "notes", "custom_meeting_datetime"]
 
@@ -398,17 +396,44 @@ def get_deals():
 def get_deal(name):
     d = frappe.get_doc("CRM Deal", name)
     owner = frappe.db.get_value("User", d.deal_owner, "full_name") if d.get("deal_owner") else None
-    items = [
-        {
-            "description": p.product_name or "",
-            "qty": p.qty or 0,
-            "rate": p.rate or 0,
-            "discount_percentage": p.discount_percentage or 0,
-            "amount": p.amount or 0,
-            "net_amount": p.net_amount or 0,
+    vigente = frappe.get_all(
+        "CRM Presupuesto", filters={"deal": name, "is_current": 1}, fields=["name"], limit=1
+    )
+    quote = None
+    if vigente:
+        p = frappe.get_doc("CRM Presupuesto", vigente[0].name)
+        quote = {
+            "name": p.name,
+            "version": p.version,
+            "status": p.status,
+            "currency": p.currency or "",
+            "iva_mode": p.iva_mode or "sumar",
+            "valid_until": str(p.valid_until) if p.valid_until else "",
+            "conditions": p.conditions or "",
+            "notes": p.notes or "",
+            "recurring_summary": p.recurring_summary or "",
+            "is_editable": p.status == "Borrador",
+            "totals": {
+                "one_time_net": p.total_one_time or 0,
+                "one_time_iva": p.total_one_time_iva or 0,
+                "one_time_gross": p.total_one_time_gross or 0,
+                "recurring_net": p.total_recurring_monthly or 0,
+                "recurring_iva": p.total_recurring_monthly_iva or 0,
+                "recurring_gross": p.total_recurring_monthly_gross or 0,
+                "discount": p.discount_total or 0,
+            },
+            "items": [
+                {
+                    "description": it.description,
+                    "billing_type": it.billing_type,
+                    "qty": it.qty,
+                    "rate": it.rate,
+                    "discount_percentage": it.discount_percentage,
+                    "net_amount": it.net_amount,
+                }
+                for it in (p.items or [])
+            ],
         }
-        for p in (d.get("products") or [])
-    ]
     return {
         "name": d.name,
         "title": d.organization or d.lead_name or d.name,
@@ -422,45 +447,85 @@ def get_deal(name):
         "status": d.get("status") or "",
         "owner": owner or "",
         "lead": d.get("lead") or "",
-        "items": items,
-        "total": float(d.total) if d.get("total") else 0,
-        "quote_no": documents.quote_number(d.name),
+        "quote": quote,
     }
 
 
 @frappe.whitelist()
-def save_quote(name, items):
-    """Guarda el presupuesto del negocio: ítems + total (deal_value/total/net_total)."""
+def save_quote(deal, items, iva_mode="sumar", valid_until=None, conditions=None, currency=None):
+    """Crea o actualiza el presupuesto EN BORRADOR del negocio.
+
+    Si el vigente ya salió del borrador, NO se edita: se crea la versión siguiente.
+    """
     rows = frappe.parse_json(items) if isinstance(items, str) else (items or [])
-    d = frappe.get_doc("CRM Deal", name)
-    d.set("products", [])
-    total = 0.0
-    for it in rows:
-        desc = str(it.get("description") or it.get("product_name") or "").strip()
-        if not desc:
-            continue
-        qty = float(it.get("qty") or 0)
-        rate = float(it.get("rate") or 0)
-        disc = float(it.get("discount_percentage") or 0)
-        amount = qty * rate
-        net = amount * (1 - (disc / 100.0))
-        d.append(
-            "products",
+    rows = [r for r in rows if str(r.get("description") or "").strip()]
+    if not rows:
+        frappe.throw("Agregá al menos un ítem al presupuesto.")
+
+    d = frappe.get_doc("CRM Deal", deal)
+    vigente = frappe.get_all(
+        "CRM Presupuesto",
+        filters={"deal": deal, "is_current": 1},
+        fields=["name", "status"],
+        limit=1,
+    )
+
+    if vigente and vigente[0].status != "Borrador":
+        from crm_core.mbcrm.doctype.crm_presupuesto.crm_presupuesto import new_version
+
+        doc = new_version(deal)
+    elif vigente:
+        doc = frappe.get_doc("CRM Presupuesto", vigente[0].name)
+    else:
+        doc = frappe.new_doc("CRM Presupuesto")
+        doc.deal = deal
+        doc.version = 1
+        doc.is_current = 1
+
+    doc.organization = _ensure_organization(d)
+    if d.get("organization"):
+        doc.currency = (
+            currency
+            or d.currency
+            or frappe.db.get_value("CRM Organization", d.organization, "currency")
+            or "ARS"
+        )
+    else:
+        doc.currency = currency or d.currency or "ARS"
+    doc.iva_mode = iva_mode or "sumar"
+    if valid_until is not None:
+        doc.valid_until = valid_until or None
+    if conditions is not None:
+        doc.conditions = conditions
+
+    doc.set("items", [])
+    for r in rows:
+        doc.append(
+            "items",
             {
-                "product_name": desc,
-                "qty": qty,
-                "rate": rate,
-                "discount_percentage": disc,
-                "amount": amount,
-                "net_amount": net,
+                "description": str(r.get("description")).strip(),
+                "billing_type": r.get("billing_type") or "Único",
+                "qty": r.get("qty") or 1,
+                "rate": r.get("rate") or 0,
+                "discount_percentage": r.get("discount_percentage") or 0,
             },
         )
-        total += net
-    d.deal_value = total or None
-    d.total = total
-    d.net_total = total
+    doc.save(ignore_permissions=True)
+
+    # El valor del negocio espeja la inversión inicial (o el abono si es sólo recurrente).
+    d.reload()
+    d.deal_value = doc.total_one_time_gross or doc.total_recurring_monthly_gross or None
     d.save(ignore_permissions=True)
-    return {"ok": True, "total": total, "count": len(d.get("products") or [])}
+
+    return {
+        "name": doc.name,
+        "version": doc.version,
+        "status": doc.status,
+        "totals": {
+            "one_time_gross": doc.total_one_time_gross,
+            "recurring_gross": doc.total_recurring_monthly_gross,
+        },
+    }
 
 
 @frappe.whitelist()
@@ -492,16 +557,73 @@ def convert_lead_to_deal(lead, status=None, deal_value=None):
     return {"name": doc.name, "title": org_name, "status": status}
 
 
-# ── Presupuesto en PDF ────────────────────────────────────────────────
+# ── Presupuesto: transiciones y PDF ───────────────────────────────────
+def _ensure_organization(deal_doc):
+    """La organización del presupuesto es REQD, pero el negocio puede no tener una.
+
+    Se reusa la del negocio; si no tiene, se crea (o reusa) una con el mismo nombre que usa
+    `create_deal`, así el presupuesto nunca queda sin organización.
+    """
+    if deal_doc.get("organization"):
+        return deal_doc.organization
+    nombre = (
+        deal_doc.get("organization_name")
+        or deal_doc.get("lead_name")
+        or deal_doc.name
+    ).strip()
+    existente = frappe.db.get_value("CRM Organization", {"organization_name": nombre}, "name")
+    if existente:
+        return existente
+    org = frappe.get_doc({"doctype": "CRM Organization", "organization_name": nombre})
+    org.insert(ignore_permissions=True)
+    return org.name
+
+
+def _quote_or_throw(name):
+    if not frappe.db.exists("CRM Presupuesto", name):
+        frappe.throw("El presupuesto no existe.")
+    return frappe.get_doc("CRM Presupuesto", name)
+
+
+@frappe.whitelist()
+def send_quote(name):
+    doc = _quote_or_throw(name)
+    doc.send()
+    return {"ok": True, "status": doc.status}
+
+
+@frappe.whitelist()
+def accept_quote(name):
+    doc = _quote_or_throw(name)
+    doc.accept()
+    return {"ok": True, "status": doc.status}
+
+
+@frappe.whitelist()
+def reject_quote(name, reason):
+    doc = _quote_or_throw(name)
+    doc.reject(reason)
+    return {"ok": True, "status": doc.status}
+
+
+@frappe.whitelist()
+def new_quote_version(deal):
+    from crm_core.mbcrm.doctype.crm_presupuesto.crm_presupuesto import new_version
+
+    doc = new_version(deal)
+    return {"name": doc.name, "version": doc.version}
+
+
 @frappe.whitelist()
 def quote_pdf(name):
-    """Puente: resuelve negocio -> presupuesto vigente y delega el render a documents."""
+    """PDF del presupuesto. `name` es el nombre del PRESUPUESTO."""
     from crm_core.documents import quote_context, render_quote_pdf
 
     if not frappe.db.exists("CRM Presupuesto", name):
-        name = frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name")
-    if not name:
-        frappe.throw("El negocio no tiene un presupuesto cargado.")
+        # Compatibilidad: si llega el negocio, resolver al presupuesto vigente.
+        name = (
+            frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name") or name
+        )
     ctx = quote_context(name)
     pdf = render_quote_pdf(name)
     fname = f"Presupuesto {ctx['quote_no']} - {ctx['client']['company']}.pdf"
