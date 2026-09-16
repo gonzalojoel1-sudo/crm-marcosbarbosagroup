@@ -51,13 +51,42 @@ export interface DealDTO {
   has_quote: boolean;
 }
 
-export interface QuoteItem {
+export type BillingType = "Único" | "Mensual" | "Trimestral" | "Anual";
+export type QuoteStatus = "Borrador" | "Enviado" | "Aceptado" | "Rechazado" | "Vencido" | "Anulado";
+export type IvaMode = "sumar" | "incluido" | "exento";
+
+export interface QuoteItemDTO {
   description: string;
+  billing_type: BillingType;
   qty: number;
   rate: number;
   discount_percentage: number;
-  amount: number;
   net_amount: number;
+}
+
+export interface QuoteTotalsDTO {
+  one_time_net: number;
+  one_time_iva: number;
+  one_time_gross: number;
+  recurring_net: number;
+  recurring_iva: number;
+  recurring_gross: number;
+  discount: number;
+}
+
+export interface QuoteDTO {
+  name: string;
+  version: number;
+  status: QuoteStatus;
+  currency: string;
+  iva_mode: IvaMode;
+  valid_until: string;
+  conditions: string;
+  notes: string;
+  recurring_summary: string;
+  is_editable: boolean;
+  totals: QuoteTotalsDTO;
+  items: QuoteItemDTO[];
 }
 
 export interface DealDetail {
@@ -73,9 +102,7 @@ export interface DealDetail {
   status: string;
   owner: string;
   lead: string;
-  items: QuoteItem[];
-  total: number;
-  quote_no: string;
+  quote: QuoteDTO | null;
 }
 
 export interface DealInput {
@@ -187,10 +214,51 @@ export const api = {
     post<{ ok: boolean }>("crm_core.api.update_deal", { name, ...fields }),
   createDeal: (payload: { title: string; lead?: string } & DealInput) =>
     post<{ name: string; title: string; status: string }>("crm_core.api.create_deal", payload),
-  saveQuote: (name: string, items: QuoteItem[]) =>
-    post<{ ok: boolean; total: number; count: number }>("crm_core.api.save_quote", { name, items }),
-  quotePdf: (name: string, ivaMode: string) =>
-    postBlob("crm_core.api.quote_pdf", { name, iva_mode: ivaMode }),
+  // Verticales de `CRM Vertical` (Frappe `client.get_list`: no requiere backend propio).
+  getVerticals: () =>
+    get<Array<{ name: string; nombre: string }>>("frappe.client.get_list", {
+      doctype: "CRM Vertical",
+      fields: '["name", "nombre"]',
+      filters: '{"activo": 1}',
+      order_by: "orden asc",
+      limit_page_length: "0",
+    }),
+  // Vertical cargada en el presupuesto vigente del negocio (null si todavía no hay).
+  getQuoteVertical: (deal: string) =>
+    get<string | null>("frappe.client.get_value", {
+      doctype: "CRM Presupuesto",
+      filters: JSON.stringify({ deal, is_current: 1 }),
+      fieldname: "vertical",
+    }),
+  saveQuote: (
+    deal: string,
+    items: Array<{
+      description: string;
+      billing_type: BillingType;
+      qty: number;
+      rate: number;
+      discount_percentage: number;
+    }>,
+    opts: { ivaMode: IvaMode; validUntil?: string; conditions?: string; currency?: string; vertical?: string },
+  ) =>
+    post<{ name: string; version: number; status: string }>("crm_core.api.save_quote", {
+      deal,
+      items,
+      iva_mode: opts.ivaMode,
+      valid_until: opts.validUntil ?? null,
+      conditions: opts.conditions ?? null,
+      currency: opts.currency ?? null,
+      vertical: opts.vertical ?? null,
+    }),
+  sendQuote: (quoteName: string) =>
+    post<{ ok: boolean; status: string }>("crm_core.api.send_quote", { name: quoteName }),
+  acceptQuote: (quoteName: string) =>
+    post<{ ok: boolean; status: string }>("crm_core.api.accept_quote", { name: quoteName }),
+  rejectQuote: (quoteName: string, reason: string) =>
+    post<{ ok: boolean; status: string }>("crm_core.api.reject_quote", { name: quoteName, reason }),
+  newQuoteVersion: (deal: string) =>
+    post<{ name: string; version: number }>("crm_core.api.new_quote_version", { deal }),
+  quotePdf: (quoteName: string) => postBlob("crm_core.api.quote_pdf", { name: quoteName }),
   convertLeadToDeal: (lead: string, status?: string) =>
     post<{ name: string; title: string; status: string }>("crm_core.api.convert_lead_to_deal", {
       lead,

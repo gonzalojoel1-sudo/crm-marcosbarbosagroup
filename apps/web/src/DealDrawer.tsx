@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, type DealInput } from "./api";
+import { api, type BillingType, type DealDetail, type DealInput, type IvaMode, type QuoteDTO } from "./api";
 import PdfViewer from "./PdfViewer";
 import { stageLabel } from "./labels";
 import { IconPlus, IconReceipt, IconTarget, IconTrash, IconX } from "./icons";
@@ -17,10 +17,13 @@ const STAGES = [
   "Lost",
 ];
 
-type Row = { description: string; qty: string; rate: string; discount: string };
+const BILLING_TYPES: BillingType[] = ["Único", "Mensual", "Trimestral", "Anual"];
+const IVA_MODES: IvaMode[] = ["sumar", "incluido", "exento"];
+
+type Row = { description: string; billing_type: BillingType; qty: string; rate: string; discount: string };
 type Tab = "detalle" | "presupuesto";
 
-const EMPTY_ROW: Row = { description: "", qty: "1", rate: "", discount: "" };
+const EMPTY_ROW: Row = { description: "", billing_type: "Único", qty: "1", rate: "", discount: "" };
 
 const money = (v: number) =>
   "$" + v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -49,15 +52,21 @@ export default function DealDrawer({
     probability: "",
     status: "Qualification",
   });
-  const [rows, setRows] = useState<Row[]>([]);
-  const [quoteNo, setQuoteNo] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [rows, setRows] = useState<Row[]>([{ ...EMPTY_ROW }]);
+  const [quote, setQuote] = useState<QuoteDTO | null>(null);
+  const [vertical, setVertical] = useState("");
+  const [verticals, setVerticals] = useState<string[]>([]);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(name));
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
-  const [ivaMode, setIvaMode] = useState<"sumar" | "incluido" | "exento">("sumar");
+  const [ivaMode, setIvaMode] = useState<IvaMode>("sumar");
   const [viewer, setViewer] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
+
+  const saving = busy !== null;
 
   useEffect(() => {
     firstRef.current?.focus();
@@ -73,29 +82,70 @@ export default function DealDrawer({
   }, [onClose, viewer]);
 
   useEffect(() => {
+    api
+      .getVerticals()
+      .then((list) => setVerticals(list.map((v) => v.nombre || v.name)))
+      .catch(() => setVerticals([]));
+  }, []);
+
+  useEffect(() => {
     if (!name) return;
-    api.getDeal(name).then((d) => {
-      setTitle(d.title);
-      setQuoteNo(d.quote_no);
-      setForm({
-        contact: d.contact,
-        value: d.value != null ? String(d.value) : "",
-        date: d.date,
-        next_step: d.next_step,
-        probability: d.probability != null ? String(d.probability) : "",
-        status: d.status || "Qualification",
+    let alive = true;
+    api
+      .getDeal(name)
+      .then((d) => {
+        if (!alive) return;
+        setTitle(d.title);
+        setForm({
+          contact: d.contact,
+          value: d.value != null ? String(d.value) : "",
+          date: d.date,
+          next_step: d.next_step,
+          probability: d.probability != null ? String(d.probability) : "",
+          status: d.status || "Qualification",
+        });
+        applyQuote(d.quote);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        setError(String(e));
+        setLoading(false);
       });
+    api
+      .getQuoteVertical(name)
+      .then((v) => {
+        if (alive) setVertical(v ?? "");
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [name]);
+
+  function applyQuote(q: QuoteDTO | null) {
+    setQuote(q);
+    if (q) {
       setRows(
-        d.items.map((i) => ({
+        q.items.map((i) => ({
           description: i.description,
+          billing_type: i.billing_type,
           qty: String(i.qty),
           rate: String(i.rate),
           discount: i.discount_percentage ? String(i.discount_percentage) : "",
         })),
       );
-      setLoading(false);
-    });
-  }, [name]);
+      setIvaMode(q.iva_mode);
+    } else {
+      setRows([{ ...EMPTY_ROW }]);
+    }
+  }
+
+  async function reload() {
+    if (!dealName) return;
+    const d: DealDetail = await api.getDeal(dealName);
+    applyQuote(d.quote);
+  }
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const setRow = (i: number, k: keyof Row, v: string) =>
@@ -104,26 +154,24 @@ export default function DealDrawer({
   const delRow = (i: number) => setRows((r) => r.filter((_, j) => j !== i));
 
   const rowNet = (r: Row) => num(r.qty) * num(r.rate) * (1 - num(r.discount) / 100);
-  const total = useMemo(() => rows.reduce((a, r) => a + rowNet(r), 0), [rows]);
   const filledRows = rows.filter((r) => r.description.trim());
   const canSaveDetalle = Boolean(dealName) || Boolean(title.trim());
-
-  const iva = ivaMode === "exento" ? 0 : ivaMode === "incluido" ? total - total / 1.21 : total * 0.21;
-  const grand = ivaMode === "incluido" ? total : total + iva;
 
   const quoteItems = () =>
     filledRows.map((r) => ({
       description: r.description.trim(),
+      billing_type: r.billing_type,
       qty: num(r.qty),
       rate: num(r.rate),
       discount_percentage: num(r.discount),
-      amount: 0,
-      net_amount: 0,
     }));
+
+  const persistQuote = () =>
+    api.saveQuote(dealName as string, quoteItems(), { ivaMode, vertical: vertical || undefined });
 
   async function saveDetalle() {
     if (!canSaveDetalle || saving) return;
-    setSaving(true);
+    setBusy("detalle");
     setError(null);
     const fields: DealInput = {
       contact: form.contact,
@@ -142,25 +190,188 @@ export default function DealDrawer({
         setDealName(r.name);
         setTab("presupuesto");
         setFlash("Negocio creado. Ahora armá el presupuesto.");
-        setSaving(false);
+        setBusy(null);
       }
     } catch (e) {
       setError(String(e));
-      setSaving(false);
+      setBusy(null);
     }
   }
 
-  async function saveQuote() {
+  async function saveDraft() {
     if (!dealName || saving) return;
-    setSaving(true);
+    if (filledRows.length === 0) {
+      setError("Agregá al menos un ítem para guardar el presupuesto.");
+      return;
+    }
+    setBusy("quote");
     setError(null);
     try {
-      await api.saveQuote(dealName, quoteItems());
-      onClose();
+      await persistQuote();
+      await reload();
+      setFlash("Presupuesto guardado.");
     } catch (e) {
       setError(String(e));
-      setSaving(false);
+    } finally {
+      setBusy(null);
     }
+  }
+
+  async function viewQuote() {
+    if (!dealName || saving) return;
+    setError(null);
+    if (!isEditable) {
+      setViewer(true);
+      return;
+    }
+    if (filledRows.length === 0) {
+      setError("Agregá al menos un ítem para ver el presupuesto.");
+      return;
+    }
+    setBusy("view");
+    try {
+      await persistQuote();
+      await reload();
+      setViewer(true);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function sendIt() {
+    if (!dealName || saving) return;
+    if (filledRows.length === 0) {
+      setError("Agregá al menos un ítem antes de enviar.");
+      return;
+    }
+    setBusy("send");
+    setError(null);
+    try {
+      const target = isEditable ? (await persistQuote()).name : quote?.name;
+      if (!target) throw new Error("El negocio no tiene un presupuesto cargado.");
+      await api.sendQuote(target);
+      await reload();
+      setFlash("Presupuesto enviado.");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function acceptIt() {
+    if (!quote || saving) return;
+    setBusy("accept");
+    setError(null);
+    try {
+      await api.acceptQuote(quote.name);
+      await reload();
+      setFlash("Presupuesto aceptado.");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function startReject() {
+    setRejecting(true);
+    setRejectReason("");
+    setError(null);
+  }
+
+  function cancelReject() {
+    setRejecting(false);
+    setRejectReason("");
+    setError(null);
+  }
+
+  async function rejectIt() {
+    if (!quote || saving) return;
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setError("Escribí el motivo del rechazo.");
+      return;
+    }
+    setBusy("reject");
+    setError(null);
+    try {
+      await api.rejectQuote(quote.name, reason);
+      setRejecting(false);
+      setRejectReason("");
+      await reload();
+      setFlash("Presupuesto rechazado.");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function makeVersion() {
+    if (!dealName || saving) return;
+    setBusy("version");
+    setError(null);
+    try {
+      await api.newQuoteVersion(dealName);
+      await reload();
+      setFlash("Versión nueva en borrador. Ya podés editarla.");
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const isEditable = quote ? quote.is_editable : true;
+  const status = quote?.status ?? "Borrador";
+  const verticalOptions =
+    vertical && !verticals.includes(vertical) ? [vertical, ...verticals] : verticals;
+
+  function quoteActions() {
+    if (status === "Borrador") {
+      const noItems = filledRows.length === 0;
+      return (
+        <>
+          <button className="ghost" onClick={viewQuote} disabled={saving || loading || noItems}>
+            <IconReceipt width={15} height={15} /> {busy === "view" ? "Generando…" : "Ver presupuesto"}
+          </button>
+          <button className="ghost" onClick={sendIt} disabled={saving || loading || noItems}>
+            {busy === "send" ? "Enviando…" : "Enviar"}
+          </button>
+          <button className="btn-primary" onClick={saveDraft} disabled={saving || loading || noItems}>
+            {busy === "quote" ? "Guardando…" : "Guardar presupuesto"}
+          </button>
+        </>
+      );
+    }
+    if (status === "Enviado") {
+      return (
+        <>
+          <button className="ghost" onClick={viewQuote} disabled={saving || loading}>
+            <IconReceipt width={15} height={15} /> Ver presupuesto
+          </button>
+          <button className="ghost danger" onClick={startReject} disabled={saving || loading}>
+            Rechazar
+          </button>
+          <button className="btn-primary" onClick={acceptIt} disabled={saving || loading}>
+            {busy === "accept" ? "Aceptando…" : "Aceptar"}
+          </button>
+        </>
+      );
+    }
+    return (
+      <>
+        <button className="ghost" onClick={viewQuote} disabled={saving || loading}>
+          <IconReceipt width={15} height={15} /> Ver presupuesto
+        </button>
+        <button className="btn-primary" onClick={makeVersion} disabled={saving || loading}>
+          {busy === "version" ? "Creando…" : "Crear versión nueva"}
+        </button>
+      </>
+    );
   }
 
   const primary = () => {
@@ -171,40 +382,13 @@ export default function DealDrawer({
           onClick={saveDetalle}
           disabled={!canSaveDetalle || saving || loading}
         >
-          {saving ? "Guardando…" : dealName ? "Guardar" : "Crear negocio"}
+          {busy === "detalle" ? "Guardando…" : dealName ? "Guardar" : "Crear negocio"}
         </button>
       );
-    return (
-      <>
-        <button
-          className="ghost"
-          onClick={async () => {
-            if (!dealName || saving) return;
-            if (filledRows.length === 0) {
-              setError("Agregá al menos un ítem para ver el presupuesto.");
-              return;
-            }
-            setSaving(true);
-            setError(null);
-            try {
-              await api.saveQuote(dealName, quoteItems());
-              setViewer(true);
-            } catch (e) {
-              setError(String(e));
-            } finally {
-              setSaving(false);
-            }
-          }}
-          disabled={saving || loading || filledRows.length === 0}
-        >
-          <IconReceipt width={15} height={15} /> Ver presupuesto
-        </button>
-        <button className="btn-primary" onClick={saveQuote} disabled={saving || loading}>
-          {saving ? "Guardando…" : "Guardar presupuesto"}
-        </button>
-      </>
-    );
+    return quoteActions();
   };
+
+  const totals = quote?.totals;
 
   return (
     <>
@@ -309,6 +493,21 @@ export default function DealDrawer({
                   />
                 </label>
               </div>
+              <label className="field">
+                <span>Vertical</span>
+                <select
+                  value={vertical}
+                  onChange={(e) => setVertical(e.target.value)}
+                  disabled={saving}
+                >
+                  <option value="">Sin asignar</option>
+                  {verticalOptions.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </label>
               {error ? <p className="error">{error}</p> : null}
             </div>
           </div>
@@ -318,7 +517,7 @@ export default function DealDrawer({
               <IconReceipt className="empty-ico" />
               <p>Guardá los datos del negocio para armar el presupuesto.</p>
               <button className="btn-primary" onClick={saveDetalle} disabled={!canSaveDetalle || saving}>
-                {saving ? "Guardando…" : "Guardar y continuar"}
+                {busy === "detalle" ? "Guardando…" : "Guardar y continuar"}
               </button>
             </div>
             {error ? <p className="error">{error}</p> : null}
@@ -326,98 +525,201 @@ export default function DealDrawer({
         ) : (
           <div className="drawer-body">
             {flash ? <p className="flash">{flash}</p> : null}
-            <div className="quote">
-              <div className="quote-head">
-                <span>Descripción</span>
-                <span>Cant.</span>
-                <span>Precio</span>
-                <span>Desc. %</span>
-                <span>Importe</span>
-                <span />
+            {quote && !isEditable ? (
+              <div className="quote-frozen">
+                Este presupuesto está {quote.status.toLowerCase()} y quedó congelado. Para cambiarlo,
+                creá una versión nueva.
               </div>
-              {rows.map((r, i) => (
-                <div className="quote-row" key={i}>
-                  <input
-                    value={r.description}
-                    onChange={(e) => setRow(i, "description", e.target.value)}
-                    placeholder="Servicio o producto"
-                  />
-                  <input
-                    value={r.qty}
-                    onChange={(e) => setRow(i, "qty", e.target.value)}
-                    inputMode="decimal"
-                  />
-                  <input
-                    value={r.rate}
-                    onChange={(e) => setRow(i, "rate", e.target.value)}
-                    placeholder="0"
-                    inputMode="decimal"
-                  />
-                  <input
-                    value={r.discount}
-                    onChange={(e) => setRow(i, "discount", e.target.value)}
-                    placeholder="0"
-                    inputMode="decimal"
-                  />
-                  <span className="quote-amt">{money(rowNet(r))}</span>
-                  <button className="icon-btn danger" onClick={() => delRow(i)} aria-label="Quitar ítem">
-                    <IconTrash width={14} height={14} />
-                  </button>
+            ) : null}
+            <div className="quote">
+              <div className="quote-state">
+                <span className="quote-state-txt">
+                  {quote ? `Presupuesto v${quote.version}` : "Presupuesto nuevo"}
+                </span>
+                <span className={`pill st-${status.toLowerCase()}`}>{status}</span>
+                {quote ? <span className="quote-no">{quote.name}</span> : null}
+              </div>
+              <div className="quote-grid">
+                <div className="quote-head">
+                  <span>Descripción</span>
+                  <span>Cobro</span>
+                  <span>Cant.</span>
+                  <span>Precio</span>
+                  <span>Desc. %</span>
+                  <span>Importe</span>
+                  <span />
                 </div>
-              ))}
-              <button className="quote-add" onClick={addRow}>
-                <IconPlus width={15} height={15} /> Agregar ítem
-              </button>
+                {rows.map((r, i) => (
+                  <div className="quote-row" key={i}>
+                    <input
+                      value={r.description}
+                      onChange={(e) => setRow(i, "description", e.target.value)}
+                      placeholder="Servicio o producto"
+                      disabled={!isEditable}
+                    />
+                    <select
+                      value={r.billing_type}
+                      onChange={(e) => setRow(i, "billing_type", e.target.value)}
+                      disabled={!isEditable}
+                      aria-label="Tipo de cobro"
+                    >
+                      {BILLING_TYPES.map((b) => (
+                        <option key={b} value={b}>
+                          {b}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={r.qty}
+                      onChange={(e) => setRow(i, "qty", e.target.value)}
+                      inputMode="decimal"
+                      disabled={!isEditable}
+                    />
+                    <input
+                      value={r.rate}
+                      onChange={(e) => setRow(i, "rate", e.target.value)}
+                      placeholder="0"
+                      inputMode="decimal"
+                      disabled={!isEditable}
+                    />
+                    <input
+                      value={r.discount}
+                      onChange={(e) => setRow(i, "discount", e.target.value)}
+                      placeholder="0"
+                      inputMode="decimal"
+                      disabled={!isEditable}
+                    />
+                    <span className="quote-amt">{money(rowNet(r))}</span>
+                    <button
+                      className="icon-btn danger"
+                      onClick={() => delRow(i)}
+                      aria-label="Quitar ítem"
+                      disabled={!isEditable}
+                    >
+                      <IconTrash width={14} height={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {isEditable && filledRows.length === 0 ? (
+                <p className="quote-hint">
+                  Un presupuesto sin ítems es un borrador: agregá el primero para empezar.
+                </p>
+              ) : null}
+              {isEditable ? (
+                <button className="quote-add" onClick={addRow}>
+                  <IconPlus width={15} height={15} /> Agregar ítem
+                </button>
+              ) : null}
               <div className="quote-iva">
                 <span className="quote-iva-lbl">IVA</span>
                 <div className="seg">
-                  {(["sumar", "incluido", "exento"] as const).map((m) => (
-                    <button key={m} className={ivaMode === m ? "on" : ""} onClick={() => setIvaMode(m)}>
+                  {IVA_MODES.map((m) => (
+                    <button
+                      key={m}
+                      className={ivaMode === m ? "on" : ""}
+                      onClick={() => setIvaMode(m)}
+                      disabled={!isEditable}
+                    >
                       {m === "sumar" ? "Sumar 21%" : m === "incluido" ? "Incluido" : "Exento"}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="quote-sum">
-                <div className="qs-row">
-                  <span>Subtotal</span>
-                  <span>{money(total)}</span>
+              {quote && totals ? (
+                <div className="quote-sum">
+                  {totals.recurring_net > 0 ? (
+                    <div className="qs-block rec">
+                      <div className="qs-row">
+                        <span>Abono mensual (neto)</span>
+                        <span>{money(totals.recurring_net)}</span>
+                      </div>
+                      {quote.iva_mode !== "exento" ? (
+                        <div className="qs-row">
+                          <span>IVA 21%{quote.iva_mode === "incluido" ? " (incluido)" : ""}</span>
+                          <span>{money(totals.recurring_iva)}</span>
+                        </div>
+                      ) : null}
+                      <div className="qs-total">
+                        <span>Abono mensual</span>
+                        <strong>{money(totals.recurring_gross)}</strong>
+                      </div>
+                      {quote.recurring_summary ? (
+                        <div className="qs-sub">{quote.recurring_summary}</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {totals.one_time_net > 0 ? (
+                    <div className="qs-block once">
+                      <div className="qs-row">
+                        <span>Inversión inicial (neto)</span>
+                        <span>{money(totals.one_time_net)}</span>
+                      </div>
+                      {quote.iva_mode !== "exento" ? (
+                        <div className="qs-row">
+                          <span>IVA 21%{quote.iva_mode === "incluido" ? " (incluido)" : ""}</span>
+                          <span>{money(totals.one_time_iva)}</span>
+                        </div>
+                      ) : null}
+                      <div className="qs-total">
+                        <span>Inversión inicial</span>
+                        <strong>{money(totals.one_time_gross)}</strong>
+                      </div>
+                    </div>
+                  ) : null}
+                  {totals.discount > 0 ? (
+                    <div className="qs-sub">Descuentos aplicados: {money(totals.discount)}</div>
+                  ) : null}
                 </div>
-                {ivaMode !== "exento" ? (
-                  <div className="qs-row">
-                    <span>IVA 21%{ivaMode === "incluido" ? " (incluido)" : ""}</span>
-                    <span>{money(iva)}</span>
-                  </div>
-                ) : null}
-                <div className="qs-total">
-                  <span>Total</span>
-                  <strong>{money(grand)}</strong>
-                </div>
-              </div>
+              ) : (
+                <p className="quote-hint">Los totales se calculan al guardar el presupuesto.</p>
+              )}
               {error ? <p className="error">{error}</p> : null}
             </div>
           </div>
         )}
 
         <footer className="drawer-foot">
-          <div className="foot-actions">
-            <button className="ghost" onClick={onClose}>
-              Cancelar
-            </button>
-            {primary()}
-          </div>
+          {rejecting ? (
+            <>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Motivo del rechazo"
+                aria-label="Motivo del rechazo"
+                autoFocus
+              />
+              <div className="foot-actions">
+                <button className="ghost" onClick={cancelReject} disabled={saving}>
+                  Cancelar
+                </button>
+                <button
+                  className="btn-danger"
+                  onClick={rejectIt}
+                  disabled={saving || !rejectReason.trim()}
+                >
+                  {busy === "reject" ? "Rechazando…" : "Confirmar rechazo"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="foot-actions">
+              <button className="ghost" onClick={onClose}>
+                {tab === "presupuesto" ? "Cerrar" : "Cancelar"}
+              </button>
+              {primary()}
+            </div>
+          )}
         </footer>
       </aside>
         </div>,
         document.body,
       )}
 
-      {viewer && dealName ? (
+      {viewer && quote ? (
         <PdfViewer
-          name={dealName}
-          title={title || dealName}
-          quoteNo={quoteNo}
-          ivaMode={ivaMode}
+          quoteName={quote.name}
+          title={title || dealName || ""}
           onClose={() => setViewer(false)}
         />
       ) : null}

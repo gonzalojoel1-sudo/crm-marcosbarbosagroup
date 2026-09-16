@@ -4,16 +4,12 @@ import { api } from "./api";
 import { IconDownload, IconExternal, IconReceipt, IconX } from "./icons";
 
 export default function PdfViewer({
-  name,
+  quoteName,
   title,
-  quoteNo,
-  ivaMode,
   onClose,
 }: {
-  name: string;
+  quoteName: string;
   title: string;
-  quoteNo?: string;
-  ivaMode: "sumar" | "incluido" | "exento";
   onClose: () => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -26,7 +22,7 @@ export default function PdfViewer({
     setLoading(true);
     setError(null);
     api
-      .quotePdf(name, ivaMode)
+      .quotePdf(quoteName)
       .then((blob) => {
         if (!alive) return;
         const u = URL.createObjectURL(blob);
@@ -46,7 +42,7 @@ export default function PdfViewer({
         urlRef.current = null;
       }
     };
-  }, [name, ivaMode]);
+  }, [quoteName]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,7 +57,7 @@ export default function PdfViewer({
     };
   }, [onClose]);
 
-  const filename = `Presupuesto${quoteNo ? ` ${quoteNo}` : ""} - ${title}.pdf`;
+  const filename = `Presupuesto ${quoteName} - ${title}.pdf`;
 
   function download() {
     if (!url) return;
@@ -84,7 +80,7 @@ export default function PdfViewer({
       >
         <header className="pdfview-bar">
           <div className="pdfview-id">
-            <span className="eyebrow">Presupuesto{quoteNo ? ` ${quoteNo}` : ""}</span>
+            <span className="eyebrow">Presupuesto {quoteName}</span>
             <h2>{title}</h2>
           </div>
           <div className="pdfview-actions">

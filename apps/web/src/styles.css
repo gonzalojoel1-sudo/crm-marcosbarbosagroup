@@ -790,7 +790,7 @@ h2 {
   animation: slide 0.24s var(--ease);
 }
 .drawer.wide {
-  width: min(560px, 100%);
+  width: min(620px, 100%);
 }
 @keyframes slide {
   from {
@@ -1159,9 +1159,15 @@ button.meta-row:hover {
 }
 .foot-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
   width: 100%;
+}
+.drawer-foot .btn-primary,
+.drawer-foot .btn-danger,
+.drawer-foot .ghost {
+  white-space: nowrap;
 }
 
 /* Alta de tarea en el detalle */
@@ -1665,13 +1671,17 @@ button.meta-row:hover {
   flex-direction: column;
   gap: 7px;
 }
+.quote-grid {
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
 .quote-head,
 .quote-row {
   display: grid;
-  grid-template-columns: minmax(96px, 1fr) 52px 86px 56px 98px 26px;
+  grid-template-columns: minmax(104px, 1fr) 100px 44px 72px 50px 94px 26px;
   gap: 7px;
   align-items: center;
-  min-width: 452px;
+  min-width: 532px;
 }
 .quote-head {
   font-size: 11px;
@@ -1683,6 +1693,7 @@ button.meta-row:hover {
 }
 .quote-head span:not(:first-child) {
   text-align: right;
+  white-space: nowrap;
 }
 .quote-row input {
   width: 100%;
@@ -1703,6 +1714,101 @@ button.meta-row:hover {
 }
 .quote-row input::placeholder {
   color: var(--fg-faint);
+}
+.quote-row select {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 7px 6px;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+.quote-row select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.quote-row select option {
+  background: var(--surface);
+  color: var(--fg);
+}
+.quote-row input:disabled,
+.quote-row select:disabled,
+.quote-row .icon-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.quote-row .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+.seg button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.quote-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.quote-state-txt {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--fg-dim);
+}
+.quote-no {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+.quote-state .pill {
+  font-size: 11px;
+  font-weight: 650;
+  border-radius: 999px;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  background: transparent;
+}
+.quote-state .pill.st-borrador {
+  color: var(--fg-dim);
+}
+.quote-state .pill.st-enviado {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+.quote-state .pill.st-aceptado {
+  color: var(--ok);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+.quote-state .pill.st-rechazado,
+.quote-state .pill.st-anulado {
+  color: var(--danger);
+  border-color: rgba(255, 90, 90, 0.35);
+}
+.quote-state .pill.st-vencido {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.quote-hint {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--fg-faint);
+}
+.quote-frozen {
+  font-size: 12.5px;
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 9px;
+  padding: 8px 11px;
+  margin-bottom: 12px;
 }
 .quote-amt {
   font-size: 13px;
@@ -1801,6 +1907,52 @@ button.meta-row:hover {
   font-weight: 700;
   color: var(--fg);
   font-variant-numeric: tabular-nums;
+}
+.qs-block + .qs-block {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.qs-block.rec .qs-total strong {
+  color: var(--accent-2);
+}
+.qs-sub {
+  font-size: 12px;
+  color: var(--fg-faint);
+  text-align: right;
+  margin-top: 3px;
+}
+.drawer-foot .ghost,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.ghost.danger:hover {
+  color: var(--danger);
+  border-color: rgba(255, 90, 90, 0.4);
+}
+.btn-danger {
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: var(--danger);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s var(--ease), transform 0.1s var(--ease);
+}
+.btn-danger:hover {
+  background: #ff7373;
+}
+.btn-danger:active {
+  transform: scale(0.98);
+}
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .flash {
   margin: 0 0 12px;
@@ -1951,9 +2103,6 @@ button.meta-row:hover {
   }
   .quote {
     padding-bottom: 4px;
-  }
-  .quote {
-    overflow-x: auto;
   }
 }
 
