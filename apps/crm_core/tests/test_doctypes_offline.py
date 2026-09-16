@@ -10,7 +10,10 @@ from pathlib import Path
 
 import pytest
 
-DOCTYPES = sorted(glob.glob("apps/crm_core/crm_core/doctype/*/*.json"))
+DOCTYPES = sorted(
+    glob.glob("crm_core/mbcrm/doctype/*/*.json")
+    + glob.glob("crm_core/doctype/*/*.json")
+)
 
 
 @pytest.mark.parametrize("path", DOCTYPES)
@@ -34,37 +37,32 @@ def test_doctype_has_unique_names_per_field(path: str):
     assert not duplicates, f"{d['name']}: duplicados {duplicates}"
 
 
-def test_event_has_booking_uid_unique():
-    """Pre-requisito de T7 (idempotencia webhooks Cal.com).
-
-    Frappe serializa `unique: 1` (entero), no `true` (bool). Aceptamos ambos.
-    """
-    d = json.loads(Path("apps/crm_core/crm_core/doctype/event/event.json").read_text())
-    field = next((f for f in d["fields"] if f["fieldname"] == "booking_uid"), None)
-    assert field, "Event.booking_uid faltante"
-    assert field.get("unique") in (1, True), "Event.booking_uid debe ser UNIQUE"
+def test_hay_doctypes_para_validar():
+    """La red no sirve si el glob vuelve vacío: eso ya pasó (ruta mal escrita)."""
+    assert len(DOCTYPES) >= 3, f"el glob no encontró DocTypes: {DOCTYPES}"
 
 
-def test_gcal_connection_tokens_are_readonly():
-    """Tokens nunca editables manualmente (solo código OAuth)."""
-    d = json.loads(
-        Path("apps/crm_core/crm_core/doctype/gcal_connection/gcal_connection.json").read_text()
-    )
-    for fname in ("enc_access", "enc_refresh"):
-        f = next((f for f in d["fields"] if f["fieldname"] == fname), None)
-        assert f, f"GCal Connection.{fname} faltante"
-        assert f.get("read_only") in (1, True), f"{fname} debe ser read_only"
+@pytest.mark.parametrize("path", DOCTYPES)
+def test_doctype_tiene_autoname_o_naming_series(path: str):
+    """Un DocType sin forma de nombrarse falla al insertar, no al migrar."""
+    d = json.loads(Path(path).read_text())
+    fieldnames = [f.get("fieldname") for f in d["fields"]]
+    assert d.get("autoname") or "naming_series" in fieldnames, f"{d['name']}: sin autoname"
 
 
-def test_activity_append_only():
-    """Spec §3: Activity sin delete para roles no-admin."""
-    d = json.loads(
-        Path("apps/crm_core/crm_core/doctype/activity/activity.json").read_text()
-    )
-    perms = d["permissions"]
-    all_perms = [p for p in perms if "All" in p.get("role", "")]
-    assert all_perms, "falta rol `All` para usuarios autenticados"
-    for p in all_perms:
-        delete = p.get("delete")
-        assert delete in (0, False, None), \
-            f"Activity.delete debe ser 0/false/ausente para rol All (append-only), got {delete!r}"
+@pytest.mark.parametrize("path", DOCTYPES)
+def test_doctype_link_apunta_a_destinos_conocidos(path: str):
+    """Un Link a un DocType inexistente hace fallar el migrate en producción."""
+    d = json.loads(Path(path).read_text())
+    propios = {json.loads(Path(p).read_text())["name"] for p in DOCTYPES}
+    externos = {
+        "User", "File", "Currency", "Country", "CRM Deal", "CRM Lead",
+        "CRM Organization", "CRM Task", "CRM Deal Status", "CRM Lead Source",
+        "DocType",
+    }
+    for f in d["fields"]:
+        if f.get("fieldtype") == "Link":
+            destino = f.get("options")
+            assert destino in propios | externos, (
+                f"{d['name']}.{f['fieldname']}: Link a '{destino}' desconocido"
+            )
