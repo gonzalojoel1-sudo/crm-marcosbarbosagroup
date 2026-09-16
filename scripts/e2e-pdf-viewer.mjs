@@ -75,6 +75,9 @@ try {
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
   check("Escape cierra el visor", (await page.locator(".pdfview").count()) === 0);
+  // Regresión: el drawer tiene su propio listener de Escape y NO debe cerrarse
+  // cuando el visor está arriba. Si esto falla, se pierde el negocio entero.
+  check("Escape NO cierra el drawer de abajo", (await page.locator(".drawer").count()) === 1);
 
   await ctx.close();
 } catch (e) {
