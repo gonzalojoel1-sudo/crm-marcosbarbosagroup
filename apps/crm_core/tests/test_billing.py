@@ -1,7 +1,13 @@
 """Tests de la matemática de presupuestos. Puros: sin Frappe, sin base, sin red."""
 from decimal import Decimal
 
-from crm_core.billing import interval_months, line_amounts, money, quote_totals
+from crm_core.billing import (
+    interval_months,
+    items_fingerprint,
+    line_amounts,
+    money,
+    quote_totals,
+)
 
 
 def item(qty, rate, discount=0, billing_type="Único"):
@@ -87,6 +93,27 @@ def test_iva_exento_no_agrega_nada():
 def test_descuento_total_suma_las_diferencias():
     t = quote_totals([item(2, "100000", 10), item(1, "50000", 0, "Mensual")])
     assert t["discount_total"] == Decimal("20000.00")
+
+
+def test_items_fingerprint_ignora_la_identidad_de_los_objetos():
+    """Dos listas con los mismos valores deben dar la misma huella.
+
+    Es la razon de existir de la funcion: comparar los objetos Document con `!=`
+    compara identidad y siempre da distinto, lo que bloqueaba todo guardado de un
+    presupuesto congelado.
+    """
+    assert items_fingerprint([item(1, "1000")]) == items_fingerprint([item(1, "1000")])
+
+
+def test_items_fingerprint_detecta_un_cambio():
+    assert items_fingerprint([item(1, "1000")]) != items_fingerprint([item(1, "1001")])
+    assert items_fingerprint([item(1, "1000")]) != items_fingerprint([item(2, "1000")])
+
+
+def test_items_fingerprint_normaliza_los_numeros():
+    a = [{"description": "x", "billing_type": "Único", "qty": 1, "rate": 1000, "discount_percentage": 0}]
+    b = [{"description": "x", "billing_type": "Único", "qty": "1", "rate": "1000.00", "discount_percentage": ""}]
+    assert items_fingerprint(a) == items_fingerprint(b)
 
 
 def test_presupuesto_mixto_separa_las_dos_bases_de_tiempo():

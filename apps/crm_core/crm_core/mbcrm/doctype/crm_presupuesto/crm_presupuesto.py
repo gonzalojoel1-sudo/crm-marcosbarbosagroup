@@ -66,7 +66,10 @@ class CRMPresupuesto(Document):
         if not before:
             return
         if before.status in FROZEN_STATUSES and self.status == before.status:
-            if self.get("items") != before.get("items"):
+            # Se comparan HUELLAS, no los objetos: comparar listas de Document con
+            # `!=` compara identidad (Frappe no define __eq__) y da siempre distinto,
+            # lo que bloquearía hasta el guardado que baja is_current al versionar.
+            if billing.items_fingerprint(self.items) != billing.items_fingerprint(before.items):
                 frappe.throw(
                     "Este presupuesto ya fue enviado y no se puede editar. "
                     "Creá una versión nueva para cambiarlo."

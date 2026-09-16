@@ -50,6 +50,35 @@ def line_amounts(qty, rate, discount_percentage) -> tuple:
     return gross, net
 
 
+def _row(item, key):
+    """Lee una clave tanto de un dict como de un objeto (Document de Frappe)."""
+    if isinstance(item, dict):
+        return item.get(key)
+    return getattr(item, key, None)
+
+
+def items_fingerprint(items) -> tuple:
+    """Huella comparable de los ítems de un presupuesto.
+
+    Comparar las listas de `Document` con `!=` no sirve: Frappe no define `__eq__`,
+    así que compara identidad y dos listas equivalentes dan distintas. Esta huella
+    compara los VALORES que importan, y normaliza los números con `money()` para que
+    `100`, `"100"`, `100.0` y `"100.00"` sean la misma cosa.
+    """
+    rows = []
+    for it in items or []:
+        rows.append(
+            (
+                str(_row(it, "description") or "").strip(),
+                str(_row(it, "billing_type") or "").strip(),
+                str(money(_row(it, "qty"))),
+                str(money(_row(it, "rate"))),
+                str(money(_row(it, "discount_percentage"))),
+            )
+        )
+    return tuple(rows)
+
+
 def fmt_money(value, symbol="$") -> str:
     """Formato es-AR: miles con '.', decimales con ','."""
     raw = f"{money(value):,.2f}"

@@ -15,6 +15,9 @@ app_license = "proprietary"
 scheduler_events = {}
 doc_events = {}
 
+# Datos base idempotentes: las 7 verticales se siembran en cada migrate.
+after_migrate = ["crm_core.fixtures.seed_verticales"]
+
 # Rutas web propias. Mismo mecanismo que usa el app `crm` para /crm.
 website_route_rules = [
     {"from_route": "/hoy", "to_route": "hoy"},
