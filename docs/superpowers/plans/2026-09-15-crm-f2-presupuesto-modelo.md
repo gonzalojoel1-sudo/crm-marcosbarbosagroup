@@ -119,7 +119,8 @@ sin red, sin Docker.
 testpaths = tests
 pythonpath = .
 # Los tests que exigen un sitio Frappe o red se corren a proposito, no en un `pytest` pelado.
-addopts = --ignore=tests/test_rest_smoke.py --ignore=tests/test_hoy_api.py
+addopts = --ignore=tests/test_rest_smoke.py --ignore=tests/test_hoy_api.py \
+          --ignore=tests/test_presupuesto_states.py
 ```
 
 `apps/crm_core/tests/test_billing.py`:
