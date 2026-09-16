@@ -45,6 +45,15 @@ class CRMFactura(Document):
             gross, net = billing.line_amounts(it.qty, it.rate, it.discount_percentage)
             it.amount = gross
             it.net_amount = net
+        # `outstanding` es DERIVADO de sus propias entradas (`paid_amount` y `credit_total`),
+        # igual que el estado. Sin esto, una factura sin cobros queda con saldo 0 y los
+        # informes ven deuda cero donde hay deuda. El cálculo vive en `billing.outstanding_of`
+        # (una sola fórmula pura): este `validate` y `recalcular_factura` escriben el MISMO
+        # valor por construcción — uno desde `paid`/`credit` guardados, el otro desde las
+        # aplicaciones. No es una segunda fuente de verdad.
+        self.outstanding = billing.outstanding_of(
+            self.total, self.paid_amount, self.credit_total
+        )
 
     def guard_frozen(self):
         """Una factura emitida no se edita: se corrige con una nota de crédito.

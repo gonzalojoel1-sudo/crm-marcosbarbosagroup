@@ -109,7 +109,21 @@ class CRMPago(Document):
         self.recalcular_todas()
 
     def on_trash(self):
-        self.recalcular_todas()
+        """Captura las facturas afectadas ANTES de que Frappe borre las filas hijas.
+
+        `after_delete` corre después del borrado, cuando `self.applications` ya no tiene las
+        filas, así que los nombres hay que dejarlos guardados acá.
+        """
+        self.flags.facturas_a_recalcular = [
+            ap.factura for ap in (self.applications or []) if ap.factura
+        ]
+
+    def after_delete(self):
+        """El recálculo va DESPUÉS del borrado: `on_trash` corre ANTES de que Frappe borre
+        las filas hijas, así que la consulta de aplicaciones todavía las encuentra y
+        reescribe el mismo valor (la factura se quedaba cobrada)."""
+        for factura in self.flags.get("facturas_a_recalcular") or []:
+            recalcular_factura(factura)
 
     def recalcular_todas(self):
         for ap in self.applications or []:
