@@ -5,6 +5,8 @@ cerrarse cada uno (nunca en pasos intermedios), que es lo que evita el centavo
 perdido cuando se suman muchos ítems con descuento.
 """
 
+import datetime
+
 from decimal import ROUND_HALF_UP, Decimal
 
 IVA_RATE = Decimal("0.21")
@@ -160,3 +162,83 @@ def quote_totals(items, iva_mode: str = "sumar", iva_rate: Decimal = IVA_RATE) -
         "has_one_time": one_time > 0,
         "has_recurring": recurring > 0,
     }
+
+
+# ── Facturación ────────────────────────────────────────────────────────
+
+def invoice_totals(items, iva_mode: str = "sumar", iva_rate: Decimal = IVA_RATE) -> dict:
+    """Totales de una factura a partir de sus ítems.
+
+    A diferencia del presupuesto, acá NO se separan bases de tiempo: una factura es un
+    cargo puntual. Un ítem 'Mensual' facturado ES el cargo de ese período, no un abono a
+    normalizar. Sumar todos los netos es correcto.
+    """
+    subtotal = Decimal("0")
+    discount_total = Decimal("0")
+
+    for it in items:
+        gross, net = line_amounts(
+            it.get("qty"), it.get("rate"), it.get("discount_percentage")
+        )
+        discount_total += gross - net
+        subtotal += net
+
+    subtotal = money(subtotal)
+    iva, total = _apply_iva(subtotal, iva_mode, iva_rate)
+
+    return {
+        "subtotal": subtotal,
+        "discount_total": money(discount_total),
+        "iva_amount": iva,
+        "total": total,
+    }
+
+
+def outstanding_of(total, paid_amount, credit_total) -> Decimal:
+    """Saldo pendiente. Nunca negativo: un saldo negativo es un dato corrupto.
+
+    El tope real del crédito se aplica al emitir la nota de crédito (§5.2 del spec);
+    acá se garantiza que el número que se muestra nunca mienta.
+    """
+    saldo = dec(total) - dec(paid_amount) - dec(credit_total)
+    return money(saldo) if saldo > 0 else Decimal("0.00")
+
+
+def invoice_status(
+    total,
+    paid_amount,
+    credit_total,
+    due_date,
+    today=None,
+    is_return: bool = False,
+    is_voided: bool = False,
+    is_uncollectible: bool = False,
+) -> str:
+    """Estado DERIVADO de la factura. La única fuente de verdad del estado.
+
+    Reglas, en orden:
+      1. Las marcas explícitas del usuario ganan (Anulada, Incobrable).
+      2. Una nota de crédito emitida no tiene ciclo de cobro: es un comprobante.
+      3. Pagada exige saldo 0 **y** que haya entrado plata: una factura acreditada al
+         100% y nunca cobrada NO está pagada (hallazgo de la auditoría).
+      4. Parcial gana sobre Vencida: si ya entró plata, lo útil es cuánto falta.
+      5. Sin pagos: Vencida si el vencimiento pasó, Emitida si no.
+    """
+    if is_voided:
+        return "Anulada"
+    if is_uncollectible:
+        return "Incobrable"
+    if is_return:
+        return "Emitida"
+
+    paid = dec(paid_amount)
+    saldo = outstanding_of(total, paid_amount, credit_total)
+    hoy = today or datetime.date.today()
+
+    if saldo == 0:
+        return "Pagada" if paid > 0 else "Emitida"
+    if paid > 0:
+        return "Parcial"
+    if due_date and str(due_date) < str(hoy):
+        return "Vencida"
+    return "Emitida"
