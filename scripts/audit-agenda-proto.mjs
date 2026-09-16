@@ -397,4 +397,52 @@ await ap.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `anunciador persistente · fuera de #stage ${!ann.dentro} · sobrevive ${sobrevive}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── Panel lateral no-modal: abre, enfoca, no tapa la grilla, Escape cierra y devuelve el foco ──
+const pp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await pp.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await pp.waitForTimeout(350);
+const panelInicial = await pp.evaluate(() => !!document.querySelector("#panel"));
+await pp.evaluate(() => abrirPanel({ dia: 1, min: 9 * 60, dur: 45 }));
+await pp.waitForTimeout(300);
+const abierto = await pp.evaluate(() => {
+  const p = document.querySelector("#panel");
+  if (!p) return { falta: true };
+  const t = p.querySelector("#panel-titulo");
+  const g = document.querySelector("#grilla");
+  const gb = g ? g.getBoundingClientRect() : null;
+  return {
+    rol: p.getAttribute("role"), modal: p.getAttribute("aria-modal"),
+    etiquetado: p.getAttribute("aria-labelledby") === "panel-titulo" && !!t,
+    focoEnTitulo: document.activeElement === p.querySelector("input, textarea, [tabindex]"),
+    focoEnPanel: p.contains(document.activeElement),
+    grillaOperable: document.querySelectorAll(".ev").length > 0,
+    grillaVisible: !!gb && gb.width > 0 && gb.height > 0,
+    shellPanel: document.querySelector(".shell")?.getAttribute("data-panel"),
+    texto: (t?.textContent || "").trim(),
+  };
+});
+await pp.keyboard.press("Escape");
+await pp.waitForTimeout(300);
+const cerrado = await pp.evaluate(() => ({
+  hayPanel: !!document.querySelector("#panel"),
+  focoEnStage: document.querySelector("#stage").contains(document.activeElement),
+}));
+await pp.close();
+{
+  const v = [];
+  if (panelInicial) v.push("el panel ya estaba en el DOM antes de abrir");
+  if (abierto.falta) v.push("no se abre #panel");
+  else {
+    if (abierto.rol !== "dialog") v.push(`role ${abierto.rol}`);
+    if (abierto.modal !== "false") v.push(`aria-modal ${abierto.modal}`);
+    if (!abierto.etiquetado) v.push("sin aria-labelledby correcto");
+    if (!abierto.focoEnTitulo || !abierto.focoEnPanel) v.push("el foco no entra al panel");
+    if (!abierto.grillaOperable || !abierto.grillaVisible) v.push("la grilla desaparecio (el panel no debe taparla)");
+    if (abierto.shellPanel !== "on") v.push(`shell data-panel ${abierto.shellPanel}`);
+  }
+  if (cerrado.hayPanel) v.push("Escape no cierra el panel");
+  if (!cerrado.focoEnStage) v.push("Escape no devuelve el foco");
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `panel no-modal · abre ${abierto.texto || "-"} · foco entra ${abierto.focoEnTitulo} · grilla visible ${abierto.grillaVisible} · Escape cierra ${!cerrado.hayPanel} · foco vuelve ${cerrado.focoEnStage}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();

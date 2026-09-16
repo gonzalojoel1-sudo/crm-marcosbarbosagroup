@@ -330,6 +330,23 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 .slot { position: absolute; left: 0; right: 0; cursor: crosshair; }
 
+/* ── Panel de reunión: 3ª columna del shell (no flota sobre los días) ────
+   Cuando está abierto reemplaza al panel del mes para no romper la grilla. */
+#panel {
+  grid-column: 3; align-self: start; background: var(--surface);
+  border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.shell[data-panel="on"] { grid-template-columns: 200px 1fr 320px; }
+.shell[data-panel="on"] .mini { display: none; }   /* el panel ocupa el lugar del mes */
+#panel h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+#panel label { font-size: 12px; color: var(--fg-dim); }
+#panel input { background: var(--surface-2); border: 0; border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--fg); width: 100%; }
+#panel .p-hint { margin: -4px 0 0; font-size: 11px; color: var(--fg-faint); }
+#panel fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+#panel .p-dur { background: var(--surface-2); border: 0; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12px; color: var(--fg-dim); cursor: pointer; min-height: 24px; }
+#panel .p-dur.on { background: var(--accent); color: #fff; }
+#panel .p-acciones { display: flex; gap: 6px; margin-top: 6px; }
+
 /* ═══ Selector de variantes (verbatim de PICKER.md: es chrome, no diseño) ═══ */
 .proto-picker {
   position: fixed;
@@ -747,6 +764,56 @@ function renderList() {
   }</div>`;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   Panel de creación/edición: NO es un modo. Se abre, hace una cosa y se
+   cierra; la grilla queda detrás, visible y operable (nunca lo tapa).
+   ══════════════════════════════════════════════════════════════════════ */
+let PANEL = null;   // { dia, min, dur, evento } | null
+
+function abrirPanel({ dia, min, dur, evento = null }) {
+  PANEL = { dia, min, dur, evento };
+  announce(evento ? `Editando ${evento.title}` : `Nueva reunión, ${DIAS_LARGOS[dia]} ${fmt(min)}`);
+  mount(current);
+  // el panel recién existe tras el re-render de mount(): por eso el foco va en el siguiente frame
+  requestAnimationFrame(() => {
+    document.querySelector("#panel input, #panel textarea")?.focus();
+  });
+}
+
+function cerrarPanel({ volverFoco = true } = {}) {
+  PANEL = null;
+  announce("Panel cerrado");
+  mount(current);
+  if (volverFoco) requestAnimationFrame(() => {
+    document.querySelector("#grilla .ev, #grilla [data-slot]")?.focus();
+  });
+}
+
+function renderPanel() {
+  if (!PANEL) return "";
+  const { dia, min, dur, evento } = PANEL;
+  const fin = min + dur;
+  const rango = `${fmt(min)} – ${fmt(fin)}`;
+  const titulo = evento ? `Editar · ${evento.title}` : `Nueva reunión · ${DIAS_LARGOS[dia]}, ${rango}`;
+  return `<aside id="panel" role="dialog" aria-modal="false" aria-labelledby="panel-titulo">
+    <h2 id="panel-titulo">${titulo}</h2>
+    <form id="panel-form">
+      <label for="p-titulo">Título</label>
+      <input id="p-titulo" name="titulo" autocomplete="off" value="${evento ? evento.title : ""}">
+      <label for="p-inicio">Hora de inicio</label>
+      <p class="p-hint" id="p-inicio-ayuda">Formato 24 h, por ejemplo 09:30</p>
+      <input id="p-inicio" name="inicio" inputmode="numeric" value="${fmt(min)}" aria-describedby="p-inicio-ayuda">
+      <fieldset><legend>Duración</legend>
+        ${[15, 30, 45, 60, 90].map((d) => `<button type="button" class="p-dur${d === dur ? " on" : ""}" data-dur="${d}" aria-pressed="${d === dur}">${d} min</button>`).join("")}
+      </fieldset>
+      <div class="p-acciones">
+        <button type="submit" class="btn primary">Guardar</button>
+        <button type="button" class="btn" data-cerrar-panel>Cancelar</button>
+      </div>
+    </form>
+  </aside>`;
+}
+
 function render() {
   const g = geom();
   const visibles = EVENTS.filter((e) => !oculto(e));
@@ -771,7 +838,7 @@ function render() {
   const folded = g.segs.filter((s) => s.collapsed).reduce((a, s) => a + (s.to - s.from), 0);
   const windowChip = `${fmt(visFrom)} – ${fmt(visTo)}${folded ? ` · ${Math.round(folded / 60)} h plegadas` : ""}`;
 
-  return `<div class="shell" data-variant="${VARIANT}">
+  return `<div class="shell" data-variant="${VARIANT}" data-panel="${PANEL ? "on" : "off"}">
     <aside class="side">
       <div>
         <h2 class="block-title">Agendas</h2>
@@ -832,6 +899,8 @@ function render() {
         </div>
       </div>`}
     </main>
+
+    ${renderPanel()}
 
     <aside class="mini">
       <div>
@@ -1043,6 +1112,16 @@ function setActive(i) {
 items.forEach((el, i) => el.addEventListener("click", () => setActive(i)));
 
 stage.addEventListener("click", (ev) => {
+  if (ev.target.closest("[data-cerrar-panel]")) { cerrarPanel(); return; }
+  const dur = ev.target.closest(".p-dur");
+  if (dur) {
+    document.querySelectorAll("#panel .p-dur").forEach((b) => {
+      const on = b === dur;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    return;
+  }
   const fold = ev.target.closest(".bandfold");
   if (fold) {
     const k = fold.dataset.band;
@@ -1101,6 +1180,8 @@ window.addEventListener("pointermove", onMove);
 window.addEventListener("pointerup", onUp);
 
 document.addEventListener("keydown", (e) => {
+  // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
+  if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
   if (e.target.closest(".gridwrap")) { scrollKeys(e); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
