@@ -112,8 +112,15 @@ class CRMFactura(Document):
         if self.status in ("Borrador", "Anulada"):
             return
         self.status = self.derived_status()
-        if self.status == "Pagada" and not self.paid_on:
-            self.paid_on = now()
+        # `paid_on` es la marca de la transición a `Pagada`. Si la factura deja de estar
+        # pagada (se anuló el pago, entró una nota de crédito), la marca se limpia: una
+        # `Emitida` con `paid_on` seteado mentiría sobre cuándo se pagó. Si ya estaba
+        # pagada, no se pisa: se conserva la fecha del primer cobro.
+        if self.status == "Pagada":
+            if not self.paid_on:
+                self.paid_on = now()
+        else:
+            self.paid_on = None
 
     # ── Transiciones (la única vía de cambio de estado) ────────────────
     def _assert_status(self, *allowed):

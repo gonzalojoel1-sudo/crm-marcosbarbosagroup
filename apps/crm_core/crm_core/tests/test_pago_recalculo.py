@@ -165,6 +165,29 @@ class TestPagoRecalculo(FrappeTestCase):
         self.assertEqual(f.outstanding, 121000.0)
         self.assertEqual(f.status, "Emitida")
 
+    def test_al_anular_el_pago_la_factura_deja_de_estar_pagada_y_limpia_la_fecha(self):
+        f = self._factura(100000)
+        p = self._pago(121000, [{"factura": f.name, "applied_amount": 121000}])
+        f.reload()
+        self.assertEqual(f.status, "Pagada")
+        self.assertTrue(f.paid_on)
+
+        p.void()
+        f.reload()
+        self.assertEqual(f.status, "Emitida")
+        self.assertFalse(
+            f.paid_on,
+            "una factura que dejó de estar pagada no puede seguir diciendo cuándo se pagó",
+        )
+
+    def test_una_factura_saldada_solo_con_credito_no_tiene_fecha_de_pago(self):
+        """Saldada con nota de crédito no es `Pagada`: `paid_on` queda vacío (no entró plata)."""
+        f = self._factura(100000)
+        self._pago(121000, [{"factura": f.name, "applied_amount": 121000}], kind="Crédito")
+        f.reload()
+        self.assertEqual(f.status, "Emitida")
+        self.assertFalse(f.paid_on)
+
     def test_borrar_un_pago_recalcula_por_on_trash(self):
         f = self._factura(100000)
         p = self._pago(121000, [{"factura": f.name, "applied_amount": 121000}])

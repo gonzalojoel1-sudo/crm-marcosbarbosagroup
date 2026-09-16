@@ -116,12 +116,21 @@ class CRMPago(Document):
             recalcular_factura(ap.factura)
 
     def aplicar_a(self, facturas):
-        """Reparte el saldo A CUENTA del pago entre facturas candidatas (FIFO).
+        """Reparte el saldo A CUENTA del pago entre facturas candidatas, FIFO por vencimiento.
+
+        Reusa `billing.reparto_fifo`, así que el reparto es por `due_date` de la más vieja a
+        la más nueva (las facturas sin vencimiento ordenan primero). El pool es el
+        remanente del pago (`amount − applied_amount`), no el monto total: aplicar sobre lo
+        ya aplicado duplicaría el mismo peso.
 
         `facturas` son dicts con `name`, `outstanding` y `due_date` —lo que consume
-        `billing.reparto_fifo`— YA filtrados por organización y moneda: esa guarda vive en
-        la capa que llama, porque `reparto_fifo` es pura y no conoce clientes. Agrega las
-        aplicaciones al pago y guarda; el recálculo de saldos lo disparan los hooks, no acá.
+        `reparto_fifo`— YA filtrados por organización y moneda: esa guarda vive en la capa
+        que llama, porque `reparto_fifo` es pura y no conoce clientes. `reparto_fifo` sólo
+        asigna hasta el saldo de cada factura, y `validate_aplicaciones` (que corre al
+        guardar) rechaza sobreaplicar el pago: las dos guardas cubren el sobrepago.
+
+        Agrega las aplicaciones al pago y guarda; el recálculo de saldos lo disparan los
+        hooks, no acá.
         """
         aplicado = billing.money(
             sum((billing.dec(a.applied_amount) for a in (self.applications or [])), billing.dec(0))
