@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api, type DealInput } from "./api";
+import PdfViewer from "./PdfViewer";
 import { stageLabel } from "./labels";
-import { IconDownload, IconPlus, IconReceipt, IconTarget, IconTrash, IconX } from "./icons";
+import { IconPlus, IconReceipt, IconTarget, IconTrash, IconX } from "./icons";
 
 const STAGES = [
   "Qualification",
@@ -53,6 +54,7 @@ export default function DealDrawer({
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [ivaMode, setIvaMode] = useState<"sumar" | "incluido" | "exento">("sumar");
+  const [viewer, setViewer] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -152,32 +154,6 @@ export default function DealDrawer({
     }
   }
 
-  async function downloadPdf() {
-    if (!dealName || saving) return;
-    if (filledRows.length === 0) {
-      setError("Agregá al menos un ítem para armar el presupuesto.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await api.saveQuote(dealName, quoteItems());
-      const blob = await api.quotePdf(dealName, ivaMode);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Presupuesto ${title || dealName}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSaving(false);
-    }
-  }
-
   const primary = () => {
     if (tab === "detalle")
       return (
@@ -193,10 +169,26 @@ export default function DealDrawer({
       <>
         <button
           className="ghost"
-          onClick={downloadPdf}
+          onClick={async () => {
+            if (!dealName || saving) return;
+            if (filledRows.length === 0) {
+              setError("Agregá al menos un ítem para ver el presupuesto.");
+              return;
+            }
+            setSaving(true);
+            setError(null);
+            try {
+              await api.saveQuote(dealName, quoteItems());
+              setViewer(true);
+            } catch (e) {
+              setError(String(e));
+            } finally {
+              setSaving(false);
+            }
+          }}
           disabled={saving || loading || filledRows.length === 0}
         >
-          <IconDownload width={15} height={15} /> PDF
+          <IconReceipt width={15} height={15} /> Ver presupuesto
         </button>
         <button className="btn-primary" onClick={saveQuote} disabled={saving || loading}>
           {saving ? "Guardando…" : "Guardar presupuesto"}
@@ -206,7 +198,8 @@ export default function DealDrawer({
   };
 
   return (
-    <div className="drawer-overlay" onClick={onClose}>
+    <>
+      <div className="drawer-overlay" onClick={onClose}>
       <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Negocio">
         <header className="drawer-head">
           <div className="dh-row">
@@ -405,6 +398,16 @@ export default function DealDrawer({
           </div>
         </footer>
       </aside>
-    </div>
+      </div>
+
+      {viewer && dealName ? (
+        <PdfViewer
+          name={dealName}
+          title={title || dealName}
+          ivaMode={ivaMode}
+          onClose={() => setViewer(false)}
+        />
+      ) : null}
+    </>
   );
 }
