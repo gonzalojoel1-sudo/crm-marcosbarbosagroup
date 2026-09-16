@@ -13,7 +13,7 @@ export default function PdfViewer({
   name: string;
   title: string;
   quoteNo?: string;
-  ivaMode: string;
+  ivaMode: "sumar" | "incluido" | "exento";
   onClose: () => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);

@@ -75,6 +75,7 @@ export interface DealDetail {
   lead: string;
   items: QuoteItem[];
   total: number;
+  quote_no: string;
 }
 
 export interface DealInput {

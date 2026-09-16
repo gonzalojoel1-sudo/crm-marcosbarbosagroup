@@ -50,6 +50,7 @@ export default function DealDrawer({
     status: "Qualification",
   });
   const [rows, setRows] = useState<Row[]>([]);
+  const [quoteNo, setQuoteNo] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(Boolean(name));
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +76,7 @@ export default function DealDrawer({
     if (!name) return;
     api.getDeal(name).then((d) => {
       setTitle(d.title);
+      setQuoteNo(d.quote_no);
       setForm({
         contact: d.contact,
         value: d.value != null ? String(d.value) : "",
@@ -414,6 +416,7 @@ export default function DealDrawer({
         <PdfViewer
           name={dealName}
           title={title || dealName}
+          quoteNo={quoteNo}
           ivaMode={ivaMode}
           onClose={() => setViewer(false)}
         />

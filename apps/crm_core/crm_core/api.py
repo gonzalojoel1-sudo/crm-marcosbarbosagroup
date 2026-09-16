@@ -426,6 +426,7 @@ def get_deal(name):
         "lead": d.get("lead") or "",
         "items": items,
         "total": float(d.total) if d.get("total") else 0,
+        "quote_no": _quote_number(d.name),
     }
 
 
