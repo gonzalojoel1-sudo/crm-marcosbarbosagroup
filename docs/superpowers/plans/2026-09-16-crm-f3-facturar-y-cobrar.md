@@ -1784,6 +1784,10 @@ def apply_payment(pago, aplicaciones):
     nuevas = frappe.parse_json(aplicaciones) if isinstance(aplicaciones, str) else (aplicaciones or [])
     for a in nuevas:
         doc.append("applications", {"factura": a.get("factura"), "applied_amount": a.get("applied_amount")})
+    # `guard_aplicaciones` (Task 7) impide AGREGAR filas a un pago guardado por edicion comun: esa
+    # guarda existe para que nadie reescriba historia contable desde el desk. Una aplicacion
+    # programatica y auditada (esta API) es la excepcion legitima, y se declara explicitamente.
+    doc.flags.aplicaciones_programaticas = True
     doc.save(ignore_permissions=True)
     return _pago_dto(doc)
 
@@ -1828,6 +1832,13 @@ def get_billing_summary():
         fields=["name", "outstanding", "due_date", "organization", "currency", "status", "is_return"],
         limit_page_length=0,
     )
+    # El saldo que informa la deuda es el DERIVADO, no la columna: la columna es una cache.
+    for f in facturas:
+        f["outstanding"] = billing.outstanding_of(
+            frappe.db.get_value("CRM Factura", f["name"], "total"),
+            frappe.db.get_value("CRM Factura", f["name"], "paid_amount"),
+            frappe.db.get_value("CRM Factura", f["name"], "credit_total"),
+        )
     por_moneda = {}
     for f in facturas:
         m = por_moneda.setdefault(f.currency or "ARS", {"deuda": billing.dec(0), "facturas": []})
