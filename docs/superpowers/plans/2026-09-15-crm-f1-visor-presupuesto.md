@@ -130,6 +130,9 @@ try {
   await page.waitForSelector(".pdfview", { timeout: 20000 });
   check("se abre el visor", (await page.locator(".pdfview").count()) === 1);
 
+  // El iframe recien existe cuando termino de llegar el blob. Sin esta espera
+  // explicita el test falla por carrera, no por diseno.
+  await page.waitForSelector(".pdfview-frame", { timeout: 30000 });
   const src = await page.locator(".pdfview-frame").getAttribute("src");
   check("iframe apunta a un blob del PDF", Boolean(src && src.startsWith("blob:")));
 
@@ -589,10 +592,17 @@ visor) y el import de `IconDownload` si ya no se usa en el archivo.
 
 - [ ] **Step 4: Renderizar el visor**
 
-Justo antes del cierre del `return`, después del `</div>` del overlay del drawer
-(nivel del fragmento raíz, hermano del `.drawer-overlay`):
+Ojo: el `return` actual de `DealDrawer` devuelve **un solo** `<div className="drawer-overlay">`,
+así que no admite hermanos. Hay que envolverlo en un fragmento y colgar el visor al lado
+(el contenido del drawer no se toca):
 
 ```tsx
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose}>
+        …contenido existente del drawer, sin cambios…
+      </div>
+
       {viewer && dealName ? (
         <PdfViewer
           name={dealName}
@@ -601,6 +611,8 @@ Justo antes del cierre del `return`, después del `</div>` del overlay del drawe
           onClose={() => setViewer(false)}
         />
       ) : null}
+    </>
+  );
 ```
 
 - [ ] **Step 5: Verificar tipos y build**
@@ -662,7 +674,35 @@ Expected: revisar a ojo que la hoja se lea nítida, que la barra superior no se
 desborde, y que en 390px de ancho (mobile) el visor ocupe toda la pantalla con las
 acciones abajo a la derecha. Si algo se ve mal, corregir estilos y volver a Task 3.
 
-- [ ] **Step 4: Borrar la key temporal**
+- [ ] **Step 4: Limpiar la organizacion de prueba**
+
+El E2E borra su negocio pero **no** la `CRM Organization` que crea `create_deal`
+(no existe API de borrado de org). Como el test usa siempre el mismo título, es a lo
+sumo **una** org a limpiar:
+
+```bash
+ssh root@2.28.121.92 'cat > /tmp/_clean_org.py' <<'PY'
+import sys
+sys.path.insert(0, "/home/frappe/frappe-bench/apps")
+import frappe
+frappe.init("crm.marcosbarbosagroup.com", sites_path="/home/frappe/frappe-bench/sites")
+frappe.connect()
+frappe.flags.in_install_db = False
+for name in frappe.get_all("CRM Organization",
+                           filters={"organization_name": "ZZ Visor Prueba"}, pluck="name"):
+    if not frappe.db.exists("CRM Deal", {"organization": name}):
+        frappe.delete_doc("CRM Organization", name, force=True, ignore_permissions=True)
+frappe.db.commit()
+print("orgs:", [r["organization_name"] for r in
+                frappe.get_all("CRM Organization", fields=["organization_name"])])
+PY
+
+ssh root@2.28.121.92 'BE=$(docker ps -qf name=crm_backend.1); docker cp /tmp/_clean_org.py "$BE":/home/frappe/_clean_org.py; docker exec "$BE" bash -c "cd /home/frappe/frappe-bench && ./env/bin/python /home/frappe/_clean_org.py 2>&1 | tail -2"'
+```
+
+Expected: la lista **no** incluye `ZZ Visor Prueba`.
+
+- [ ] **Step 5: Borrar la key temporal**
 
 ```bash
 ssh root@2.28.121.92 'BE=$(docker ps -qf name=crm_backend.1); docker exec "$BE" bash -c "cd /home/frappe/frappe-bench && MODE=remove FRAPPE_SITE=crm.marcosbarbosagroup.com ./env/bin/python /home/frappe/k.py 2>&1 | tail -1"'
@@ -670,7 +710,7 @@ ssh root@2.28.121.92 'BE=$(docker ps -qf name=crm_backend.1); docker exec "$BE" 
 
 Expected: `REMOVED`.
 
-- [ ] **Step 5: Commit final**
+- [ ] **Step 6: Commit final**
 
 ```bash
 git add -A
