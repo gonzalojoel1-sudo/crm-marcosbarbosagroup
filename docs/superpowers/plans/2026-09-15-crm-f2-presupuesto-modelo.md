@@ -1631,6 +1631,22 @@ git commit -m "chore(presupuesto): script de limpieza de los presupuestos de pru
 
 ### Task 8: Frontend — el presupuesto con estados, versión y dos totales
 
+**Referencias investigadas (2026-09-16) — qué copiar y qué no:**
+
+| Fuente | Patrón verificado | Cómo se aplica acá |
+|---|---|---|
+| Stripe Billing | *"Convert an approved quote into a subscription or invoice with a click"*: el presupuesto aprobado es el punto de conversión | El estado `Aceptado` es el hito; la UI debe hacer obvia **la próxima acción** según el estado, no mostrar las cuatro siempre |
+| Stripe Billing | Los ítems *one-off* pueden vivir dentro de una suscripción y se facturan aparte | Un presupuesto **mixto** es normal: los totales se muestran separados, nunca sumados |
+| Chargebee | *Multi-frequency billing*: cada ítem recurrente tiene **su propio intervalo**, y el abono se factura según cada uno | Es exactamente `billing_type` por ítem; el "Abono mensual equivalente" es el único número comparable y por eso va destacado |
+| Chargebee | Sección **"Unbilled Charges"** separada del historial | La bandeja **Por facturar** (F4) sigue esa forma: lo pendiente vive aparte, no mezclado con lo emitido |
+| Odoo 19 | *Smart button* "Quotations" con **contador** en la oportunidad; campos `Expiration` / `Recurring Plan` / `Payment Terms` en el presupuesto | La píldora `v2 · Enviado` cumple el rol del smart button; validez y condiciones viven en el documento, no en la UI |
+| Zuora | Proration **desactivable**; "credit back" para cargos únicos | Justifica diferir el prorrateo (no es un olvido, es una decisión de alcance) |
+| Twenty (github.com/twentyhq/twenty) | CRM OSS moderno: densidad, pills de estado, tablas limpias | Referencia de lenguaje visual, junto a Linear/Stripe Dashboard |
+
+**Lo que NO se copia:** la tabla de prorrateo de Zuora/Chargebee (fuera de alcance), el asistente de
+conversión a factura de Stripe (es F3), y el "smart button" como objeto aparte de Odoo (acá el
+presupuesto vive en la pestaña del negocio, que ya es el patrón del CRM propio).
+
 **Files:**
 - Modify: `apps/web/src/api.ts`
 - Modify: `apps/web/src/DealDrawer.tsx`
