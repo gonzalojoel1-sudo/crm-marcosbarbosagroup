@@ -1794,6 +1794,12 @@ def remove_application(pago, factura):
     doc = frappe.get_doc("CRM Pago", pago)
     doc.set("applications", [a for a in (doc.applications or []) if a.factura != factura])
     doc.save(ignore_permissions=True)
+    # `on_update` del pago recalcula las aplicaciones que QUEDAN. La factura que se acaba de
+    # quitar no está en esa lista: hay que recalcularla aparte, o queda con el saldo viejo
+    # (encontrado por la Task 7 al verificar: `recalcular_todas()` sólo mira las actuales).
+    from crm_core.mbcrm.doctype.crm_pago.crm_pago import recalcular_factura
+
+    recalcular_factura(factura)
     return _pago_dto(doc)
 
 
