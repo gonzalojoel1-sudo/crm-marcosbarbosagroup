@@ -194,6 +194,16 @@ headless** → PDF A4 descargable (`frappe.local.response.type = "download"`).
 - Datos de la empresa en `COMPANY` (api.py). **Pendiente: CUIT y dirección reales
   (hoy van como `—`).**
 
+### Presupuestos viejos: `CRM Deal.products` quedó en desuso
+
+Los presupuestos viejos vivían en la tabla hija `CRM Deal.products`. Ahora el
+presupuesto es un documento propio (`CRM Presupuesto`) y esa tabla quedó **vacía
+y en desuso**. Se vació una sola vez con `scripts/cleanup_deal_products.py`
+(corre dentro del contenedor; acepta `--dry-run`).
+
+El DocType `CRM Products` y el campo `CRM Deal.products` **no** se borran: quedan
+sin uso hasta que se eliminen en una fase posterior.
+
 ### Iterar la maqueta sin desplegar
 
 ```bash
