@@ -1,9 +1,11 @@
 """Preview local del presupuesto: renderiza la plantilla con datos de ejemplo.
-Uso: python3 scripts/quote-preview.py  ->  /tmp/quote-preview.html
+
+Reproduce el contexto de `crm_core.documents.quote_context` (dos totales: inversión
+inicial y abono mensual) sin Frappe ni base. Uso:
+  python3 scripts/quote-preview.py  ->  /tmp/quote-preview.html
 """
 import base64
 import os
-import re
 
 import jinja2
 
@@ -17,19 +19,24 @@ def money(v, symbol="", dec=2):
     return f"{symbol} {n}" if symbol else n
 
 
+# (descripción, tipo de cobro, qty, rate, descuento %): un único, un mensual y un anual.
 items_raw = [
-    ("Diagnóstico 360° del negocio y plan de acción trimestral", 1, 850000, 0),
-    ("Tablero de control mensual (hasta 12 indicadores)", 3, 145000, 10),
-    ("Acompañamiento y ejecución semanal", 4, 210000, 15),
-    ("Capacitación al equipo comercial (jornada completa)", 2, 320000, 5),
+    ("Diagnóstico 360° del negocio y plan de acción trimestral", "Único", 1, 850000, 0),
+    ("Tablero de control mensual (hasta 12 indicadores)", "Mensual", 1, 145000, 10),
+    ("Acompañamiento anual y capacitación al equipo", "Anual", 1, 1740000, 5),
 ]
+INTERVAL_MONTHS = {"Único": 0, "Mensual": 1, "Trimestral": 3, "Anual": 12}
 
-rows, subtotal, discount = [], 0.0, 0.0
-for desc, qty, rate, disc in items_raw:
+rows, one_time, discount, by_interval = [], 0.0, 0.0, {}
+for desc, billing_type, qty, rate, disc in items_raw:
     gross = qty * rate
     net = gross * (1 - disc / 100)
-    subtotal += net
     discount += gross - net
+    months = INTERVAL_MONTHS[billing_type]
+    if months == 0:
+        one_time += net
+    else:
+        by_interval[months] = by_interval.get(months, 0) + net
     rows.append(
         {
             "description": desc,
@@ -37,10 +44,16 @@ for desc, qty, rate, disc in items_raw:
             "rate_fmt": money(rate),
             "discount_fmt": f"{disc:g}%" if disc else "—",
             "net_fmt": money(net),
+            "billing_label": billing_type if billing_type != "Único" else "",
         }
     )
 
-iva = subtotal * 0.21
+recurring_monthly = sum(total / months for months, total in by_interval.items())
+one_time_iva = one_time * 0.21
+recurring_iva = recurring_monthly * 0.21
+labels = {1: "Mensual", 3: "Trimestral", 12: "Anual"}
+summary = " · ".join(f"{labels[m]} {money(by_interval[m])}" for m in (1, 3, 12) if by_interval.get(m))
+
 ctx = {
     "font_b64": base64.b64encode(open(FONT, "rb").read()).decode(),
     "company": {
@@ -48,8 +61,6 @@ ctx = {
         "phone": "+54 9 351 733 4040",
         "email": "consultora.marcosbarbosa@gmail.com",
         "web": "marcosbarbosagroup.com",
-        "cuit": "—",
-        "address": "—",
     },
     "quote_no": "P-00021",
     "date": "15/09/2026",
@@ -65,19 +76,23 @@ ctx = {
     "deal_title": "Constructora Del Sur S.A.",
     "owner": "Marcos Barbosa",
     "items": rows,
+    "has_recurring": recurring_monthly > 0,
+    "recurring_summary": summary,
     "tot": {
-        "subtotal_fmt": money(subtotal, "$"),
+        "one_time_net": money(one_time, "$"),
+        "one_time_iva": money(one_time_iva, "$"),
+        "one_time_gross": money(one_time + one_time_iva, "$"),
+        "recurring_net": money(recurring_monthly, "$"),
+        "recurring_iva": money(recurring_iva, "$"),
+        "recurring_gross": money(recurring_monthly + recurring_iva, "$"),
+        "discount": money(discount, "$"),
         "has_discount": discount > 0.005,
-        "discount_fmt": money(discount, "$"),
         "show_iva": True,
         "iva_included": False,
-        "iva_fmt": money(iva, "$"),
-        "total_fmt": money(subtotal + iva, "$"),
     },
     "conditions": [
-        {"k": "Validez", "v": "15 días desde la fecha de emisión"},
+        {"k": "Validez", "v": "15 días desde la emisión"},
         {"k": "Forma de pago", "v": "A convenir con el cliente"},
-        {"k": "Plazo de entrega", "v": "A definir según alcance"},
         {"k": "Moneda", "v": "Pesos argentinos (ARS)"},
     ],
     "notes": "",

@@ -44,7 +44,7 @@
   .brandbar-thin { height: 1px; background: #e7e5e2; margin-top: 1px; }
 
   /* ── Título ───────────────────────────────────────── */
-  .title-row { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 6mm; }
+  .title-row { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 4mm; }
   h1 {
     margin: 0; font-size: 27pt; font-weight: 600; letter-spacing: -0.03em; line-height: 1;
     color: #17171a;
@@ -59,7 +59,7 @@
   .meta .m-val { font-size: 10.4pt; font-weight: 500; }
 
   /* ── Partes ───────────────────────────────────────── */
-  .parties { display: flex; gap: 12mm; margin-top: 7mm; padding-bottom: 4mm; border-bottom: 1px solid #e7e5e2; }
+  .parties { display: flex; gap: 12mm; margin-top: 5mm; padding-bottom: 3mm; border-bottom: 1px solid #e7e5e2; }
   .party { flex: 1; min-width: 0; }
   .party h3 {
     margin: 0 0 4px; font-size: 7.4pt; font-weight: 600; letter-spacing: 0.13em;
@@ -70,7 +70,7 @@
   .p-line .k { color: #9a989e; }
 
   /* ── Ítems ────────────────────────────────────────── */
-  table.items { width: 100%; border-collapse: collapse; margin-top: 5mm; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 4mm; }
   table.items thead th {
     font-size: 7.4pt; font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase;
     color: #6b6b73; text-align: right; padding: 0 0 5px; border-bottom: 1.6px solid #17171a;
@@ -88,20 +88,24 @@
   .col-amt { width: 19%; }
 
   /* ── Totales ──────────────────────────────────────── */
-  .totals { display: flex; justify-content: flex-end; margin-top: 3mm; }
+  .totals { display: block; margin-top: 2mm; }
   .totals-inner { width: 74mm; }
-  .t-row { display: flex; justify-content: space-between; padding: 3.4px 0; font-size: 10pt; }
+  .t-row { display: flex; justify-content: space-between; padding: 1.6px 0; font-size: 9.6pt; }
   .t-row .t-k { color: #55555e; }
   .t-sep { height: 1px; background: #e7e5e2; margin: 4px 0; }
   .t-total {
     display: flex; justify-content: space-between; align-items: baseline;
-    margin-top: 5px; padding-top: 6px; border-top: 2px solid #FE6634;
+    margin-top: 3px; padding-top: 4px; border-top: 2px solid #FE6634;
   }
-  .t-total .t-k { font-size: 10.4pt; font-weight: 600; letter-spacing: 0.01em; }
-  .t-total .t-v { font-size: 19pt; font-weight: 700; letter-spacing: -0.02em; }
+  .t-total .t-k { font-size: 10.2pt; font-weight: 600; letter-spacing: 0.01em; }
+  .t-total .t-v { font-size: 16pt; font-weight: 700; letter-spacing: -0.02em; }
+  .tot-wrap { display: flex; justify-content: flex-end; margin-top: 2mm; }
+  .totals-note { font-size: 9pt; color: #6b6b73; margin-top: 2mm; }
+  .t-sub { font-size: 8.6pt; color: #9a989e; text-align: right; margin-top: 1.5mm; }
+  .d-tag { font-size: 8pt; color: #b03413; margin-left: 4px; }
 
   /* ── Condiciones ──────────────────────────────────── */
-  .conditions { margin-top: 6mm; padding-top: 4mm; border-top: 1px solid #e7e5e2; }
+  .conditions { margin-top: 4mm; padding-top: 3mm; border-top: 1px solid #e7e5e2; }
   .blk-title {
     font-size: 7.4pt; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase;
     color: #9a989e; margin: 0 0 5px;
@@ -113,15 +117,15 @@
   .note { margin: 5mm 0 0; font-size: 9.4pt; color: #55555e; }
 
   /* ── Conformidad ──────────────────────────────────── */
-  .conform { margin-top: 6mm; border: 1px solid #e7e5e2; border-radius: 7px; padding: 5mm 6mm 4mm; background: #faf9f7; }
-  .sign-grid { display: flex; gap: 14mm; margin-top: 4mm; }
+  .conform { margin-top: 4mm; border: 1px solid #e7e5e2; border-radius: 7px; padding: 4mm 6mm 3mm; background: #faf9f7; }
+  .sign-grid { display: flex; gap: 14mm; margin-top: 3mm; }
   .sign { flex: 1; }
-  .sign-line { height: 0; border-bottom: 1px solid #b9b6b2; margin-bottom: 4px; margin-top: 8mm; }
+  .sign-line { height: 0; border-bottom: 1px solid #b9b6b2; margin-bottom: 4px; margin-top: 6mm; }
   .sign-role { font-size: 8.4pt; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: #17171a; }
   .sign-sub { font-size: 8.4pt; color: #9a989e; }
 
   /* ── Pie ──────────────────────────────────────────── */
-  .foot { margin-top: auto; padding-top: 5mm; }
+  .foot { margin-top: auto; padding-top: 4mm; }
   .foot-rule { height: 1px; background: #e7e5e2; }
   .foot-row { display: flex; justify-content: space-between; gap: 6mm; margin-top: 3.4mm; font-size: 8.4pt; color: #9a989e; }
   .foot-row span { white-space: nowrap; }
@@ -205,7 +209,7 @@
     <tbody>
       {% for it in items %}
       <tr>
-        <td class="desc"><span class="d-name">{{ it.description }}</span></td>
+        <td class="desc"><span class="d-name">{{ it.description }}</span>{% if it.billing_label %}<span class="d-tag">{{ it.billing_label }}</span>{% endif %}</td>
         <td class="num">{{ it.qty_fmt }}</td>
         <td class="num">{{ it.rate_fmt }}</td>
         <td class="num">{{ it.discount_fmt }}</td>
@@ -216,20 +220,42 @@
   </table>
 
   <section class="totals">
-    <div class="totals-inner">
-      <div class="t-row"><span class="t-k">Subtotal</span><span>{{ tot.subtotal_fmt }}</span></div>
-      {% if tot.has_discount %}
-      <div class="t-row"><span class="t-k">Descuento</span><span>− {{ tot.discount_fmt }}</span></div>
-      {% endif %}
-      {% if tot.show_iva %}
-      <div class="t-row">
-        <span class="t-k">IVA 21%{% if tot.iva_included %} (incluido){% endif %}</span>
-        <span>{{ tot.iva_fmt }}</span>
+    {% if tot.has_discount %}
+    <div class="totals-note">Descuentos aplicados: {{ tot.discount }}</div>
+    {% endif %}
+
+    {% if has_recurring %}
+    <div class="tot-wrap">
+      <div class="totals-inner">
+        <div class="t-row"><span class="t-k">Subtotal</span><span>{{ tot.recurring_net }}</span></div>
+        {% if tot.show_iva %}
+        <div class="t-row">
+          <span class="t-k">IVA 21%{% if tot.iva_included %} (incluido){% endif %}</span>
+          <span>{{ tot.recurring_iva }}</span>
+        </div>
+        {% endif %}
+        <div class="t-total">
+          <span class="t-k">Abono mensual</span>
+          <span class="t-v">{{ tot.recurring_gross }}</span>
+        </div>
+        {% if recurring_summary %}<div class="t-sub">{{ recurring_summary }}</div>{% endif %}
       </div>
-      {% endif %}
-      <div class="t-total">
-        <span class="t-k">Total</span>
-        <span class="t-v">{{ tot.total_fmt }}</span>
+    </div>
+    {% endif %}
+
+    <div class="tot-wrap">
+      <div class="totals-inner">
+        <div class="t-row"><span class="t-k">Subtotal</span><span>{{ tot.one_time_net }}</span></div>
+        {% if tot.show_iva %}
+        <div class="t-row">
+          <span class="t-k">IVA 21%{% if tot.iva_included %} (incluido){% endif %}</span>
+          <span>{{ tot.one_time_iva }}</span>
+        </div>
+        {% endif %}
+        <div class="t-total">
+          <span class="t-k">Inversión inicial</span>
+          <span class="t-v">{{ tot.one_time_gross }}</span>
+        </div>
       </div>
     </div>
   </section>

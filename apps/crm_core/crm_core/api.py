@@ -9,14 +9,10 @@ Estos métodos leen/escriben esas DocTypes para que la agenda muestre el día re
 Todos requieren login.
 """
 
-import base64
-import os
 import re
-import subprocess
-import tempfile
 
 import frappe
-from frappe.utils import add_days, add_to_date, flt, getdate, nowdate
+from frappe.utils import add_days, add_to_date, getdate, nowdate
 
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
 MEETING_FIELDS = ["name", "first_name", "last_name", "email", "notes", "custom_meeting_datetime"]
@@ -495,161 +491,22 @@ def convert_lead_to_deal(lead, status=None, deal_value=None):
 
 
 # ── Presupuesto en PDF ────────────────────────────────────────────────
-_TEMPLATES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "templates")
-_font_cache = {}
-
-COMPANY = {
-    "city": "Córdoba, Argentina",
-    "phone": "+54 9 351 733 4040",
-    "email": "consultora.marcosbarbosa@gmail.com",
-    "web": "marcosbarbosagroup.com",
-    "cuit": "—",
-    "address": "—",
-}
-QUOTE_VALIDITY_DAYS = 15
-IVA_RATE = 0.21
-
-
-def _font_b64():
-    if "outfit" not in _font_cache:
-        with open(os.path.join(_TEMPLATES, "fonts", "outfit-latin.woff2"), "rb") as f:
-            _font_cache["outfit"] = base64.b64encode(f.read()).decode()
-    return _font_cache["outfit"]
-
-
-def _es_money(v, symbol="", decimals=2):
-    n = f"{flt(v):,.{decimals}f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    return f"{symbol} {n}" if symbol else n
-
-
 def _quote_number(name):
     m = re.search(r"(\d+)$", name or "")
     return f"P-{m.group(1)}" if m else (name or "S/N")
 
 
-def _quote_context(name, iva_mode="sumar"):
-    d = frappe.get_doc("CRM Deal", name)
-    items = [p for p in (d.get("products") or []) if (p.product_name or "").strip()]
-    if not items:
-        frappe.throw("El negocio no tiene ítems cargados en el presupuesto.")
-
-    currency = d.currency or "ARS"
-    symbol = "US$" if currency == "USD" else "$"
-
-    rows, subtotal, discount = [], 0.0, 0.0
-    for p in items:
-        qty, rate, disc = flt(p.qty), flt(p.rate), flt(p.discount_percentage)
-        gross = qty * rate
-        net = flt(p.net_amount) or gross * (1 - disc / 100.0)
-        subtotal += net
-        discount += gross - net
-        rows.append(
-            {
-                "description": p.product_name,
-                "qty_fmt": f"{qty:g}",
-                "rate_fmt": _es_money(rate),
-                "discount_fmt": f"{disc:g}%" if disc else "—",
-                "net_fmt": _es_money(net),
-            }
-        )
-
-    iva_included = iva_mode == "incluido"
-    if iva_mode == "exento":
-        iva, total, show_iva = 0.0, subtotal, False
-    elif iva_included:
-        iva, total, show_iva = subtotal - subtotal / (1 + IVA_RATE), subtotal, True
-    else:
-        iva, total, show_iva = subtotal * IVA_RATE, subtotal * (1 + IVA_RATE), True
-
-    org_name = ""
-    if d.get("organization"):
-        org_name = (
-            frappe.db.get_value("CRM Organization", d.organization, "organization_name")
-            or d.organization
-        )
-    email = phone = ""
-    if d.get("lead"):
-        r = frappe.db.get_value("CRM Lead", d.lead, ["email", "mobile_no"], as_dict=True) or {}
-        email, phone = r.get("email") or "", r.get("mobile_no") or ""
-
-    conditions = [
-        {"k": "Validez", "v": f"{QUOTE_VALIDITY_DAYS} días desde la fecha de emisión"},
-        {"k": "Forma de pago", "v": "A convenir con el cliente"},
-        {"k": "Plazo de entrega", "v": "A definir según alcance"},
-        {"k": "Moneda", "v": "Dólares estadounidenses (USD)" if currency == "USD" else "Pesos argentinos (ARS)"},
-    ]
-
-    return {
-        "font_b64": _font_b64(),
-        "company": COMPANY,
-        "quote_no": _quote_number(d.name),
-        "date": getdate(nowdate()).strftime("%d/%m/%Y"),
-        "validity": f"{QUOTE_VALIDITY_DAYS} días",
-        "currency": currency,
-        "client": {
-            "company": org_name or d.get("lead_name") or d.name,
-            "contact": d.get("lead_name") or "",
-            "email": email,
-            "phone": phone,
-        },
-        "deal_name": d.name,
-        "deal_title": org_name or d.name,
-        "owner": (
-            frappe.db.get_value("User", d.deal_owner, "full_name") if d.get("deal_owner") else ""
-        )
-        or "",
-        "items": rows,
-        "tot": {
-            "subtotal_fmt": _es_money(subtotal, symbol),
-            "has_discount": discount > 0.005,
-            "discount_fmt": _es_money(discount, symbol),
-            "show_iva": show_iva,
-            "iva_included": iva_included,
-            "iva_fmt": _es_money(iva, symbol),
-            "total_fmt": _es_money(total, symbol),
-        },
-        "conditions": conditions,
-        "notes": "",
-    }
-
-
-def _html_to_pdf(html):
-    """Renderiza el HTML con Chromium headless (misma fidelidad que el navegador)."""
-    with tempfile.TemporaryDirectory() as d:
-        hp, pp = os.path.join(d, "q.html"), os.path.join(d, "q.pdf")
-        with open(hp, "w", encoding="utf-8") as f:
-            f.write(html)
-        proc = subprocess.run(
-            [
-                "chromium-headless-shell",
-                "--headless",
-                "--no-sandbox",
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                f"--user-data-dir={os.path.join(d, 'profile')}",
-                "--no-pdf-header-footer",
-                f"--print-to-pdf={pp}",
-                f"file://{hp}",
-            ],
-            capture_output=True,
-            timeout=120,
-        )
-        if not os.path.exists(pp) or os.path.getsize(pp) == 0:
-            frappe.log_error(
-                (proc.stderr.decode(errors="ignore") or "chromium no produjo salida")[-3000:],
-                "quote_pdf",
-            )
-            frappe.throw("No se pudo generar el PDF. Probá de nuevo en un momento.")
-        with open(pp, "rb") as f:
-            return f.read()
-
-
 @frappe.whitelist()
-def quote_pdf(name, iva_mode="sumar"):
-    ctx = _quote_context(name, iva_mode)
-    with open(os.path.join(_TEMPLATES, "quote.html"), encoding="utf-8") as f:
-        html = frappe.render_template(f.read(), ctx)
-    pdf = _html_to_pdf(html)
+def quote_pdf(name):
+    """Puente: resuelve negocio -> presupuesto vigente y delega el render a documents."""
+    from crm_core.documents import quote_context, render_quote_pdf
+
+    if not frappe.db.exists("CRM Presupuesto", name):
+        name = (
+            frappe.db.get_value("CRM Presupuesto", {"deal": name, "is_current": 1}, "name") or name
+        )
+    ctx = quote_context(name)
+    pdf = render_quote_pdf(name)
     fname = f"Presupuesto {ctx['quote_no']} - {ctx['client']['company']}.pdf"
     frappe.local.response.filename = re.sub(r'[\\/:*?"<>|]', "-", fname)
     frappe.local.response.filecontent = pdf
