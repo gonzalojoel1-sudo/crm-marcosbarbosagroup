@@ -62,8 +62,11 @@ def items_fingerprint(items) -> tuple:
 
     Comparar las listas de `Document` con `!=` no sirve: Frappe no define `__eq__`,
     así que compara identidad y dos listas equivalentes dan distintas. Esta huella
-    compara los VALORES que importan, y normaliza los números con `money()` para que
-    `100`, `"100"`, `100.0` y `"100.00"` sean la misma cosa.
+    compara los VALORES que importan. Los números van como `Decimal`, sin `str()`:
+    `Decimal` compara por valor (`Decimal("1000") == Decimal("1000.00")`), así que
+    normaliza solo. Envolverlos en `str()` los volvería distintos, y pasarlos por
+    `money()` los redondearía a 2 decimales — lo que escondería un cambio real de una
+    cantidad (`qty` es Float, sin límite de decimales).
     """
     rows = []
     for it in items or []:
@@ -71,9 +74,9 @@ def items_fingerprint(items) -> tuple:
             (
                 str(_row(it, "description") or "").strip(),
                 str(_row(it, "billing_type") or "").strip(),
-                str(money(_row(it, "qty"))),
-                str(money(_row(it, "rate"))),
-                str(money(_row(it, "discount_percentage"))),
+                dec(_row(it, "qty")),
+                dec(_row(it, "rate")),
+                dec(_row(it, "discount_percentage")),
             )
         )
     return tuple(rows)

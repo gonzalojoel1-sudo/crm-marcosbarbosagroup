@@ -116,6 +116,14 @@ def test_items_fingerprint_normaliza_los_numeros():
     assert items_fingerprint(a) == items_fingerprint(b)
 
 
+def test_items_fingerprint_no_redondea_las_cantidades():
+    """`qty` es Float: si la huella redondeara a 2 decimales, un cambio real de
+    cantidad pasaria invisible y se podria editar un presupuesto congelado."""
+    assert items_fingerprint([item("2.250", "100")]) != items_fingerprint(
+        [item("2.253", "100")]
+    )
+
+
 def test_presupuesto_mixto_separa_las_dos_bases_de_tiempo():
     t = quote_totals([item(1, "850000"), item(1, "210000", 0, "Mensual")])
     assert t["total_one_time"] == Decimal("850000.00")

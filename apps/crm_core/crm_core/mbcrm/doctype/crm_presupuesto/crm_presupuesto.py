@@ -65,7 +65,11 @@ class CRMPresupuesto(Document):
         before = self.get_doc_before_save()
         if not before:
             return
-        if before.status in FROZEN_STATUSES and self.status == before.status:
+        if before.status in FROZEN_STATUSES:
+            # Sin mirar el estado nuevo a propósito: así también se cubre el guardado
+            # que cambia los ítems Y el estado en la misma operación, que si no
+            # esquivaría el congelamiento. Las transiciones legítimas (enviar,
+            # aceptar, anular) no tocan los ítems, así que siguen pasando.
             # Se comparan HUELLAS, no los objetos: comparar listas de Document con
             # `!=` compara identidad (Frappe no define __eq__) y da siempre distinto,
             # lo que bloquearía hasta el guardado que baja is_current al versionar.
