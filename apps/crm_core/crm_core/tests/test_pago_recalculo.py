@@ -188,7 +188,7 @@ class TestPagoRecalculo(FrappeTestCase):
         self.assertEqual(f.status, "Emitida")
         self.assertFalse(f.paid_on)
 
-    def test_borrar_un_pago_recalcula_por_on_trash(self):
+    def test_borrar_un_pago_recalcula_por_after_delete(self):
         f = self._factura(100000)
         p = self._pago(121000, [{"factura": f.name, "applied_amount": 121000}])
         f.reload()
@@ -217,6 +217,52 @@ class TestPagoRecalculo(FrappeTestCase):
         f = self._factura(100000)
         with self.assertRaises(frappe.ValidationError):
             self._pago(1000, [{"factura": f.name, "applied_amount": 5000}])
+
+    def test_no_se_puede_aplicar_mas_que_el_saldo_de_la_factura(self):
+        """El tope por factura (spec §6): el exceso no puede desaparecer en silencio."""
+        f = self._factura(100000)  # total 121000
+        with self.assertRaises(frappe.ValidationError):
+            self._pago(200000, [{"factura": f.name, "applied_amount": 200000}])
+
+    def test_no_se_aplica_a_una_factura_ya_saldada(self):
+        f = self._factura(100000)
+        self._pago(121000, [{"factura": f.name, "applied_amount": 121000}])
+        with self.assertRaises(frappe.ValidationError):
+            self._pago(50000, [{"factura": f.name, "applied_amount": 50000}])
+
+    def test_no_se_reescriben_las_aplicaciones_de_un_pago_guardado(self):
+        f = self._factura(100000)
+        p = self._pago(50000, [{"factura": f.name, "applied_amount": 50000}])
+        p.applications[0].applied_amount = 90000
+        with self.assertRaises(frappe.ValidationError):
+            p.save(ignore_permissions=True)
+
+    def test_quitar_una_aplicacion_recalcula_la_factura_que_se_libero(self):
+        """La factura que se dejó de tocar también tiene que volver a su saldo."""
+        f1 = self._factura(50000)
+        f2 = self._factura(50000)
+        p = self._pago(121000, [
+            {"factura": f1.name, "applied_amount": 60500},
+            {"factura": f2.name, "applied_amount": 60500},
+        ])
+        p.set("applications", [a for a in p.applications if a.factura != f2.name])
+        p.save(ignore_permissions=True)
+        f2.reload()
+        self.assertEqual(f2.paid_amount, 0.0)
+        self.assertEqual(f2.outstanding, 60500.0)
+
+    def test_el_signo_del_kind_se_valida(self):
+        with self.assertRaises(frappe.ValidationError):
+            self._pago(-5000, kind="Cobro")
+        with self.assertRaises(frappe.ValidationError):
+            self._pago(5000, kind="Devolución")
+
+    def test_un_borrador_no_cuenta_como_deuda(self):
+        org = self._org()
+        d = api.create_invoice(org, [{"description": "x", "qty": 1, "rate": 1000}])
+        self.assertNotIn(
+            d["name"], [x["name"] for x in api.get_invoices(solo_impagas=True)["facturas"]]
+        )
 
     def test_no_se_aplica_a_otra_organizacion(self):
         f = self._factura(100000)

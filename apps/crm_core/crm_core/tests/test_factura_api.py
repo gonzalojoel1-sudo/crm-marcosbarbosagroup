@@ -107,6 +107,12 @@ class TestFacturaApi(FrappeTestCase):
         frappe.db.set_value("CRM Factura", f.name, "status", "Emitida")  # cache vieja a proposito
         assert api.get_invoice(f.name)["status"] == "Vencida"
 
+    def test_el_saldo_se_deriva_en_la_lectura_aunque_la_cache_este_vieja(self):
+        """`outstanding` guardado es caché; la lectura lo deriva de total − cobrado − acreditado."""
+        f = self._factura()  # total 121000, sin cobros
+        frappe.db.set_value("CRM Factura", f.name, "outstanding", 0)  # cache basura a proposito
+        assert api.get_invoice(f.name)["outstanding"] == 121000.0
+
     def test_el_filtro_por_estado_usa_el_derivado(self):
         """Filtrar 'Vencida' tiene que traer la factura vencida aunque la cache diga otra cosa."""
         org = self._org()

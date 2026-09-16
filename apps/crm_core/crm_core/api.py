@@ -888,7 +888,9 @@ def _invoice_dto(f):
         "total": float(f.total or 0),
         "credit_total": float(f.credit_total or 0),
         "paid_amount": float(f.paid_amount or 0),
-        "outstanding": float(f.outstanding or 0),
+        # `outstanding` derivado: el guardado es una caché (la usa SQL para filtrar).
+        # Misma función pura que el recálculo, así la lectura nunca miente por una caché vieja.
+        "outstanding": float(billing.outstanding_of(f.total, f.paid_amount, f.credit_total)),
         "fiscal_status": f.fiscal_status or "No aplica",
         "sin_cae": (f.fiscal_status or "No aplica") != "Emitida",
         "conditions": f.conditions or "",
@@ -1014,8 +1016,8 @@ def get_invoices(status=None, organization=None, solo_impagas=False, limit=100):
     no sobre la columna: el estado guardado es una cache que el job diario actualiza, y
     filtrar por la cache devolveria una lista que no coincide con lo que muestra cada fila.
 
-    Ojo: `outstanding` (y por eso `solo_impagas` y el aging) cobran sentido cuando exista el
-    recalculo de pagos (Task 7); hasta entonces vale 0.
+    `solo_impagas` también deriva el saldo en lectura y sólo cuenta **comprobantes emitidos**:
+    un `Borrador` no es deuda (todavía no se emitió) y uno `Anulada` tampoco.
     """
     filtros = {"is_return": 0}
     if organization:
@@ -1028,7 +1030,9 @@ def get_invoices(status=None, organization=None, solo_impagas=False, limit=100):
         dto = _invoice_dto(frappe.get_doc("CRM Factura", r.name))
         if status and dto["status"] != status:
             continue
-        if solo_impagas and dto["outstanding"] <= 0:
+        if solo_impagas and (
+            dto["status"] in ("Borrador", "Anulada") or dto["outstanding"] <= 0
+        ):
             continue
         out.append(dto)
         # El corte por `limit` es para el camino que filtra por estado (donde hay que traer

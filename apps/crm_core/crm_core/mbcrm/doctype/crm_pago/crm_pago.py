@@ -58,12 +58,36 @@ def recalcular_desde_hijo(doc, method=None):
 
 class CRMPago(Document):
     def validate(self):
+        self.validate_kind()
         self.validate_aplicaciones()
+        self.guard_aplicaciones()
         self.calculate_derived()
 
+    def validate_kind(self):
+        """El signo tiene que ser coherente con el tipo de movimiento.
+
+        `Cobro` (entra plata) y `Crédito` (excedente de una nota de crédito) van en 0 o
+        positivo; `Devolución` (plata que sale) va en 0 o negativo.
+        """
+        monto = billing.dec(self.amount)
+        if self.kind in ("Cobro", "Crédito") and monto < 0:
+            frappe.throw("Un Cobro o un Crédito no puede tener monto negativo.")
+        if self.kind == "Devolución" and monto > 0:
+            frappe.throw("Una Devolución debe tener monto negativo: es plata que sale.")
+
+    def _aplicaciones_previas(self):
+        """Nombres de las filas de aplicación YA persistidas (las que se re-guardan)."""
+        if self.is_new():
+            return set()
+        before = self.get_doc_before_save()
+        if not before:
+            return set()
+        return {a.name for a in (before.applications or []) if a.name}
+
     def validate_aplicaciones(self):
-        """Guardas del spec §6: mismas organización y moneda, y no sobreaplicar."""
-        facturas = []
+        """Guardas del spec §6: misma organización y moneda, no cobrar borradores/anuladas,
+        y no aplicar a una factura más que su saldo pendiente."""
+        previas = self._aplicaciones_previas()
         for ap in self.applications or []:
             if not ap.factura:
                 continue
@@ -77,7 +101,9 @@ class CRMPago(Document):
                 frappe.throw(f"La factura {ap.factura} no existe.")
             if f.organization != self.organization:
                 frappe.throw("Sólo se puede aplicar un pago a facturas del mismo cliente.")
-            if f.currency and self.currency and f.currency != self.currency:
+            if not f.currency or not self.currency:
+                frappe.throw("El pago y la factura deben tener moneda para poder aplicar.")
+            if f.currency != self.currency:
                 frappe.throw("Sólo se puede aplicar un pago a facturas de la misma moneda.")
             if f.status == "Anulada":
                 frappe.throw(f"La factura {ap.factura} está anulada.")
@@ -86,7 +112,18 @@ class CRMPago(Document):
                 # (es una decisión explícita del documento), así que cobrarla la dejaría en
                 # borrador CON saldo — un estado que miente. Hay que emitirla primero.
                 frappe.throw(f"La factura {ap.factura} está en borrador: emitila antes de cobrarla.")
-            facturas.append(ap.factura)
+            # Tope por factura (spec §6): no se puede aplicar más que el saldo pendiente de
+            # ESA factura. Sólo se valida contra las filas NUEVAS: una fila ya persistida
+            # (mismo `name`) ya está descontada del `outstanding` guardado, así que compararla
+            # sería un falso positivo. Las filas persistidas no se pueden cambiar (las bloquea
+            # `guard_aplicaciones`), así que su saldo sigue siendo correcto.
+            if ap.name and ap.name in previas:
+                continue
+            if billing.dec(ap.applied_amount) > billing.dec(f.outstanding):
+                frappe.throw(
+                    f"El monto aplicado a {ap.factura} ({billing.fmt_money(ap.applied_amount)}) "
+                    f"supera su saldo pendiente ({billing.fmt_money(f.outstanding)})."
+                )
 
         try:
             billing.validar_aplicaciones(
@@ -94,6 +131,37 @@ class CRMPago(Document):
             )
         except ValueError as e:
             frappe.throw(str(e))
+
+    def guard_aplicaciones(self):
+        """Un pago guardado no reescribe sus aplicaciones: se anula y se carga otro.
+
+        Se permite QUITAR filas (liberar una factura) — para eso está `remove_application`— y
+        AGREGAR filas nuevas (aplicar el saldo a cuenta, vía `aplicar_a`/`apply_payment`, que
+        marcan `flags.aplicaciones_programaticas`). Lo que NO se permite es cambiar la factura
+        o el monto de una fila ya existente —eso reescribe historia contable en silencio— ni
+        agregar filas por edición directa.
+        """
+        if self.is_new() or self.flags.get("aplicaciones_programaticas"):
+            return
+        before = self.get_doc_before_save()
+        if not before:
+            return
+        previas = {
+            a.name: (a.factura, billing.money(a.applied_amount))
+            for a in (before.applications or [])
+            if a.name
+        }
+        for a in self.applications or []:
+            if not a.name or a.name not in previas:
+                frappe.throw(
+                    "No se pueden agregar aplicaciones a un pago registrado por edición "
+                    "directa. Aplicá el saldo a cuenta o anulá el pago y cargá uno nuevo."
+                )
+            if previas[a.name] != (a.factura, billing.money(a.applied_amount)):
+                frappe.throw(
+                    "No se pueden cambiar las aplicaciones de un pago registrado. "
+                    "Quitá la aplicación o anulá el pago y cargá uno nuevo."
+                )
 
     def calculate_derived(self):
         aplicado = billing.money(
@@ -103,7 +171,17 @@ class CRMPago(Document):
         self.unapplied_amount = billing.money(billing.dec(self.amount) - aplicado)
 
     def on_update(self):
-        self.recalcular_todas()
+        """Recalcula las facturas afectadas: las de AHORA y las de ANTES.
+
+        Si se quita o se cambia una aplicación, la factura que se dejó de tocar también
+        necesita recalcularse; mirar sólo las actuales deja su saldo viejo.
+        """
+        facturas = {a.factura for a in (self.applications or []) if a.factura}
+        before = self.get_doc_before_save()
+        if before:
+            facturas |= {a.factura for a in (before.applications or []) if a.factura}
+        for f in facturas:
+            recalcular_factura(f)
 
     def after_insert(self):
         self.recalcular_todas()
@@ -152,6 +230,10 @@ class CRMPago(Document):
         disponible = billing.money(billing.dec(self.amount) - aplicado)
         for nombre, monto in billing.reparto_fifo(disponible, facturas):
             self.append("applications", {"factura": nombre, "applied_amount": monto})
+        # Agregar filas a un pago guardado es una operación programática legítima (aplicar
+        # saldo a cuenta), no una reescritura de historia: `guard_aplicaciones` la permite
+        # sólo con este flag.
+        self.flags.aplicaciones_programaticas = True
         self.save(ignore_permissions=True)
 
     def void(self):

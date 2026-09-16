@@ -15,7 +15,7 @@ app_license = "proprietary"
 scheduler_events = {}
 
 # El recálculo de saldos (paid_amount / credit_total / outstanding) es un punto único.
-# El camino confiable son los hooks del padre (CRMPago.on_update/after_insert/on_trash);
+# El camino confiable son los hooks del padre (CRMPago.on_update/after_insert/after_delete);
 # el hook del hijo es refuerzo: en Frappe los doc_events de child tables no siempre disparan.
 doc_events = {
     "CRM Pago Aplicacion": {
