@@ -221,7 +221,7 @@ class TestPresupuestoAPI(FrappeTestCase):
         deal = self._deal()
         with self.assertRaises(frappe.ValidationError) as ctx:
             api.quote_pdf(deal.name)
-        self.assertIn("presupuesto", str(ctx.exception).lower())
+        self.assertIn("El negocio no tiene un presupuesto cargado.", str(ctx.exception))
 
     def test_get_deals_marca_has_quote(self):
         con = self._deal()

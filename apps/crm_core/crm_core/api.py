@@ -499,8 +499,10 @@ def save_quote(
     else:
         doc.currency = currency or d.currency or "ARS"
     doc.iva_mode = iva_mode or "sumar"
-    # Un borrador sin vencimiento no sirve: si no llega una fecha, se pone el default.
-    doc.valid_until = valid_until or add_days(nowdate(), billing.DEFAULT_VALIDITY_DAYS)
+    # La validez que el usuario ya puso se conserva; sólo se completa si falta.
+    doc.valid_until = (
+        valid_until or doc.get("valid_until") or add_days(nowdate(), billing.DEFAULT_VALIDITY_DAYS)
+    )
     if conditions is not None:
         doc.conditions = conditions
     doc.vertical = vertical or doc.get("vertical")
