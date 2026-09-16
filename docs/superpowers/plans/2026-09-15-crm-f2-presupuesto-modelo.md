@@ -430,7 +430,7 @@ def test_doctype_link_apunta_a_destinos_conocidos(path: str):
     propios = {json.loads(Path(p).read_text())["name"] for p in DOCTYPES}
     # `Event` es un DocType real de Frappe (módulo Desk), no del app `crm`: va como externo.
     externos = {
-        "User", "File", "Currency", "Country", "Event", "CRM Deal", "CRM Lead",
+        "User", "File", "Currency", "Country", "Event", "DocType", "CRM Deal", "CRM Lead",
         "CRM Organization", "CRM Task", "CRM Deal Status", "CRM Lead Source",
     }
     for f in d["fields"]:
