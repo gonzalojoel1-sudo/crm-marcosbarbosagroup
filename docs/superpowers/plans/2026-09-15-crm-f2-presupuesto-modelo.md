@@ -118,6 +118,8 @@ sin red, sin Docker.
 [pytest]
 testpaths = tests
 pythonpath = .
+# Los tests que exigen un sitio Frappe o red se corren a proposito, no en un `pytest` pelado.
+addopts = --ignore=tests/test_rest_smoke.py --ignore=tests/test_hoy_api.py
 ```
 
 `apps/crm_core/tests/test_billing.py`:
@@ -388,13 +390,20 @@ que funcionar antes de escribir el primer DocType nuevo.
 
 - [ ] **Step 1: Confirmar el defecto**
 
-Run: `cd apps/crm_core && python3 -m pytest tests/test_doctypes_offline.py -v`
-Expected: PASS pero con **0 tests** en los parametrizados — la colección está vacía porque el glob
-apunta a `crm_core/doctype/*/*.json`, que no existe.
+Run: `cd apps/crm_core && python3 -m pytest tests/test_doctypes_offline.py`
+Expected: **3 tests FALLAN** con `FileNotFoundError` y los parametrizados corren sobre una lista
+vacía. El archivo está peor de lo que parece: los 3 que fallan abren rutas de un directorio
+(`crm_core/doctype/`) que **no existe**, y son restos del modelo de la Fase 0 abandonado.
 
-- [ ] **Step 2: Corregir el glob y endurecer las invariantes**
+- [ ] **Step 2: Corregir el glob, borrar los tests muertos y endurecer las invariantes**
 
-Reemplazar la constante `DOCTYPES` y agregar los tests nuevos al final del archivo:
+Primero **borrar** los 3 tests que validan DocTypes de la Fase 0 abandonada:
+`test_event_has_booking_uid_unique`, `test_gcal_connection_tokens_are_readonly` y
+`test_activity_append_only`. Abren rutas inexistentes y cubren un modelo que el apéndice de este
+plan propone eliminar: no se arreglan, se van. Dejar en el archivo sólo las validaciones genéricas
+sobre los JSON que existen.
+
+Después, reemplazar la constante `DOCTYPES` y agregar los tests nuevos al final del archivo:
 
 ```python
 DOCTYPES = sorted(
@@ -502,7 +511,7 @@ Permisos: `System Manager` con todo, y `All` con `read`/`write`/`create` (igual 
 from frappe.model.document import Document
 
 
-class CRMVirtual(Document):
+class CRMVertical(Document):
     pass
 ```
 `__init__.py`: vacío.
@@ -555,7 +564,10 @@ Opciones que **no** se pueden deducir y hay que copiar tal cual:
 - `iva_mode`: `"sumar\nincluido\nexento"`, default `"sumar"`, reqd.
 - `deal`: Link a `CRM Deal`, reqd.
 - `organization`: Link a `CRM Organization`.
-- `vertical`: Link a `CRM Vertical`.
+- `vertical`: Link a `CRM Vertical`. **En F2 se elige a mano en el presupuesto**: heredarla del
+  negocio exigiría un campo nuevo en `CRM Deal`, que es un DocType de un app de terceros (`crm`), y
+  eso es un `Custom Field` — un cambio de esquema fuera del alcance de esta fase. La herencia
+  automática queda para cuando exista la pantalla donde elegir la vertical del negocio.
 - `currency`: Link a `Currency`.
 - `items`: Table a `CRM Presupuesto Item`, reqd.
 - `version`: Int, `"default": "1"`, read_only. `is_current`: Check, `"default": "1"`.
