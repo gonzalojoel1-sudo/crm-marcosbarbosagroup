@@ -179,12 +179,25 @@ def invoice_context(factura_name):
     currency = f.currency or "ARS"
     symbol = "US$" if currency == "USD" else "$"
 
-    org_name, org_tax_id = "", ""
+    org_name, direccion = "", ""
     if f.organization:
         org = frappe.db.get_value(
-            "CRM Organization", f.organization, ["organization_name"], as_dict=True
+            "CRM Organization", f.organization, ["organization_name", "address"], as_dict=True
         ) or {}
         org_name = org.get("organization_name") or f.organization
+        if org.get("address"):
+            a = frappe.db.get_value(
+                "Address", org["address"], ["address_line1", "city", "pincode"], as_dict=True
+            ) or {}
+            direccion = ", ".join(
+                p for p in (a.get("address_line1"), a.get("city"), a.get("pincode")) if p
+            )
+
+    # El CUIT y la condición frente al IVA del cliente NO se imprimen a propósito:
+    # `CRM Organization` no tiene esos campos y la factura todavía no es un comprobante
+    # fiscal (ver `sin_cae`). Agregarlos requiere Custom Fields en `CRM Organization`
+    # —misma decisión de esquema que la `vertical`— y que el usuario provea los datos.
+    # No se imprime un "CUIT: —" vacío: un dato vacío parece un error del documento.
 
     sin_cae = (f.fiscal_status or "No aplica") != "Emitida"
 
@@ -202,7 +215,7 @@ def invoice_context(factura_name):
         "due_date": getdate(f.due_date).strftime("%d/%m/%Y") if f.due_date else "",
         "period": _period_label(f),
         "currency": currency,
-        "client": {"company": org_name or "Cliente", "tax_id": org_tax_id},
+        "client": {"company": org_name or "Cliente", "address": direccion},
         "items": [
             {
                 "description": it.description,
@@ -219,6 +232,7 @@ def invoice_context(factura_name):
             "discount": billing.fmt_money(f.discount_total, symbol),
             "has_discount": flt(f.discount_total) > 0.005,
             "iva": billing.fmt_money(f.iva_amount, symbol),
+            "iva_included": f.iva_mode == "incluido",
             "show_iva": (f.iva_mode or "sumar") != "exento",
             "total": billing.fmt_money(f.total, symbol),
             "paid": billing.fmt_money(f.paid_amount, symbol),

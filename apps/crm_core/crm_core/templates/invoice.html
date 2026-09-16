@@ -195,7 +195,7 @@
     <div class="party">
       <h3>Cliente</h3>
       <div class="p-name">{{ client.company }}</div>
-      {% if client.tax_id %}<div class="p-line"><span class="k">CUIT</span> {{ client.tax_id }}</div>{% endif %}
+      {% if client.address %}<div class="p-line">{{ client.address }}</div>{% endif %}
     </div>
     <div class="party">
       <h3>Detalle</h3>
@@ -235,7 +235,7 @@
         <div class="t-row"><span class="t-k">Descuentos</span><span>-{{ tot.discount }}</span></div>
         {% endif %}
         {% if tot.show_iva %}
-        <div class="t-row"><span class="t-k">IVA 21%</span><span>{{ tot.iva }}</span></div>
+        <div class="t-row"><span class="t-k">IVA 21%{% if tot.iva_included %} (incluido){% endif %}</span><span>{{ tot.iva }}</span></div>
         {% endif %}
         <div class="t-total">
           <span class="t-k">Total</span>
