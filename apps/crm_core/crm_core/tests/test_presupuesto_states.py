@@ -7,17 +7,21 @@ from crm_core.mbcrm.doctype.crm_presupuesto.crm_presupuesto import new_version
 
 class TestPresupuestoEstados(FrappeTestCase):
     def _deal(self):
-        # `status` es REQD en CRM Deal (Link a CRM Deal Status) y los valores válidos
-        # son los del embudo: Qualification es el inicial.
-        org = frappe.get_doc(
-            {"doctype": "CRM Organization", "organization_name": "Test F2 Org"}
-        ).insert(ignore_permissions=True)
+        # `CRM Organization` se autonombra por `organization_name`, y FrappeTestCase
+        # comparte los datos dentro de la clase: hay que REUSAR la organizacion, no
+        # crearla en cada test (si no, el segundo choca con el primero).
+        # `status` es REQD en CRM Deal (Link a CRM Deal Status) y el inicial del
+        # embudo es Qualification.
+        if not frappe.db.exists("CRM Organization", "Test F2 Org"):
+            frappe.get_doc(
+                {"doctype": "CRM Organization", "organization_name": "Test F2 Org"}
+            ).insert(ignore_permissions=True)
         return frappe.get_doc(
             {
                 "doctype": "CRM Deal",
                 "lead_name": "Test F2",
                 "status": "Qualification",
-                "organization": org.name,
+                "organization": "Test F2 Org",
             }
         ).insert(ignore_permissions=True)
 
