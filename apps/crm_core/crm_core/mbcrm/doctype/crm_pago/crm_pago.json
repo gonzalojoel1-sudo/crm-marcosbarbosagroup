@@ -1,0 +1,174 @@
+{
+  "actions": [],
+  "allow_rename": 1,
+  "autoname": "naming_series:",
+  "creation": "2026-09-16 12:00:00.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "status",
+    "kind",
+    "organization",
+    "payment_date",
+    "amount",
+    "applied_amount",
+    "unapplied_amount",
+    "sb_medio",
+    "currency",
+    "method",
+    "reference",
+    "proof",
+    "sb_aplicaciones",
+    "applications",
+    "notes"
+  ],
+  "fields": [
+    {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "label": "Serie",
+      "options": "C-.YYYY.-.####",
+      "default": "C-.YYYY.-.####",
+      "reqd": 1,
+      "hidden": 1
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "label": "Estado",
+      "options": "Registrado\nAnulado",
+      "default": "Registrado",
+      "read_only": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "kind",
+      "fieldtype": "Select",
+      "label": "Tipo",
+      "options": "Cobro\nCrédito\nDevolución",
+      "default": "Cobro",
+      "reqd": 1,
+      "in_list_view": 1,
+      "description": "Cobro = entró plata · Crédito = excedente de una nota de crédito · Devolución = se le devuelve plata al cliente"
+    },
+    {
+      "fieldname": "organization",
+      "fieldtype": "Link",
+      "label": "Organización",
+      "options": "CRM Organization",
+      "reqd": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "payment_date",
+      "fieldtype": "Date",
+      "label": "Fecha",
+      "reqd": 1,
+      "default": "Today"
+    },
+    {
+      "fieldname": "amount",
+      "fieldtype": "Currency",
+      "label": "Monto",
+      "options": "currency",
+      "reqd": 1
+    },
+    {
+      "fieldname": "applied_amount",
+      "fieldtype": "Currency",
+      "label": "Aplicado",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "unapplied_amount",
+      "fieldtype": "Currency",
+      "label": "A cuenta",
+      "options": "currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "sb_medio",
+      "fieldtype": "Section Break",
+      "label": "Medio"
+    },
+    {
+      "fieldname": "currency",
+      "fieldtype": "Link",
+      "label": "Moneda",
+      "options": "Currency"
+    },
+    {
+      "fieldname": "method",
+      "fieldtype": "Select",
+      "label": "Medio",
+      "options": "Transferencia\nEfectivo\nTarjeta\nMercadoPago\nCheque\nOtro"
+    },
+    {
+      "fieldname": "reference",
+      "fieldtype": "Data",
+      "label": "Referencia",
+      "description": "Nº de operación o cheque"
+    },
+    {
+      "fieldname": "proof",
+      "fieldtype": "Attach",
+      "label": "Comprobante"
+    },
+    {
+      "fieldname": "sb_aplicaciones",
+      "fieldtype": "Section Break",
+      "label": "Aplicaciones"
+    },
+    {
+      "fieldname": "applications",
+      "fieldtype": "Table",
+      "label": "Aplicaciones",
+      "options": "CRM Pago Aplicacion"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Small Text",
+      "label": "Notas"
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "istable": 0,
+  "links": [],
+  "modified": "2026-09-16 12:00:00.000000",
+  "module": "MbCRM",
+  "name": "CRM Pago",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 0,
+      "export": 0,
+      "print": 0,
+      "read": 1,
+      "report": 0,
+      "role": "All",
+      "share": 0,
+      "write": 1
+    }
+  ],
+  "search_fields": "organization",
+  "sort_field": "payment_date",
+  "sort_order": "DESC",
+  "states": []
+}
