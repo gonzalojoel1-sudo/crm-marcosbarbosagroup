@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { api, type MeetingDetail } from "./api";
 import { leadSourceLabel, leadStatusLabel } from "./labels";
 import {
@@ -158,7 +159,7 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-overlay" onClick={onClose}>
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Detalle de reunión">
         {!m ? (
@@ -326,6 +327,7 @@ export default function MeetingDrawer({ name, onClose }: { name: string; onClose
           </>
         )}
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

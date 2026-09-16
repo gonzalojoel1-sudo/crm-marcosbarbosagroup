@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "./api";
 import { leadSourceLabel } from "./labels";
 import { IconX } from "./icons";
@@ -62,7 +63,7 @@ export default function NewLead({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-overlay" onClick={onClose}>
       <aside className="drawer" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Nuevo contacto">
         <header className="drawer-head">
@@ -138,6 +139,7 @@ export default function NewLead({
           </div>
         </footer>
       </aside>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api } from "./api";
 import { IconDownload, IconExternal, IconReceipt, IconX } from "./icons";
 
@@ -72,7 +73,7 @@ export default function PdfViewer({
     a.remove();
   }
 
-  return (
+  return createPortal(
     <div className="pdfview-overlay" onClick={onClose}>
       <div
         className="pdfview"
@@ -124,6 +125,7 @@ export default function PdfViewer({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, type DealInput } from "./api";
 import PdfViewer from "./PdfViewer";
 import { stageLabel } from "./labels";
@@ -205,7 +206,8 @@ export default function DealDrawer({
 
   return (
     <>
-      <div className="drawer-overlay" onClick={onClose}>
+      {createPortal(
+        <div className="drawer-overlay" onClick={onClose}>
       <aside className="drawer wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Negocio">
         <header className="drawer-head">
           <div className="dh-row">
@@ -404,7 +406,9 @@ export default function DealDrawer({
           </div>
         </footer>
       </aside>
-      </div>
+        </div>,
+        document.body,
+      )}
 
       {viewer && dealName ? (
         <PdfViewer
