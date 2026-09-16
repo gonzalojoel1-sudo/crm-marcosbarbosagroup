@@ -1356,6 +1356,16 @@ presupuesto vigente (`is_current = 1`):
 ```
 y agregar `"quote": quote,` al dict de retorno.
 
+**Quitá `quote_no` del retorno de `get_deal`.** Hoy devuelve un número derivado del nombre del
+**negocio** (`CRM-DEAL-2026-00005` → `P-00005`), que pierde el año y no es el número del documento.
+El número real es **`quote.name`** (la serie del DocType es `P-.YYYY.-.####`, así que el nombre *es*
+el número: `P-2026-0001`). El frontend lo toma de ahí.
+
+**Aviso de acoplamiento:** esta tarea **rompe el frontend a propósito** hasta la Task 8:
+`get_deal` deja de devolver `items`/`total` y `save_quote` cambia su firma de `(name, items)` a
+`(deal, items, …)`. Las dos tareas se despliegan **juntas** (la 9 va después de la 8), y entre
+medio no se despliega: producción queda con el código viejo de los dos lados, que es coherente.
+
 - [ ] **Step 2: `save_quote` escribe el DocType, no la tabla del negocio**
 
 ```python
@@ -1390,7 +1400,7 @@ def save_quote(deal, items, iva_mode="sumar", valid_until=None, conditions=None,
         doc.version = 1
         doc.is_current = 1
 
-    doc.organization = d.get("organization")
+    doc.organization = _ensure_organization(d)
     if d.get("organization"):
         doc.currency = (
             currency
@@ -1439,6 +1449,27 @@ def save_quote(deal, items, iva_mode="sumar", valid_until=None, conditions=None,
 - [ ] **Step 3: Transiciones y PDF**
 
 ```python
+def _ensure_organization(deal_doc):
+    """La organización del presupuesto es REQD, pero el negocio puede no tener una.
+
+    Se reusa la del negocio; si no tiene, se crea (o reusa) una con el mismo nombre que usa
+    `create_deal`, así el presupuesto nunca queda sin organización.
+    """
+    if deal_doc.get("organization"):
+        return deal_doc.organization
+    nombre = (
+        deal_doc.get("organization_name")
+        or deal_doc.get("lead_name")
+        or deal_doc.name
+    ).strip()
+    existente = frappe.db.get_value("CRM Organization", {"organization_name": nombre}, "name")
+    if existente:
+        return existente
+    org = frappe.get_doc({"doctype": "CRM Organization", "organization_name": nombre})
+    org.insert(ignore_permissions=True)
+    return org.name
+
+
 def _quote_or_throw(name):
     if not frappe.db.exists("CRM Presupuesto", name):
         frappe.throw("El presupuesto no existe.")
