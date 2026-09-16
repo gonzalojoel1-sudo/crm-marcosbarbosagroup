@@ -81,12 +81,14 @@ class CRMPresupuesto(Document):
                 before.iva_mode,
                 before.currency,
                 (before.conditions or "").strip(),
+                str(before.valid_until) if before.valid_until else None,
             )
             comercial_ahora = (
                 billing.items_fingerprint(self.items),
                 self.iva_mode,
                 self.currency,
                 (self.conditions or "").strip(),
+                str(self.valid_until) if self.valid_until else None,
             )
             if comercial_ahora != comercial_antes:
                 frappe.throw(
@@ -141,6 +143,7 @@ class CRMPresupuesto(Document):
                 "iva_mode": self.iva_mode,
                 "currency": self.currency,
                 "conditions": (self.conditions or "").strip(),
+                "valid_until": str(self.valid_until) if self.valid_until else None,
                 "items": [
                     [it.description, it.billing_type, it.qty, it.rate, it.discount_percentage]
                     for it in (self.items or [])
@@ -166,7 +169,7 @@ def new_version(deal):
 
     if origen.status == "Borrador":
         frappe.throw("El presupuesto vigente ya es un borrador: editalo en vez de versionar.")
-    if origen.status not in ("Enviado", "Aceptado", "Rechazado"):
+    if origen.status not in ("Enviado", "Aceptado", "Rechazado", "Vencido"):
         frappe.throw(f"No se puede versionar un presupuesto en estado «{origen.status}».")
 
     for otro in frappe.get_all("CRM Presupuesto", filters={"deal": deal, "is_current": 1}, pluck="name"):

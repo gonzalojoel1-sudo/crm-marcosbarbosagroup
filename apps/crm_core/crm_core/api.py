@@ -14,6 +14,8 @@ import re
 import frappe
 from frappe.utils import add_days, add_to_date, getdate, nowdate
 
+from crm_core import documents
+
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
 MEETING_FIELDS = ["name", "first_name", "last_name", "email", "notes", "custom_meeting_datetime"]
 
@@ -422,7 +424,7 @@ def get_deal(name):
         "lead": d.get("lead") or "",
         "items": items,
         "total": float(d.total) if d.get("total") else 0,
-        "quote_no": _quote_number(d.name),
+        "quote_no": documents.quote_number(d.name),
     }
 
 
@@ -491,11 +493,6 @@ def convert_lead_to_deal(lead, status=None, deal_value=None):
 
 
 # ── Presupuesto en PDF ────────────────────────────────────────────────
-def _quote_number(name):
-    m = re.search(r"(\d+)$", name or "")
-    return f"P-{m.group(1)}" if m else (name or "S/N")
-
-
 @frappe.whitelist()
 def quote_pdf(name):
     """Puente: resuelve negocio -> presupuesto vigente y delega el render a documents."""

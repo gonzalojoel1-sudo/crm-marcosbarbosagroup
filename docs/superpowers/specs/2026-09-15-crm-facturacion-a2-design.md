@@ -258,8 +258,13 @@ los hechos; los ERP serios calculan el avance, no lo duplican.
 | Enviar | Borrador | Enviado | ≥1 ítem, `valid_until` futuro |
 | Aceptar | Enviado | Aceptado | — (crea suscripciones, §6.4) |
 | Rechazar | Enviado | Rechazado | `rejected_reason` |
-| Nueva versión | Enviado / Aceptado / Rechazado | Borrador (v+1) | — |
+| Nueva versión | Enviado / Aceptado / Rechazado / **Vencido** | Borrador (v+1) | — |
 | Anular | Borrador / Enviado / Rechazado / Vencido | Anulado | sin facturas emitidas |
+
+`Vencido` **sí** se versiona: es el caso más natural para renovar (el cliente nunca
+contestó y el precio quedó viejo). Si no pudiera versionarse quedaría sin salida —no se
+edita por congelado y no se puede versionar—. `Anulado` no se versiona: se anuló a
+propósito.
 
 ### 5.2 Suscripción
 ```

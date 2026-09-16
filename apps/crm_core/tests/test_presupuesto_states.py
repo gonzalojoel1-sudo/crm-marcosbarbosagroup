@@ -111,6 +111,8 @@ class TestPresupuestoEstados(FrappeTestCase):
         q.status = "Vencido"
         q.save()
         nueva = new_version(q.deal)
+        self.assertEqual(nueva.status, "Borrador")
+        self.assertTrue(nueva.valid_until, "la version nueva debe nacer con validez")
         self.assertGreaterEqual(str(nueva.valid_until), str(frappe.utils.nowdate()))
 
     def test_enviar_dos_veces_falla(self):
