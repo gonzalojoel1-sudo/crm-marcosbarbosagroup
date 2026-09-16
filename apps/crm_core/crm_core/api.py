@@ -856,3 +856,194 @@ def toggle_task(name):
     new = "Todo" if current == "Done" else "Done"
     frappe.db.set_value("CRM Task", name, "status", new)
     return {"status": new}
+
+
+# ── Facturación: facturas, transiciones y PDF ─────────────────────────
+def _invoice_or_throw(name):
+    if not frappe.db.exists("CRM Factura", name):
+        frappe.throw("La factura no existe.")
+    return frappe.get_doc("CRM Factura", name)
+
+
+def _invoice_dto(f):
+    return {
+        "name": f.name,
+        "status": f.status,
+        "is_return": bool(f.is_return),
+        "return_against": f.return_against or "",
+        "organization": f.organization or "",
+        "org": frappe.db.get_value("CRM Organization", f.organization, "organization_name") or "",
+        "deal": f.deal or "",
+        "vertical": f.vertical or "",
+        "presupuesto": f.presupuesto or "",
+        "issue_date": str(f.issue_date) if f.issue_date else "",
+        "due_date": str(f.due_date) if f.due_date else "",
+        "period_start": str(f.period_start) if f.period_start else "",
+        "period_end": str(f.period_end) if f.period_end else "",
+        "currency": f.currency or "",
+        "iva_mode": f.iva_mode or "sumar",
+        "subtotal": float(f.subtotal or 0),
+        "discount_total": float(f.discount_total or 0),
+        "iva_amount": float(f.iva_amount or 0),
+        "total": float(f.total or 0),
+        "credit_total": float(f.credit_total or 0),
+        "paid_amount": float(f.paid_amount or 0),
+        "outstanding": float(f.outstanding or 0),
+        "fiscal_status": f.fiscal_status or "No aplica",
+        "sin_cae": (f.fiscal_status or "No aplica") != "Emitida",
+        "conditions": f.conditions or "",
+        "items": [
+            {
+                "description": it.description,
+                "billing_type": it.billing_type,
+                "qty": it.qty,
+                "rate": it.rate,
+                "discount_percentage": it.discount_percentage,
+                "net_amount": it.net_amount,
+                "period_start": str(it.period_start) if it.period_start else "",
+                "period_end": str(it.period_end) if it.period_end else "",
+            }
+            for it in (f.items or [])
+        ],
+        # Derivado, para que la UI no lo invente (mismo criterio que `is_editable` en F2)
+        "dias_para_vencer": _dias_para_vencer(f),
+        "is_editable": f.status == "Borrador",
+    }
+
+
+def _dias_para_vencer(f):
+    """Días al vencimiento (negativo si ya venció). La UI no calcula fechas."""
+    from frappe.utils import date_diff, nowdate
+
+    if not f.due_date or f.status in ("Pagada", "Anulada"):
+        return None
+    return date_diff(f.due_date, nowdate())
+
+
+@frappe.whitelist()
+def create_invoice_from_quote(presupuesto, issue_date=None, due_date=None):
+    """Emite una factura desde un presupuesto ACEPTADO. Los ítems se copian tal cual."""
+    p = frappe.get_doc("CRM Presupuesto", presupuesto)
+    if p.status != "Aceptado":
+        frappe.throw("Sólo se puede facturar un presupuesto aceptado.")
+    if frappe.db.exists("CRM Factura", {"presupuesto": presupuesto, "is_return": 0, "status": ["!=", "Anulada"]}):
+        frappe.throw("Ese presupuesto ya tiene una factura vigente.")
+
+    doc = frappe.new_doc("CRM Factura")
+    doc.organization = p.organization
+    doc.vertical = p.get("vertical")
+    doc.deal = p.deal
+    doc.presupuesto = presupuesto
+    doc.currency = p.currency
+    doc.iva_mode = p.iva_mode
+    doc.issue_date = issue_date or None
+    doc.due_date = due_date or None
+    doc.conditions = p.conditions
+    for it in p.items or []:
+        doc.append(
+            "items",
+            {
+                "description": it.description,
+                "billing_type": it.billing_type,
+                "qty": it.qty,
+                "rate": it.rate,
+                "discount_percentage": it.discount_percentage,
+                "presupuesto_item": it.name,
+            },
+        )
+    doc.insert(ignore_permissions=True)  # queda en Borrador
+    return _invoice_dto(doc)
+
+
+@frappe.whitelist()
+def create_invoice(organization, items, iva_mode="sumar", currency=None, issue_date=None, due_date=None, deal=None):
+    """Factura suelta, sin presupuesto (el spec lo permite y la API no lo tenía)."""
+    rows = frappe.parse_json(items) if isinstance(items, str) else (items or [])
+    rows = [r for r in rows if str(r.get("description") or "").strip()]
+    if not rows:
+        frappe.throw("Agregá al menos un ítem a la factura.")
+
+    doc = frappe.new_doc("CRM Factura")
+    doc.organization = organization
+    doc.deal = deal or None
+    doc.currency = currency or frappe.db.get_value("CRM Organization", organization, "currency") or "ARS"
+    doc.iva_mode = iva_mode or "sumar"
+    doc.issue_date = issue_date or None
+    doc.due_date = due_date or None
+    for r in rows:
+        doc.append(
+            "items",
+            {
+                "description": str(r.get("description")).strip(),
+                "billing_type": r.get("billing_type") or "Único",
+                "qty": r.get("qty") if r.get("qty") is not None else 1,
+                "rate": r.get("rate") if r.get("rate") is not None else 0,
+                "discount_percentage": r.get("discount_percentage") if r.get("discount_percentage") is not None else 0,
+            },
+        )
+    doc.insert(ignore_permissions=True)
+    return _invoice_dto(doc)
+
+
+@frappe.whitelist()
+def issue_invoice(name):
+    doc = _invoice_or_throw(name)
+    doc.issue()
+    return {"ok": True, "status": doc.status, "name": doc.name}
+
+
+@frappe.whitelist()
+def void_invoice(name):
+    doc = _invoice_or_throw(name)
+    doc.void()
+    return {"ok": True, "status": doc.status}
+
+
+@frappe.whitelist()
+def mark_invoice_uncollectible(name):
+    doc = _invoice_or_throw(name)
+    doc.mark_uncollectible()
+    return {"ok": True, "status": doc.status}
+
+
+@frappe.whitelist()
+def get_invoices(status=None, organization=None, solo_impagas=False, limit=100):
+    """Lista de facturas. El estado se **computa en lectura** para no mostrar 'Emitida'
+    un día de más si el job diario todavía no corrió."""
+    filtros = {"is_return": 0}
+    if status:
+        filtros["status"] = status
+    if organization:
+        filtros["organization"] = organization
+    rows = frappe.get_all(
+        "CRM Factura",
+        filters=filtros,
+        fields=["name"],
+        order_by="issue_date desc, name desc",
+        limit_page_length=int(limit),
+    )
+    out = []
+    for r in rows:
+        dto = _invoice_dto(frappe.get_doc("CRM Factura", r.name))
+        if solo_impagas and dto["outstanding"] <= 0:
+            continue
+        out.append(dto)
+    return {"facturas": out}
+
+
+@frappe.whitelist()
+def get_invoice(name):
+    return _invoice_dto(_invoice_or_throw(name))
+
+
+@frappe.whitelist()
+def invoice_pdf(name):
+    from crm_core.documents import invoice_context, render_invoice_pdf
+
+    doc = _invoice_or_throw(name)
+    ctx = invoice_context(name)
+    pdf = render_invoice_pdf(name)
+    fname = f"{'Nota de credito' if doc.is_return else 'Factura'} {doc.name} - {ctx['client']['company']}.pdf"
+    frappe.local.response.filename = re.sub(r'[\\/:*?"<>|]', "-", fname)
+    frappe.local.response.filecontent = pdf
+    frappe.local.response.type = "download"
