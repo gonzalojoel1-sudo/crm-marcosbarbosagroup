@@ -105,7 +105,7 @@ Copia el patrón que ya funcionó en `CRM Presupuesto` (F2), con lo que el estud
 | Transiciones | `sent_on`, `paid_on`, `voided_on`, `marked_uncollectible_on`, `cancelled_on` — **una marca por transición**, como Stripe |
 | Cobro | `currency`, `iva_mode` |
 | Ítems | `items` → `CRM Factura Item` |
-| Totales | `subtotal`, `discount_total`, `iva_amount`, `total`, `paid_amount`, `outstanding`, `overpaid` |
+| Totales | `subtotal`, `discount_total`, `iva_amount`, `total`, `credit_total`, `paid_amount`, `outstanding` |
 | Estado | `status` (ver §5.3) |
 | Nota de crédito | `is_return` (Check), `return_against` (Link), `credit_reason` |
 | Fiscal (vacío, preparado) | `comprobante_code` (Data, ej `011`), `comprobante_clase` (Select A/B/C/M/E), `point_of_sale`, `fiscal_number`, `cae`, `cae_due`, `fiscal_status`, `fiscal_response` |
@@ -138,16 +138,26 @@ una factura.
 | `reference` | Data | nº de operación / cheque |
 | `proof` | Attach | comprobante |
 | `applications` | Table → CRM Pago Aplicacion | a qué facturas se aplicó |
+| `kind` | Select | **Cobro** · **Crédito** · **Devolución** (ver §6) |
 | `status` | Select | Registrado · Anulado |
 
 ### 4.4 CRM Pago Aplicacion (child)
-`factura` (Link, reqd) · `applied_amount` (Currency, reqd) · `invoice_total` (Currency, read-only) ·
-`outstanding_before` (Currency, read-only).
+`factura` (Link, reqd) · `applied_amount` (Currency, reqd).
+
+**Sin snapshots** (`invoice_total`, `outstanding_before` se eliminan): se desactualizan en cuanto
+se emite una nota de crédito, y un dato que miente es peor que un dato que falta. Si hiciera falta
+para auditoría, se agrega después con una razón concreta. La aplicación **valida** que
+`factura.organization == pago.organization` y `factura.currency == pago.currency`.
 
 ### 4.5 CRM Punto de Venta y CRM Emisor
 `CRM Punto de Venta`: `numero` (Int, ej 1 → `0001`), `nombre`, `activo`, y por ahora nada fiscal.
-`CRM Emisor`: se crea vacío en F3 con los campos de AFIP (`cuit`, `razon_social`, `iva_condition`,
-`afip_cert`, `afip_key`) para que F6 sólo los complete.
+`CRM Emisor`: se crea vacío en F3 con los datos **informativos** de AFIP (`cuit`, `razon_social`,
+`iva_condition`) para que F6 los complete.
+
+**Sin `afip_cert` ni `afip_key` en F3** (hallazgo de seguridad de la auditoría): guardar un
+certificado y una **clave privada** como campos de texto plano de un DocType es un riesgo real, no un
+YAGNI. Cuando F6 integre el webservice, esos secretos van con almacenamiento cifrado y roles
+propios. F3 sólo documenta que existen.
 ---
 
 ## 5. Máquinas de estado
@@ -221,7 +231,7 @@ Borrador ──emitir──▶ Emitida   (monto NEGATIVO, return_against = F-202
   que corrige (regla de AFIP).
 - El efecto sobre el saldo se aplica **hasta `outstanding`**: una NC nunca deja `outstanding < 0`.
   Si el crédito supera lo pendiente de cobro (factura ya cobrada), **el excedente no se pierde**: se
-  convierte en **saldo a favor de la organización** (§5.4), con su propio registro.
+  convierte en **saldo a favor de la organización** (§6), con su propio registro.
 
 **Al emitir una NC, en este orden:**
 1. `outstanding_a_reducir = min(nc.total, factura.outstanding)`.
@@ -230,7 +240,7 @@ Borrador ──emitir──▶ Emitida   (monto NEGATIVO, return_against = F-202
    sube su `unapplied_amount` (el pago sigue registrado; lo que cambia es a qué está imputado). **No
    se toca `paid_amount` a mano**: `paid_amount` es la suma de las aplicaciones y se recalcula.
 4. **El excedente** (`nc.total − outstanding_a_reducir`) genera un **crédito a favor** de la
-   organización (§5.4).
+   organización (§6).
 
 **Requiere** `return_against` y una factura de origen emitida (`Emitida`, `Parcial`, `Pagada`,
 `Vencida`, `Incobrable`) — no se puede acreditar un borrador ni una anulada. Si la factura de origen
@@ -284,10 +294,40 @@ Se aplica **primero a lo más viejo** (FIFO por vencimiento), que es la práctic
 lo que evita que la deuda vieja quede abierta para siempre. El usuario puede **sobreescribir** el
 reparto a mano si quiere imputar distinto.
 
-**`outstanding` de una factura** = `total − paid_amount − credit_notes_total`. Se mantiene
-**denormalizado** y se recalcula en un solo lugar (`billing.recalculate_invoice`), nunca a mano en
-varios handlers — la lección de `has_quote` en F2, donde un campo derivado quedó desactualizado en
-silencio.
+**Guardas obligatorias de una aplicación** (hallazgo de la auditoría: sin esto, un pago en USD
+puede aplicarse por FIFO a la factura en ARS de **otro** cliente):
+- `factura.organization == pago.organization` — mismo cliente.
+- `factura.currency == pago.currency` — misma moneda (no hay conversión en F3).
+- `factura.outstanding > 0` y `factura.status` no es `Anulada`.
+- `Σ aplicaciones ≤ pago.amount`.
+
+**`reparto_fifo` recibe sólo facturas ya filtradas** por organización y moneda. La función es pura y
+no sabe de clientes: la guarda vive en la capa que la llama.
+
+**Tres tipos de movimiento** (`CRM Pago.kind`), todos con el mismo mecanismo de aplicación:
+| `kind` | Cuándo | Signo |
+|---|---|---|
+| `Cobro` | Entró plata (lo normal) | `amount > 0` |
+| `Crédito` | Una nota de crédito dejó **excedente** (§5.2) | `amount > 0`, nace 100% sin aplicar |
+| `Devolución` | Se le devuelve plata al cliente | `amount < 0` (sale) |
+
+Sin `kind`, el excedente de una NC y la devolución de un sobrepago **no tienen representación** —
+los dos huecos que encontró la auditoría. Con `kind`, el "saldo a favor" de la organización es
+**`Σ unapplied_amount` de los movimientos registrados**, un número que se calcula y no se guarda en
+un campo aparte que pueda divergir.
+
+**`outstanding` de una factura** = `total − paid_amount − credit_total`, y **nunca puede quedar
+negativo** (el tope de §5.2 lo garantiza). Se mantiene **denormalizado** por rendimiento del AR, y
+el argumento honesto es ése (rendimiento), **no** la lección de F2: en F2 `has_quote` era un derivado
+que quedó viejo y se arregló calculándolo en vivo. Como acá se denormaliza a propósito, la
+mitigación tiene que ser más fuerte que "una función":
+
+**Choke point único.** `billing.recalculate_invoice(factura)` **lee** las aplicaciones y las NC (no
+recibe montos) y es el **único** lugar que escribe `paid_amount`/`credit_total`/`outstanding`. Se
+invoca desde `on_update`, `after_insert` y `on_trash` de `CRM Pago`, `CRM Pago Aplicacion` y de la
+nota de crédito — **no** desde cada handler de API (que se olvidaría de uno). Más un test que
+compare el denormalizado contra el cálculo en vivo, y un job de reconciliación diario que avise si
+divergen.
 
 ---
 
@@ -296,8 +336,10 @@ silencio.
 - Serie **interna** por año: `F-.YYYY.-.####`, independiente de la fiscal. La UI muestra ambas.
 - La **fiscal** es correlativa **sin huecos, por punto de venta, por clase y por tipo**
   (RG 4290, verificado). Por eso:
-  - `fiscal_number` y `point_of_sale` existen **vacíos** desde el día 1 (ya reservados en F2 para el
-    presupuesto, acá se completan para la factura).
+  - `fiscal_number` y `point_of_sale` existen **vacíos** desde el día 1.
+    **Corrección de la auditoría:** la versión anterior afirmaba que F2 ya los había reservado para el
+    presupuesto. **Es falso** — verificado: `crm_presupuesto.json` no tiene ningún campo fiscal. F2 los
+    definió para la **factura** en el spec A2 (§4.5), pero no se implementaron. **El plan los crea.**
   - El punto de venta es un DocType (`CRM Punto de Venta`), no un número suelto.
 - `comprobante_code` guarda el **código AFIP** (`011` = Factura C), no un texto libre; y
   `comprobante_clase` la letra. La clase depende de la condición frente al IVA del emisor **y** del
@@ -325,10 +367,17 @@ Reusa `documents.py` (mismo membrete, Outfit embebida, Chromium headless, A4) y 
 PDF de presupuesto (F1/F2) **no la lleva**: es un incumplimiento concreto.
 
 - **Presupuesto**: agregar la "X" y la leyenda. (Task de corrección en F3, es una línea de plantilla.)
-- **Factura mientras no haya CAE**: la leyenda correcta en ese caso es **"DOCUMENTO NO VÁLIDO COMO
-  FACTURA"** también, porque una factura sin CAE no es un comprobante fiscal. Se muestra mientras
-  `fiscal_status = No aplica`; al integrar AFIP se reemplaza por el bloque fiscal.
-- **Recibo de pago** (si se imprime comprobante de cobro): misma leyenda.
+- **Factura sin CAE** (hallazgo de la auditoría, corrige la versión anterior): la "X" **no** aplica
+  a una factura — la "X" es para presupuestos, remitos, órdenes de trabajo y recibos. Una factura sin
+  CAE simplemente **no es un comprobante fiscal**, así que lo correcto no es ponerle "X" sino **no
+  presentarla como Factura A/B/C**: `comprobante_clase` queda vacío (y `fiscal_status = No aplica`), y
+  el PDF se rotula **"DOCUMENTO NO VÁLIDO COMO FACTURA"** como documento **interno**, para que nadie
+  lo confunda con un comprobante. Al integrar AFIP, la leyenda desaparece y entra el bloque fiscal.
+- **Recibo de pago** (si se imprime comprobante de cobro): misma leyenda que el presupuesto.
+
+**Fuente a citar en el código del plan** (la versión anterior citaba una página genérica): RG
+3803/1994 art. 9 y RG 1415 Anexo II. Y **queda por verificar con el usuario** si el PDF de factura
+**se entrega al cliente** o es de uso interno: si no se entrega, no hay obligación de leyenda en él.
 
 Esto convierte un "detalle de diseño" en un requisito verificable contra una fuente oficial.
 ---
@@ -375,15 +424,15 @@ Heredan las de F2 (§10 del spec A2) y agregan las de facturación:
 
 | Métrica | Fórmula |
 |---|---|
-| **Facturado del período** | Σ `total` de facturas emitidas (no anuladas, no notas de crédito) con `issue_date` en el período |
+| **Facturado del período** | Σ `total` de facturas emitidas (no anuladas, **`is_return = 0`**) con `issue_date` en el período |
 | **Acreditado del período** | Σ `total` (absoluto) de notas de crédito emitidas en el período |
 | **Neto facturado** | Facturado − Acreditado |
 | **Cobrado del período** | Σ `applied_amount` de pagos `Registrado` con `payment_date` en el período |
 | **A cuenta** | Σ `unapplied_amount` de pagos registrados (plata recibida sin imputar) |
-| **Deuda (AR)** | Σ `outstanding` de facturas no anuladas |
-| **Aging** | Tramos por días desde `due_date`: 0–30 / 31–60 / 61–90 / +90 |
-| **DSO** | (Deuda / facturado de los últimos 90 días) × 90 |
-| **Incobrable** | Σ `outstanding` de facturas en estado `Incobrable` |
+| **Deuda (AR)** | Σ `outstanding` de facturas no anuladas **y con `is_return = 0`** |
+| **Aging** | Tramos por días desde `due_date`, **sólo facturas** (`is_return = 0`) no anuladas: 0–30 / 31–60 / 61–90 / +90 |
+| **DSO** | (Deuda / facturado de los últimos 90 días) × 90 · **si el denominador es 0, devuelve `—`, no infinito ni error** |
+| **Incobrable** | Σ `outstanding` de facturas en estado `Incobrable` — se informa **aparte** y **también** sigue dentro de la Deuda (la deuda existe); el informe deja claro que no se espera cobrarla, en vez de esconderla |
 | **Tasa de cobro** | Cobrado / Neto facturado del período |
 
 **Moneda:** se informa **por moneda**, sin convertir (misma decisión que F2). Un total que mezcla
@@ -407,6 +456,13 @@ ARS y USD sin tipo de cambio es un número que no cierra contra la realidad.
   `apply_payment`, `void_payment`, `invoice_pdf`.
 - Índices: `CRM Factura(status, due_date)`, `CRM Factura(organization, issue_date)`,
   `CRM Pago(organization, payment_date)`, `CRM Pago Aplicacion(factura)`.
+- **Roles** (la auditoría notó que faltaban): `Finance User` registra pagos y emite facturas;
+  `Finance Manager` anula facturas y pagos, marca incobrable y emite notas de crédito. **Anular plata
+  no puede estar abierto a cualquiera.** Hoy hay un solo usuario; el modelo queda listo para delegar.
+- **Concurrencia**: aplicar saldo a cuenta se valida **dentro de la transacción** con lock del
+  `CRM Pago`; dos usuarios aplicando el mismo saldo a la vez no pueden sobreaplicarlo.
+- **Reportes retroactivos**: anular en febrero un pago de enero cambia el "Cobrado" de enero. Sin
+  cierre de período (fuera de alcance) es aceptable, pero el informe lo advierte.
 
 ---
 
