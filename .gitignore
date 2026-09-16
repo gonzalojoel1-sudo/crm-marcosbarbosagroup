@@ -48,3 +48,6 @@ modal.png
 agenda.png
 detail.png
 shot-*.png
+
+# Artefactos del harness de preview del PDF (se generan, no son fuente)
+quote-preview.*
