@@ -410,6 +410,35 @@ const abierto = await pp.evaluate(() => {
   const t = p.querySelector("#panel-titulo");
   const g = document.querySelector("#grilla");
   const gb = g ? g.getBoundingClientRect() : null;
+  const pb = p.getBoundingClientRect();
+  // el contrato real es NO superponerse a las columnas de días: que existan no alcanza
+  const solapa = [...document.querySelectorAll(".col")].some((c) => {
+    const b = c.getBoundingClientRect();
+    return pb.left < b.right - 1 && b.left < pb.right - 1;
+  });
+  // contraste del texto del panel contra su fondo efectivo (sube por ancestros sin fondo)
+  const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  const pixel = (bg, fg) => { cx.clearRect(0,0,1,1); cx.fillStyle = bg; cx.fillRect(0,0,1,1);
+    if (fg) { cx.fillStyle = fg; cx.fillRect(0,0,1,1); } const d = cx.getImageData(0,0,1,1).data; return [d[0],d[1],d[2]]; };
+  const rel = (rgb) => { const f = rgb.map((v) => { const c = v/255; return c <= 0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); }); return 0.2126*f[0]+0.7152*f[1]+0.0722*f[2]; };
+  const ratio = (a1, b1) => { const la = rel(a1), lb = rel(b1); const hi = Math.max(la,lb), lo = Math.min(la,lb); return (hi+0.05)/(lo+0.05); };
+  const fondoEfectivo = (el) => {
+    let n = el;
+    while (n && n !== document.documentElement) {
+      const bg = getComputedStyle(n).backgroundColor;
+      if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg;
+      n = n.parentElement;
+    }
+    return getComputedStyle(document.body).backgroundColor;
+  };
+  const contraste = (sel) => {
+    const el = p.querySelector(sel);
+    if (!el) return { sel, ratio: null };
+    const cs = getComputedStyle(el);
+    const r = ratio(pixel(fondoEfectivo(el), null), pixel(fondoEfectivo(el), cs.color));
+    return { sel, ratio: Math.round(r * 100) / 100 };
+  };
   return {
     rol: p.getAttribute("role"), modal: p.getAttribute("aria-modal"),
     etiquetado: p.getAttribute("aria-labelledby") === "panel-titulo" && !!t,
@@ -417,8 +446,10 @@ const abierto = await pp.evaluate(() => {
     focoEnPanel: p.contains(document.activeElement),
     grillaOperable: document.querySelectorAll(".ev").length > 0,
     grillaVisible: !!gb && gb.width > 0 && gb.height > 0,
+    solapa,
     shellPanel: document.querySelector(".shell")?.getAttribute("data-panel"),
     texto: (t?.textContent || "").trim(),
+    contrastes: ["#panel-titulo", "#panel label", "#panel .p-hint"].map(contraste),
   };
 });
 await pp.keyboard.press("Escape");
@@ -427,6 +458,12 @@ const cerrado = await pp.evaluate(() => ({
   hayPanel: !!document.querySelector("#panel"),
   focoEnStage: document.querySelector("#stage").contains(document.activeElement),
 }));
+// la rama de edición también declara día y hora en el título
+await pp.evaluate(() => abrirPanel({ dia: 1, min: 9 * 60, dur: 60, evento: { title: "Reunión de socios" } }));
+await pp.waitForTimeout(300);
+const editar = await pp.evaluate(() => (document.querySelector("#panel-titulo")?.textContent || "").trim());
+await pp.keyboard.press("Escape");
+await pp.waitForTimeout(300);
 await pp.close();
 {
   const v = [];
@@ -438,11 +475,19 @@ await pp.close();
     if (!abierto.etiquetado) v.push("sin aria-labelledby correcto");
     if (!abierto.focoEnTitulo || !abierto.focoEnPanel) v.push("el foco no entra al panel");
     if (!abierto.grillaOperable || !abierto.grillaVisible) v.push("la grilla desaparecio (el panel no debe taparla)");
+    if (abierto.solapa) v.push("el panel se superpone horizontalmente a las columnas");
     if (abierto.shellPanel !== "on") v.push(`shell data-panel ${abierto.shellPanel}`);
+    if (!/^Nueva reunión · martes 16, 09:00 – 09:45$/.test(abierto.texto)) v.push(`titulo de creacion sin contexto: ${abierto.texto}`);
+    for (const c of abierto.contrastes) {
+      if (c.ratio === null) v.push(`no se pudo medir el contraste de ${c.sel}`);
+      else if (c.ratio < 4.5) v.push(`contraste ${c.ratio}:1 en ${c.sel} (minimo 4.5)`);
+    }
   }
   if (cerrado.hayPanel) v.push("Escape no cierra el panel");
   if (!cerrado.focoEnStage) v.push("Escape no devuelve el foco");
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `panel no-modal · abre ${abierto.texto || "-"} · foco entra ${abierto.focoEnTitulo} · grilla visible ${abierto.grillaVisible} · Escape cierra ${!cerrado.hayPanel} · foco vuelve ${cerrado.focoEnStage}`);
+  if (!/^Editar · Reunión de socios · martes 16, 09:00 – 10:00$/.test(editar)) v.push(`titulo de edicion sin contexto: ${editar}`);
+  const peor = abierto.falta ? null : Math.min(...abierto.contrastes.map((c) => c.ratio ?? 99));
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `panel no-modal · abre ${abierto.texto || "-"} · foco entra ${abierto.focoEnTitulo} · grilla visible ${abierto.grillaVisible} · solapa columnas ${abierto.solapa} · contraste panel ${peor}:1 · Escape cierra ${!cerrado.hayPanel} · foco vuelve ${cerrado.focoEnStage}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 await browser.close();

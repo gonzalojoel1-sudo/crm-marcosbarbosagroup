@@ -341,7 +341,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 #panel h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
 #panel label { font-size: 12px; color: var(--fg-dim); }
 #panel input { background: var(--surface-2); border: 0; border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--fg); width: 100%; }
-#panel .p-hint { margin: -4px 0 0; font-size: 11px; color: var(--fg-faint); }
+#panel .p-hint { margin: -4px 0 0; font-size: 11px; color: var(--fg-dim); }
 #panel fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 #panel .p-dur { background: var(--surface-2); border: 0; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12px; color: var(--fg-dim); cursor: pointer; min-height: 24px; }
 #panel .p-dur.on { background: var(--accent); color: #fff; }
@@ -772,9 +772,10 @@ let PANEL = null;   // { dia, min, dur, evento } | null
 
 function abrirPanel({ dia, min, dur, evento = null }) {
   PANEL = { dia, min, dur, evento };
-  announce(evento ? `Editando ${evento.title}` : `Nueva reunión, ${DIAS_LARGOS[dia]} ${fmt(min)}`);
   mount(current);
-  // el panel recién existe tras el re-render de mount(): por eso el foco va en el siguiente frame
+  // el panel recién existe tras el re-render de mount(): por eso el foco va en el siguiente frame.
+  // Mover el foco ES el anuncio (el nombre accesible trae día, hora y título): nunca se
+  // anuncia y se mueve el foco a la vez, son alternativas.
   requestAnimationFrame(() => {
     document.querySelector("#panel input, #panel textarea")?.focus();
   });
@@ -782,10 +783,12 @@ function abrirPanel({ dia, min, dur, evento = null }) {
 
 function cerrarPanel({ volverFoco = true } = {}) {
   PANEL = null;
-  announce("Panel cerrado");
   mount(current);
   if (volverFoco) requestAnimationFrame(() => {
-    document.querySelector("#grilla .ev, #grilla [data-slot]")?.focus();
+    // sin evento enfocable (Lista/Mes o grilla vacía) cae en un control estable del stage
+    const destino = document.querySelector("#grilla .ev, #grilla [data-slot]")
+      || document.querySelector("#stage button");
+    destino?.focus();
   });
 }
 
@@ -794,7 +797,7 @@ function renderPanel() {
   const { dia, min, dur, evento } = PANEL;
   const fin = min + dur;
   const rango = `${fmt(min)} – ${fmt(fin)}`;
-  const titulo = evento ? `Editar · ${evento.title}` : `Nueva reunión · ${DIAS_LARGOS[dia]}, ${rango}`;
+  const titulo = evento ? `Editar · ${evento.title} · ${DIAS_LARGOS[dia]}, ${rango}` : `Nueva reunión · ${DIAS_LARGOS[dia]}, ${rango}`;
   return `<aside id="panel" role="dialog" aria-modal="false" aria-labelledby="panel-titulo">
     <h2 id="panel-titulo">${titulo}</h2>
     <form id="panel-form">
@@ -1115,6 +1118,7 @@ stage.addEventListener("click", (ev) => {
   if (ev.target.closest("[data-cerrar-panel]")) { cerrarPanel(); return; }
   const dur = ev.target.closest(".p-dur");
   if (dur) {
+    if (PANEL) PANEL.dur = Number(dur.dataset.dur);   // sobrevive a un re-render sin re-montar
     document.querySelectorAll("#panel .p-dur").forEach((b) => {
       const on = b === dur;
       b.classList.toggle("on", on);
@@ -1174,6 +1178,8 @@ stage.addEventListener("click", (ev) => {
   }
 });
 replay?.addEventListener("click", () => mount(current));
+// El submit real (validar + guardar) lo completa Task 4; ahora solo evita que Enter recargue.
+stage.addEventListener("submit", (ev) => { if (ev.target.closest("#panel-form")) ev.preventDefault(); });
 window.addEventListener("resize", moveHighlight);
 window.addEventListener("pointerdown", onDown, true);
 window.addEventListener("pointermove", onMove);
