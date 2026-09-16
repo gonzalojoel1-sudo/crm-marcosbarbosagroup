@@ -1008,30 +1008,31 @@ def mark_invoice_uncollectible(name):
 
 @frappe.whitelist()
 def get_invoices(status=None, organization=None, solo_impagas=False, limit=100):
-    """Lista de facturas. El estado se **computa en lectura** (`derived_status()`) para no
-    mostrar 'Emitida' un día de más si el job diario todavía no corrió.
+    """Lista de facturas.
 
-    Nota: `outstanding` (y por ende `solo_impagas` y el aging) cobran sentido recién cuando
-    exista el recálculo de pagos (Task 7). Hasta entonces vale 0 y `solo_impagas=True`
-    devuelve vacío: un cero honesto, no un cálculo provisorio duplicado."""
+    El estado se **computa en lectura** y el filtro por estado se aplica sobre el derivado,
+    no sobre la columna: el estado guardado es una cache que el job diario actualiza, y
+    filtrar por la cache devolveria una lista que no coincide con lo que muestra cada fila.
+
+    Ojo: `outstanding` (y por eso `solo_impagas` y el aging) cobran sentido cuando exista el
+    recalculo de pagos (Task 7); hasta entonces vale 0.
+    """
     filtros = {"is_return": 0}
-    if status:
-        filtros["status"] = status
     if organization:
         filtros["organization"] = organization
-    rows = frappe.get_all(
-        "CRM Factura",
-        filters=filtros,
-        fields=["name"],
-        order_by="issue_date desc, name desc",
-        limit_page_length=int(limit),
-    )
+    rows = frappe.get_all("CRM Factura", filters=filtros, fields=["name"],
+                          order_by="issue_date desc, name desc",
+                          limit_page_length=0 if status else int(limit))
     out = []
     for r in rows:
         dto = _invoice_dto(frappe.get_doc("CRM Factura", r.name))
+        if status and dto["status"] != status:
+            continue
         if solo_impagas and dto["outstanding"] <= 0:
             continue
         out.append(dto)
+        if len(out) >= int(limit):
+            break
     return {"facturas": out}
 
 

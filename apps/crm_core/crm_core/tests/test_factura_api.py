@@ -107,6 +107,18 @@ class TestFacturaApi(FrappeTestCase):
         frappe.db.set_value("CRM Factura", f.name, "status", "Emitida")  # cache vieja a proposito
         assert api.get_invoice(f.name)["status"] == "Vencida"
 
+    def test_el_filtro_por_estado_usa_el_derivado(self):
+        """Filtrar 'Vencida' tiene que traer la factura vencida aunque la cache diga otra cosa."""
+        org = self._org()
+        d = api.create_invoice(org, [{"description": "x", "qty": 1, "rate": 1000}])
+        f = frappe.get_doc("CRM Factura", d["name"])
+        f.issue_date = add_days(nowdate(), -30)
+        f.due_date = add_days(nowdate(), -5)
+        f.issue()
+        frappe.db.set_value("CRM Factura", f.name, "status", "Emitida")  # cache vieja
+        assert f.name in [x["name"] for x in api.get_invoices(status="Vencida")["facturas"]]
+        assert f.name not in [x["name"] for x in api.get_invoices(status="Pagada")["facturas"]]
+
     def test_no_se_anula_con_cobros_aplicados(self):
         f = self._factura()
         f.paid_amount = 1000
