@@ -92,6 +92,21 @@ class TestFacturaApi(FrappeTestCase):
         # Y el endpoint expone ese estado derivado, no un campo que la UI invente.
         assert api.get_invoice(f.name)["status"] == "Vencida"
 
+    def test_la_lectura_deriva_el_estado_aunque_la_cache_este_vieja(self):
+        """El estado guardado es una cache; la lectura lo deriva (spec §5.1).
+
+        Se emite una factura con vencimiento pasado y se fuerza el estado guardado a
+        'Emitida' (como si el job diario no hubiera corrido): la lectura debe ver 'Vencida'.
+        """
+        org = self._org()
+        d = api.create_invoice(org, [{"description": "x", "qty": 1, "rate": 1000}])
+        f = frappe.get_doc("CRM Factura", d["name"])
+        f.issue_date = add_days(nowdate(), -30)
+        f.due_date = add_days(nowdate(), -5)
+        f.issue()
+        frappe.db.set_value("CRM Factura", f.name, "status", "Emitida")  # cache vieja a proposito
+        assert api.get_invoice(f.name)["status"] == "Vencida"
+
     def test_no_se_anula_con_cobros_aplicados(self):
         f = self._factura()
         f.paid_amount = 1000

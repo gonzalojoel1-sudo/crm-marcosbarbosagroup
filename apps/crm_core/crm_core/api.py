@@ -868,7 +868,7 @@ def _invoice_or_throw(name):
 def _invoice_dto(f):
     return {
         "name": f.name,
-        "status": f.status,
+        "status": f.derived_status(),
         "is_return": bool(f.is_return),
         "return_against": f.return_against or "",
         "organization": f.organization or "",
@@ -1008,8 +1008,12 @@ def mark_invoice_uncollectible(name):
 
 @frappe.whitelist()
 def get_invoices(status=None, organization=None, solo_impagas=False, limit=100):
-    """Lista de facturas. El estado se **computa en lectura** para no mostrar 'Emitida'
-    un día de más si el job diario todavía no corrió."""
+    """Lista de facturas. El estado se **computa en lectura** (`derived_status()`) para no
+    mostrar 'Emitida' un día de más si el job diario todavía no corrió.
+
+    Nota: `outstanding` (y por ende `solo_impagas` y el aging) cobran sentido recién cuando
+    exista el recálculo de pagos (Task 7). Hasta entonces vale 0 y `solo_impagas=True`
+    devuelve vacío: un cero honesto, no un cálculo provisorio duplicado."""
     filtros = {"is_return": 0}
     if status:
         filtros["status"] = status

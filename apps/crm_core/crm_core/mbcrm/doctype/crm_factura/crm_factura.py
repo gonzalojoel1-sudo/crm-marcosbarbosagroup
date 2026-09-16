@@ -78,6 +78,24 @@ class CRMFactura(Document):
             )
 
     # ── Estado derivado ────────────────────────────────────────────────
+    def derived_status(self):
+        """Estado DERIVADO, calculado al vuelo, sin guardar.
+
+        Es el mismo cálculo que usa `refresh_status()`, expuesto para que las lecturas
+        (listas, informes, API) no dependan de que el job diario haya corrido: el estado
+        guardado es una caché, no la verdad. `Borrador` y `Anulada` no se derivan.
+        """
+        if self.status in ("Borrador", "Anulada"):
+            return self.status
+        return billing.invoice_status(
+            self.total,
+            self.paid_amount,
+            self.credit_total,
+            self.due_date,
+            is_return=bool(self.is_return),
+            is_uncollectible=self.status == "Incobrable",
+        )
+
     def refresh_status(self):
         """El ESTADO lo calcula `billing.invoice_status`. Nunca se setea a mano.
 
@@ -93,15 +111,7 @@ class CRMFactura(Document):
         """
         if self.status in ("Borrador", "Anulada"):
             return
-        self.status = billing.invoice_status(
-            self.total,
-            self.paid_amount,
-            self.credit_total,
-            self.due_date,
-            today=None,
-            is_return=bool(self.is_return),
-            is_uncollectible=self.status == "Incobrable",
-        )
+        self.status = self.derived_status()
         if self.status == "Pagada" and not self.paid_on:
             self.paid_on = now()
 
