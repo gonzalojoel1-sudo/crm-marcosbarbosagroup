@@ -303,6 +303,8 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .ldia-n { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
 .ldia-c { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
 .ldia[data-today] .ldia-n { color: var(--accent-2); }
+.ldia-cuerpo { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; min-width: 0; }
+.ldia-nueva { min-height: 24px; }   /* objetivo de puntero >= 24x24 */
 .levs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
 .lev {
   display: flex; align-items: baseline; gap: 12px; width: 100%; text-align: left;
@@ -615,7 +617,16 @@ function geom() {
     }
     return y;
   };
-  return { hourH, gridH, segs, yOf };
+  // inversa de yOf: el click y el arrastre la necesitan (ya se llamaba g.minOf, faltaba acá)
+  const minOf = (y) => {
+    let acc = 0;
+    for (const s of segs) {
+      if (y <= acc + s.h) return s.from + ((y - acc) / s.h) * (s.to - s.from);
+      acc += s.h;
+    }
+    return END_H * 60;
+  };
+  return { hourH, gridH, segs, yOf, minOf };
 }
 
 const overlaps = (cand) => EVENTS.some((e) =>
@@ -748,7 +759,9 @@ function renderList() {
           <span class="ldia-n">${DIAS_LARGOS[i]} de septiembre</span>
           <span class="ldia-c">${evs.length ? `${evs.length} reunión${evs.length > 1 ? "es" : ""}` : "sin reuniones"}</span>
         </h3>
-        ${evs.length
+        <div class="ldia-cuerpo">
+          <button class="ldia-nueva btn" data-nueva-dia="${i}">Nueva reunión</button>
+          ${evs.length
           ? `<ul class="levs">${evs.map((e) => `<li>
               <button class="lev${e.busy ? " busy" : ""}" title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"
                 aria-label="${DIAS_LARGOS[i]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
@@ -759,6 +772,7 @@ function renderList() {
                 ${e.sync && e.sync !== "ok" ? '<span class="lev-p">sin sincronizar</span>' : ""}
               </button></li>`).join("")}</ul>`
           : '<p class="lvy">Sin reuniones</p>'}
+        </div>
       </section>`;
     }).join("")
   }</div>`;
@@ -881,7 +895,7 @@ function render() {
                 .join("")}</div>`
             : ""}
           <button class="btn hoy-btn" data-now title="Ir a la hora actual (H)">Hoy · ${fmt(NOW_MIN)}</button>
-          <button class="btn primary">Nueva reunión</button>
+          <button class="btn primary" data-nueva title="Nueva reunión en la hora actual (N)">Nueva reunión</button>
         </span>
       </div>
       ${VIEW === "mes" ? renderMonth() : VIEW === "lista" ? renderList() : `<div class="gridwrap" tabindex="0" role="region" aria-label="Agenda de la semana del 15 al 19 de septiembre">
@@ -897,7 +911,7 @@ function render() {
           ${visibles.length === 0 ? `<div class="grid-empty">
             <p class="ge-t">No hay reuniones para mostrar</p>
             <p class="ge-s">Activá una agenda en la barra de la izquierda, o creá la primera reunión de la semana.</p>
-            <button class="btn primary">Nueva reunión</button>
+            <button class="btn primary" data-nueva title="Nueva reunión en la hora actual (N)">Nueva reunión</button>
           </div>` : ""}
         </div>
       </div>`}
@@ -932,6 +946,17 @@ function render() {
    Interacción: crear arrastrando · mover · estirar · snap 15 (1:1, springs)
    ══════════════════════════════════════════════════════════════════════ */
 let drag = null, lab = null;
+const DRAG_UMBRAL = 4;   // menos de esto es un click, no un arrastre
+let downEn = null;       // dónde empezó el puntero, para medir el desplazamiento
+
+/* Un solo puntero, sin arrastrar: click en el hueco abre el panel con ese día y hora.
+   Si hubo desplazamiento (> 4 px) se trata como arrastre y el panel no se abre. */
+function slotDesdeClick(ev, col) {
+  const r = col.getBoundingClientRect();
+  const g = geom();
+  const min = Math.round(g.minOf(ev.clientY - r.top) / 30) * 30;
+  return { dia: Number(col.dataset.day), min: Math.max(START_H * 60, Math.min(END_H * 60 - 30, min)) };
+}
 
 function ensureLab() {
   if (!lab) { lab = document.createElement("div"); lab.className = "droplab"; document.body.appendChild(lab); }
@@ -939,9 +964,11 @@ function ensureLab() {
 }
 
 function onDown(ev) {
+  downEn = null;
   if (ev.target.closest(".bandfold, .zoomctl")) return;
   const col = ev.target.closest(".col");
   if (!col) return;
+  downEn = { x: ev.clientX, y: ev.clientY };
   const g = geom();
   const day = Number(col.dataset.day);
   const y = ev.clientY - col.getBoundingClientRect().top;
@@ -1020,12 +1047,24 @@ function showLab(ev, text, clash) {
   l.style.display = "block";
 }
 
-function onUp() {
+function onUp(ev) {
   if (!drag) return;
   const d = drag; drag = null;
   if (lab) lab.style.display = "none";
   document.getElementById("ghost")?.remove();
 
+  // click quieto en un hueco (no sobre un evento): abre el panel; el arrastre crea como siempre
+  const clickQuieto = !!downEn && !!ev && d.kind === "create" &&
+    Math.abs(ev.clientX - downEn.x) < DRAG_UMBRAL && Math.abs(ev.clientY - downEn.y) < DRAG_UMBRAL;
+  downEn = null;
+  if (clickQuieto) {
+    const col = document.querySelector(`.col[data-day="${d.day}"]`);
+    if (col) {
+      const { dia, min } = slotDesdeClick(ev, col);
+      abrirPanel({ dia, min, dur: 45 });   // 45 min por defecto (spec S2)
+      return;
+    }
+  }
   if (d.moved && d.kind === "create") {
     EVENTS.push({ day: d.day, min: d.min0, dur: d.dur || 30, title: "Nueva reunión", cat: "trabajo", origin: "CRM", sync: "pend" });
   }
@@ -1158,6 +1197,12 @@ stage.addEventListener("click", (ev) => {
     mount(current);
     return;
   }
+  if (ev.target.closest("[data-nueva]")) {
+    abrirPanel({ dia: 1, min: NOW_MIN - (NOW_MIN % 30), dur: 45 });   // hoy, a la media hora en curso
+    return;
+  }
+  const nd = ev.target.closest("[data-nueva-dia]");
+  if (nd) { abrirPanel({ dia: Number(nd.dataset.nuevaDia), min: 9 * 60, dur: 45 }); return; }
   if (ev.target.closest(".hoy-btn")) { jumpToNow(); return; }
   const mt = ev.target.closest(".mini-toggle");
   if (mt) {
@@ -1189,6 +1234,11 @@ document.addEventListener("keydown", (e) => {
   // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
   if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if ((e.key === "n" || e.key === "N") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    abrirPanel({ dia: 1, min: NOW_MIN - (NOW_MIN % 30), dur: 45 });   // el atajo no consume las flechas que scrollean
+    e.preventDefault();
+    return;
+  }
   if (e.target.closest(".gridwrap")) { scrollKeys(e); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const num = parseInt(e.key, 10);

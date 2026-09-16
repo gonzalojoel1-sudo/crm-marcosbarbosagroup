@@ -490,4 +490,58 @@ await pp.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `panel no-modal · abre ${abierto.texto || "-"} · foco entra ${abierto.focoEnTitulo} · grilla visible ${abierto.grillaVisible} · solapa columnas ${abierto.solapa} · contraste panel ${peor}:1 · Escape cierra ${!cerrado.hayPanel} · foco vuelve ${cerrado.focoEnStage}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── Crear con un solo puntero sin arrastre (A1) y por teclado ──
+const cp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await cp.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await cp.waitForTimeout(400);
+const col = await cp.locator('.col[data-day="2"]').boundingBox();
+const y = await cp.evaluate(() => geom().yOf(11 * 60));
+await cp.mouse.click(col.x + col.width / 2, col.y + y + 6);
+await cp.waitForTimeout(400);
+const creado = await cp.evaluate(() => {
+  const t = document.querySelector("#panel-titulo")?.textContent || "";
+  return { abierto: !!document.querySelector("#panel"), texto: t.trim(), diceDia: /miércoles 17/.test(t), diceHora: /11:0\d/.test(t) };
+});
+await cp.keyboard.press("Escape");
+await cp.waitForTimeout(300);
+// un arrastre (> 4 px) crea el evento de siempre y NO abre el panel
+const evAntes = await cp.evaluate(() => document.querySelectorAll(".ev").length);
+const colD = await cp.locator('.col[data-day="3"]').boundingBox();
+const yD = await cp.evaluate(() => geom().yOf(16 * 60));
+await cp.mouse.move(colD.x + colD.width / 2, colD.y + yD);
+await cp.mouse.down();
+await cp.mouse.move(colD.x + colD.width / 2, colD.y + yD + 45, { steps: 6 });
+await cp.mouse.up();
+await cp.waitForTimeout(400);
+const drag = await cp.evaluate(() => ({ ev: document.querySelectorAll(".ev").length, panel: !!document.querySelector("#panel") }));
+await cp.keyboard.press("Escape");
+await cp.close();
+// ── camino de teclado: atajo N y botón por día en la Lista ──
+const kp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await kp.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await kp.waitForTimeout(400);
+await kp.keyboard.press("n");
+await kp.waitForTimeout(300);
+const porTecla = await kp.evaluate(() => (document.querySelector("#panel-titulo")?.textContent || "").trim());
+await kp.keyboard.press("Escape");
+await kp.waitForTimeout(300);
+await kp.locator('[data-view="lista"]').click();
+await kp.waitForTimeout(500);
+await kp.locator('[data-nueva-dia="3"]').click();
+await kp.waitForTimeout(300);
+const porDia = await kp.evaluate(() => (document.querySelector("#panel-titulo")?.textContent || "").trim());
+await kp.keyboard.press("Escape");
+await kp.close();
+{
+  const v = [];
+  if (!creado.abierto) v.push("el click en el hueco no abre el panel");
+  if (!creado.diceDia) v.push(`el panel no dice el dia: "${creado.texto}"`);
+  if (!creado.diceHora) v.push(`el panel no dice la hora: "${creado.texto}"`);
+  if (drag.ev <= evAntes) v.push(`el arrastre no creo evento (${evAntes}->${drag.ev})`);
+  if (drag.panel) v.push("el arrastre (>4 px) abrio el panel");
+  if (!/^Nueva reunión · martes 16, 15:30 – 16:15$/.test(porTecla)) v.push(`atajo N sin hora actual: "${porTecla}"`);
+  if (!/^Nueva reunión · jueves 18, 09:00 – 09:45$/.test(porDia)) v.push(`boton por dia sin contexto: "${porDia}"`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A1 puntero sin arrastre · ${creado.texto} · arrastre crea ${drag.ev > evAntes} sin panel ${!drag.panel} · tecla N "${porTecla}" · por dia "${porDia}"`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();
