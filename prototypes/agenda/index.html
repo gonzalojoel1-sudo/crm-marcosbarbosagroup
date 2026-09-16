@@ -2,67 +2,109 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#100f0d">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prototipo · Grilla de agenda</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ── Tokens reales del CRM (copiados de apps/web/src/styles.css) ───────── */
 :root {
-  --bg: #0c0c0e;
-  --surface: #141417;
-  --surface-2: #1a1a1f;
+  --bg: #100f0d;
+  --surface: #171614;
+  --surface-2: #1d1b18;
   --border: rgba(255, 255, 255, 0.08);
   --border-2: rgba(255, 255, 255, 0.15);
-  --fg: #f2f0eb;
+  --fg: #f4f1ea;
   --fg-dim: #8e8c94;
   --fg-faint: #5c5a62;
   --accent: #fe4100;
   --accent-2: #ff5c1f;
   --accent-soft: rgba(254, 65, 0, 0.12);
   --accent-line: rgba(254, 65, 0, 0.26);
-  --danger: #ff5a5a;
-  --ok: #34d399;
+  --danger: oklch(0.66 0.155 28);
+  --ok: #0d7c66;
   --r: 12px;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --ease: cubic-bezier(.23, 1, .32, 1);
 }
+html { color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html,
+
+body { height: 100%; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
   font: 400 14px/1.45 Outfit, system-ui, sans-serif;
+  --display: Fraunces, Georgia, serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
   -webkit-font-smoothing: antialiased;
 }
-::selection { background: var(--accent-soft); }
+::selection { background: rgba(254, 65, 0, .22); color: #fff; }
+input, textarea { caret-color: var(--accent); }
+a { text-underline-offset: 2px; text-decoration-thickness: 1px; }
+:root { --focus: #fe4100; }        /* 5.45:1 sobre el fondo: cumple 1.4.11 */
+*:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, .85);   /* dos colores (C40): se ve sobre cualquier superficie */
+}
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.rangetitle, .grid-empty .ge-t { text-wrap: balance; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 999px; border: 3px solid var(--bg); }
 
-#stage { min-height: 100vh; }
+/* el picker es chrome: le reservo su franja. La app ocupa el alto exacto, sin scroll de pagina. */
+#stage { height: 100vh; box-sizing: border-box; padding-top: 62px; }
 
 /* ── Shell común a las tres variantes ─────────────────────────────────── */
-.shell { display: grid; grid-template-columns: 212px 1fr 208px; gap: 14px; padding: 16px 18px 96px; min-height: 100vh; }
-.side, .mini { display: flex; flex-direction: column; gap: 18px; }
+.shell { display: grid; grid-template-columns: 212px 1fr 208px; gap: 14px; padding: 14px 18px 16px; height: 100%; box-sizing: border-box; min-height: 0; }
+/* por debajo de 1560px el panel lateral se pliega: el ancho va a las columnas de dias */
+.shell[data-mini="off"] { grid-template-columns: 200px 1fr; }
+.shell[data-mini="off"] .mini { display: none; }
+.shell > main { display: flex; flex-direction: column; min-height: 0; }
+.side, .mini { display: flex; flex-direction: column; gap: 18px; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.side, .mini { background: var(--surface); border-radius: 14px; padding: 14px; }
+/* por debajo de 1560px el panel lateral se pliega: el ancho va a las columnas de dias */
+@media (max-width: 1559px) { .shell { grid-template-columns: 200px 1fr; } .shell .mini { display: none; } }
 .block-title {
-  font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--fg-faint); margin: 0 0 7px;
+  font-size: 12.5px; font-weight: 600; letter-spacing: -.005em;
+  color: var(--fg); margin: 0 0 8px;
 }
-.cal { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; cursor: pointer; transition: background 140ms ease-out; }
+.cal {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px;
+  width: 100%; border-radius: 8px; cursor: pointer;
+  background: none; border: 0; font: inherit; color: inherit; text-align: left;
+  transition: background 140ms ease-out;
+}
 .cal:hover { background: var(--surface); }
 .cal .dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .cal .name { font-size: 13px; color: var(--fg); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal .count { font-size: 11px; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.cal .count { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
 .cal[data-off] .name, .cal[data-off] .count { color: var(--fg-faint); }
 .cal[data-off] .dot { opacity: .3; }
 .chev { margin-left: auto; color: var(--fg-faint); }
 
-.topbar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
-.rangetitle { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
-.rangecount { font-size: 12.5px; color: var(--fg-dim); }
-.topbar .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.topbar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: nowrap; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.skip {
+  position: fixed; top: 8px; left: 8px; z-index: 100;
+  transform: translateY(-200%); background: var(--accent); color: #fff;
+  font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 8px;
+}
+.skip:focus { transform: none; }
+
+.rangetitle { margin: 0; font-family: var(--display); font-optical-sizing: auto; font-size: 23px; font-weight: 400; letter-spacing: -.015em; white-space: nowrap; flex: none; }
+.rangecount { font-size: 12.5px; color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-variant-numeric: tabular-nums; }
+.topbar .right { margin-left: auto; display: flex; gap: 6px; align-items: center; flex: none; }
 .btn {
   background: var(--surface); border: 1px solid var(--border); color: var(--fg);
   font: inherit; font-size: 12.5px; padding: 5px 11px; border-radius: 8px; cursor: pointer;
@@ -75,18 +117,30 @@ body {
 .seg button { background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 12px; padding: 4px 9px; border-radius: 6px; cursor: pointer; }
 .seg button.on { background: var(--surface-2); color: var(--fg); }
 
-.gridwrap { position: relative; }
-.heads { display: grid; gap: 0; }
-.days { display: grid; position: relative; }
-.gutter { position: relative; }
+.gridwrap {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.heads {
+  display: grid; gap: 0; position: sticky; top: 0; z-index: 4;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  transition: box-shadow 160ms ease-out;
+}
+/* la sombra aparece solo cuando hay algo scrolleado debajo */
+.gridwrap[data-scrolled] .heads { box-shadow: 0 10px 14px -12px rgba(0,0,0,.85); }
+.days { display: grid; position: relative; flex: 1; min-height: 0; }
+.col.today-col { background: rgba(244,241,234,.022); }
+.gutter { position: relative; position: sticky; left: 0; z-index: 3; background: var(--bg); }
 .hourlab {
+  font-family: var(--mono); font-size: 11px; letter-spacing: -.02em; font-variant-numeric: tabular-nums;
   position: absolute; right: 8px; font-size: 11px; color: var(--fg-faint);
   font-variant-numeric: tabular-nums; letter-spacing: .01em;
 }
 .col { position: relative; }
 .colhead { display: flex; align-items: baseline; justify-content: center; gap: 5px; }
-.colhead .dow { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--fg-faint); }
-.colhead .dom { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.colhead .dow { font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-faint); }
+.colhead .dom { font-size: 18px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .colhead.today .dom { color: var(--accent-2); }
 .hourline { position: absolute; left: 0; right: 0; pointer-events: none; }
 
@@ -94,7 +148,13 @@ body {
 .nowline .bar { height: 1.5px; background: var(--accent); }
 .nowline .knob { position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
 
-.ev { position: absolute; left: 4px; right: 4px; overflow: hidden; cursor: grab; text-align: left; font: inherit; color: var(--fg); }
+.ev {
+  position: absolute; overflow: hidden; cursor: grab; text-align: left; font: inherit; color: var(--fg);
+  border: 0; appearance: none;
+  /* ancho = 1/carriles del grupo de solapamiento */
+  left: calc(var(--lane, 0) * (100% / var(--lanes, 1)) + 4px);
+  width: calc(100% / var(--lanes, 1) - 8px);
+}
 .ev:active { cursor: grabbing; }
 .ev .t { font-weight: 600; }
 .ev .m { font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
@@ -103,111 +163,170 @@ body {
 .ev[data-busy] { cursor: default; }
 .ev .sync { width: 7px; height: 7px; border-radius: 999px; display: inline-block; margin-left: 5px; }
 .sync.ok { background: var(--ok); }
-.sync.pend { background: #f59e0b; }
+.sync.pend { background: oklch(0.76 0.115 72); }
 .sync.fail { background: var(--danger); }
 
 .droplab {
   position: fixed; z-index: 40; transform: translate(-50%, -124%);
-  background: rgba(10,10,10,.9); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  border-radius: 8px; padding: 4px 9px; font-size: 12px; font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset, 0 6px 18px rgba(0,0,0,.4);
+  background: #1f1d19; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border-radius: 10px; padding: 5px 10px; font-size: 12px; font-variant-numeric: tabular-nums;
+  font-family: var(--mono); letter-spacing: -.01em;
+  box-shadow: 0 8px 20px rgba(0,0,0,.45);
   pointer-events: none; white-space: nowrap;
 }
 .droplab b { font-weight: 600; }
 .droplab em { font-style: normal; color: var(--danger); }
 
 .mini .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.mini .mgrid span { font-size: 11.5px; text-align: center; color: var(--fg-dim); padding: 3px 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
-.mini .mgrid span.h { color: var(--fg-faint); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.mini .mgrid span { font-family: var(--mono); font-size: 11px; text-align: center; color: var(--fg-dim); padding: 3px 0; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.mini .mgrid span.h { color: var(--fg-faint); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
 .mini .mgrid span.inrange { background: var(--surface); color: var(--fg); }
 .mini .mgrid span.today { background: var(--accent-soft); color: var(--accent-2); font-weight: 600; }
-.mini .mgrid span.ev::after { content: ""; display: block; width: 4px; height: 4px; border-radius: 999px; background: var(--fg-faint); margin: 2px auto 0; }
+.mini .mgrid span.has-ev::after { content: ""; display: block; width: 4px; height: 4px; border-radius: 999px; background: var(--fg-faint); margin: 2px auto 0; }
 .legend { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--fg-dim); }
 .legend div { display: flex; align-items: center; gap: 7px; }
 .legend i { width: 16px; height: 9px; border-radius: 3px; display: block; }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   VARIANTE 1 · PRECISO — la grilla es la protagonista
-   Hairlines al 9%, gutter monoespaciada, el evento es una línea etiquetada.
+   EL EJE QUE CAMBIA ENTRE LAS TRES ES CÓMO SE OCUPA EL VACÍO
+   Franja  = hundir las horas fuera de horario (BusyCal "shade the times")
+   Pliegue = colapsar las franjas vacías en una fila etiquetada (Google Labs)
+   Zoom    = control de densidad del alto de hora (Notion Calendar)
+   En las tres, el rango horario del evento está SIEMPRE visible.
    ═══════════════════════════════════════════════════════════════════════ */
-[data-variant="preciso"] .heads, [data-variant="preciso"] .days { grid-template-columns: 56px repeat(5, 1fr); }
-[data-variant="preciso"] .colhead { padding: 8px 0 9px; border-bottom: 1px solid rgba(255,255,255,.09); }
-[data-variant="preciso"] .hourline { border-top: 1px solid rgba(255,255,255,.085); }
-[data-variant="preciso"] .hourline.half { border-top: 1px dashed rgba(255,255,255,.045); }
-[data-variant="preciso"] .col { border-right: 1px solid rgba(255,255,255,.085); }
-[data-variant="preciso"] .col:last-child { border-right: 0; }
-[data-variant="preciso"] .ev {
-  border: 0; padding: 3px 7px; border-radius: 5px;
-  background: color-mix(in srgb, var(--c) 13%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 32%, transparent);
-}
-[data-variant="preciso"] .ev[data-compact] { padding: 2px 7px; }
-[data-variant="preciso"] .ev .t { font-size: 12.5px; display: block; line-height: 1.25; }
-[data-variant="preciso"] .ev .m { font-size: 11px; display: block; }
-[data-variant="preciso"] .ev .k { display: none; }
-[data-variant="preciso"] .ev[data-compact] .m { display: none; }
-[data-variant="bloque"] .ev[data-compact] { padding: 5px 9px; }
-[data-variant="bloque"] .ev[data-compact] .t { font-size: 12.5px; }
-[data-variant="preciso"] .slot:hover { background: rgba(255,255,255,.02); }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   VARIANTE 2 · BLOQUE — el evento es la protagonista
-   Relleno suave con peso, la grilla como andamio casi invisible.
-   ═══════════════════════════════════════════════════════════════════════ */
-[data-variant="bloque"] .heads, [data-variant="bloque"] .days { grid-template-columns: 62px repeat(5, 1fr); }
-[data-variant="bloque"] .colhead { padding: 12px 0 12px; }
-[data-variant="bloque"] .hourline { border-top: 1px solid rgba(255,255,255,.035); }
-[data-variant="bloque"] .hourline.half { border-top: 0; }
-[data-variant="bloque"] .col { border-right: 1px solid rgba(255,255,255,.03); }
-[data-variant="bloque"] .col:last-child { border-right: 0; }
-[data-variant="bloque"] .ev {
-  background: color-mix(in srgb, var(--c) 22%, #141417);
-  border-radius: 10px; padding: 7px 9px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 34%, transparent), 0 1px 2px rgba(0,0,0,.3);
+.ev {
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--c);
+  border-radius: 12px; padding: 7px 10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 2px 6px rgba(0,0,0,.38);
+  transition: box-shadow 150ms ease-out, filter 150ms ease-out;
 }
-[data-variant="bloque"] .ev .t { font-size: 13px; letter-spacing: -.005em; display: block; }
-[data-variant="bloque"] .ev .m { display: block; margin-top: 1px; }
-[data-variant="bloque"] .ev .k { display: none; }
-[data-variant="bloque"] .ev[data-busy] {
-  background: repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 6px, transparent 6px 12px);
-  box-shadow: inset 0 0 0 1px var(--border);
+.ev:hover { filter: brightness(1.07); box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 5px 14px rgba(0,0,0,.45); }
+.ev .t { order: 1; font-weight: 500; font-size: 13px; line-height: 1.2; color: #fff; }
+/* el secundario se tine desde el propio bloque, nunca gris */
+.ev .m {
+  order: 2; font-family: var(--mono); font-size: 11px; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums; color: #fff; font-weight: 400;
 }
-[data-variant="bloque"] .ev[data-busy] .t { color: var(--fg-dim); font-weight: 500; }
-[data-variant="bloque"] .slot:hover { background: rgba(255,255,255,.018); }
+/* bajo: no se pierde el rango horario, se pone delante */
+.ev .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* en bloque bajo el titulo necesita el ancho: se muestra solo la hora de inicio */
+.ev[data-compact] { flex-direction: row; align-items: baseline; gap: 7px; padding: 5px 9px; border-radius: 9px; }
+.ev[data-compact] .m { order: 1; flex: none; }
+.ev[data-compact] .to { display: none; }
+.ev[data-compact] .t { order: 2; flex: 1; min-width: 0; -webkit-line-clamp: 1; font-size: 12.5px; white-space: nowrap; }
+/* mínimo: a esta altura solo entra una cosa, y esa cosa es el TITULO
+   (la hora ya la dicen la posición en la grilla, el gutter y el tooltip) */
+.ev[data-tiny] { flex-direction: row; align-items: center; padding: 3px 9px; }
+.ev[data-tiny] .m { display: none; }
+.ev[data-tiny] .t { display: -webkit-box; -webkit-line-clamp: 1; font-size: 12px; }
+/* comparte columna con otro evento: el titulo se queda con todo el ancho disponible */
+.ev[data-narrow] { padding: 6px 8px; }
+.ev[data-narrow] .m { display: none; }
+.ev[data-narrow] .t { display: -webkit-box; -webkit-line-clamp: 2; font-size: 12.5px; }
+.ev[data-busy] { background: #211f1b; box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.3); }
+.ev[data-busy] .t, .ev[data-busy] .m {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .02em;
+  text-transform: uppercase; color: rgba(244,241,234,.55);
+}
 
-/* ═══════════════════════════════════════════════════════════════════════
-   VARIANTE 3 · FLUJO — la metáfora: el tiempo como cinta
-   Sin tabla. El alto ES la duración. El hueco libre es "disponible".
-   ═══════════════════════════════════════════════════════════════════════ */
-[data-variant="flujo"] .heads, [data-variant="flujo"] .days { grid-template-columns: 46px repeat(5, 1fr); }
-[data-variant="flujo"] .colhead { padding: 14px 0 16px; }
-[data-variant="flujo"] .hourline { border-top: 0; }
-[data-variant="flujo"] .col { border-right: 0; padding: 0 5px; }
-[data-variant="flujo"] .rail { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.05); }
-[data-variant="flujo"] .free {
-  position: absolute; left: 5px; right: 5px;
-  background: radial-gradient(120% 80% at 50% 50%, rgba(255,255,255,.022), transparent 70%);
-  border-radius: 14px;
+/* Franja: la banda fuera de horario se hunde, no desaparece */
+.bandshade { position: absolute; left: 0; right: 0; background: rgba(0,0,0,.3); pointer-events: none; z-index: 1; }
+.bandlab {
+  position: absolute; left: 0; right: 0; text-align: center; transform: translateY(-50%);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--fg-faint); pointer-events: none; z-index: 2;
 }
-[data-variant="flujo"] .ev {
-  left: 0; right: 0;
-  background: color-mix(in srgb, var(--c) 26%, #0c0c0e);
-  border-radius: 999px; padding: 9px 13px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent), 0 4px 14px rgba(0,0,0,.35);
+
+/* Pliegue: la franja vacía se pliega a una fila fina, etiquetada y reversible */
+.bandfold {
+  position: absolute; left: 0; right: 0; display: flex; align-items: center;
+  justify-content: center; gap: 7px; cursor: pointer; font: inherit;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .03em; color: var(--fg-faint);
+  background: rgba(244,241,234,.022); border: 0;
+  border-top: 1px solid rgba(244,241,234,.05);
+  border-bottom: 1px solid rgba(244,241,234,.05); z-index: 3;
 }
-[data-variant="flujo"] .ev .t { font-size: 13px; display: block; }
-[data-variant="flujo"] .ev .m { display: block; margin-top: 1px; font-size: 11px; }
-[data-variant="flujo"] .ev .k { display: none; }
-[data-variant="flujo"] .ev[data-compact] { padding: 7px 13px; }
-[data-variant="flujo"] .ev[data-compact] .m { display: none; }
-[data-variant="flujo"] .ev[data-busy] { background: rgba(255,255,255,.045); box-shadow: 0 0 0 1px var(--border); }
-[data-variant="flujo"] .hourlab { right: auto; left: 4px; background: var(--bg); padding: 0 4px; font-size: 10.5px; }
-[data-variant="flujo"] .inlinetime {
-  position: absolute; left: 50%; transform: translateX(-50%); z-index: 6;
-  font-size: 10.5px; font-weight: 500; color: var(--fg-faint);
-  background: var(--bg); padding: 1px 6px; border-radius: 999px; pointer-events: none;
-  font-variant-numeric: tabular-nums;
+.bandfold:hover { background: rgba(244,241,234,.055); color: var(--fg-dim); }
+.bandfold b { font-weight: 500; color: var(--fg-dim); }
+
+[data-variant="franja"] .heads, [data-variant="franja"] .days,
+[data-variant="pliegue"] .heads, [data-variant="pliegue"] .days,
+[data-variant="zoom"] .heads, [data-variant="zoom"] .days { grid-template-columns: 52px repeat(5, 1fr); }
+[data-variant="franja"] .colhead, [data-variant="pliegue"] .colhead, [data-variant="zoom"] .colhead { padding: 11px 0; }
+[data-variant="franja"] .hourline, [data-variant="pliegue"] .hourline, [data-variant="zoom"] .hourline { border-top: 1px solid rgba(244,241,234,.12); }
+[data-variant="franja"] .hourline.half, [data-variant="pliegue"] .hourline.half, [data-variant="zoom"] .hourline.half { border-top: 0; }
+[data-variant="franja"] .col, [data-variant="pliegue"] .col, [data-variant="zoom"] .col { border-right: 1px solid rgba(255,255,255,.09); }
+[data-variant="franja"] .col:last-child, [data-variant="pliegue"] .col:last-child, [data-variant="zoom"] .col:last-child { border-right: 0; }
+[data-variant="franja"] .slot:hover, [data-variant="pliegue"] .slot:hover, [data-variant="zoom"] .slot:hover { background: rgba(255,255,255,.018); }
+
+/* Zoom: el control de densidad */
+.zoomctl { display: flex; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; }
+.zoomctl button {
+  background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 11px;
+  padding: 3px 7px; border-radius: 6px; cursor: pointer; white-space: nowrap;
 }
+.zoomctl button.on { background: var(--surface); color: var(--fg); }
+.meswrap { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.mes { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.mes thead th {
+  text-align: left; font-family: var(--mono); font-size: 11px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--fg-faint);
+  padding: 0 8px 8px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--bg); z-index: 2;
+}
+.mcell { vertical-align: top; height: 104px; padding: 7px 8px; border-top: 1px solid var(--border); border-right: 1px solid rgba(255,255,255,.05); }
+.mcell:last-child { border-right: 0; }
+.mcell.hoy { background: rgba(254,65,0,.055); box-shadow: inset 0 2px 0 var(--accent); }
+.mnum { display: block; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg-dim); margin-bottom: 5px; }
+.mcell.hoy .mnum { color: var(--accent-2); }
+.mev {
+  display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  background: var(--surface); border: 0; border-radius: 5px;
+  padding: 3px 7px; margin-bottom: 3px;
+  font: inherit; color: var(--fg); cursor: pointer; overflow: hidden;
+  transition: background 140ms ease-out;
+}
+.mev:hover { background: var(--surface-2); }
+.mev-d { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.mev-h { font-family: var(--mono); font-size: 10.5px; color: var(--fg-dim); flex: none; }
+.mev-t { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mev.busy { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.mmas { background: none; border: 0; padding: 1px 6px; font: inherit; font-size: 11.5px; color: var(--fg-dim); cursor: pointer; text-align: left; width: 100%; border-radius: 5px; }
+.mmas:hover { background: var(--surface); color: var(--fg); }
+
+.lista { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
+.ldia { display: grid; grid-template-columns: 168px 1fr; gap: 20px; padding: 16px 0; border-top: 1px solid var(--border); }
+.ldia:first-child { border-top: 0; padding-top: 4px; }
+.ldia-h { margin: 0; position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 2px; }
+.ldia-n { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.ldia-c { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
+.ldia[data-today] .ldia-n { color: var(--accent-2); }
+.levs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.lev {
+  display: flex; align-items: baseline; gap: 12px; width: 100%; text-align: left;
+  background: var(--surface); border: 0; border-radius: 10px; padding: 9px 12px;
+  font: inherit; color: inherit; cursor: pointer; transition: background 140ms ease-out;
+}
+.lev:hover { background: var(--surface-2); }
+.lev-h { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--fg-dim); flex: none; width: 122px; }
+.lev-t { flex: 1; min-width: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lev-c { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--fg-dim); flex: none; }
+.lev-c i { width: 8px; height: 8px; border-radius: 3px; display: block; }
+.lev.busy { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.lev-p { font-family: var(--mono); font-size: 11px; color: var(--ok); flex: none; }
+.lvy { margin: 0; font-size: 13px; color: var(--fg-faint); }
+
+.grid-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; text-align: center; z-index: 5;
+}
+.grid-empty .ge-t { font-size: 14px; font-weight: 500; color: var(--fg); margin: 0; }
+.grid-empty .ge-s { font-size: 12.5px; color: var(--fg-dim); margin: 0 0 8px; max-width: 46ch; }
+
+.bandover { position: absolute; left: 52px; right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 4; }
+.bandover .bandfold { pointer-events: auto; }
 
 .slot { position: absolute; left: 0; right: 0; cursor: crosshair; }
 
@@ -253,6 +372,7 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .proto-picker[data-ready] .proto-picker-highlight { transition: none; }
+  *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
 .proto-picker-item {
   position: relative;
@@ -280,11 +400,13 @@ body {
 <body>
 <div id="stage"></div>
 
+<a class="skip" href="#grilla">Saltar a la grilla</a>
+
 <nav class="proto-picker" data-position="top" aria-label="Prototype variants">
   <span class="proto-picker-highlight" aria-hidden="true"></span>
-  <button class="proto-picker-item" data-active aria-current="true">Preciso</button>
-  <button class="proto-picker-item">Bloque</button>
-  <button class="proto-picker-item">Flujo</button>
+  <button class="proto-picker-item" data-active aria-current="true">Franja</button>
+  <button class="proto-picker-item">Pliegue</button>
+  <button class="proto-picker-item">Zoom</button>
   <span class="proto-picker-divider" aria-hidden="true"></span>
   <button class="proto-picker-item proto-picker-replay" aria-label="Replay animation (R)">↻</button>
 </nav>
@@ -293,15 +415,20 @@ body {
 /* ══════════════════════════════════════════════════════════════════════
    Datos realistas: las categorías y las verticales del grupo
    ══════════════════════════════════════════════════════════════════════ */
+/* Paleta: un solo croma (0,155) para que sea UNA familia; la luminosidad de cada
+   matiz la fija el contraste con texto blanco (>= 4.6:1). Bloques solidos, no tintes. */
 const CATS = {
-  trabajo:    { label: "Trabajo",    color: "#ff5a5a" },
-  ministerial:{ label: "Ministerial",color: "#4da3ff" },
-  personal:   { label: "Personal",   color: "#34d399" },
-  consultora: { label: "Consultora", color: "#fe4100" },
-  software:   { label: "Software",   color: "#8b5cf6" },
+  consultora: { label: "Consultora", color: "oklch(0.576 0.155 45)"  },
+  ministerial:{ label: "Ministerial",color: "oklch(0.558 0.155 245)" },
+  personal:   { label: "Personal",   color: "oklch(0.54 0.155 155)"  },
+  trabajo:    { label: "Trabajo",    color: "oklch(0.574 0.155 285)" },
+  software:   { label: "Software",   color: "oklch(0.58 0.155 330)"  },
 };
+// El mismo tinte que usan los bloques: la leyenda muestra lo que se ve, no el color crudo.
+const tint = (c) => c;   // los puntos muestran el color real del bloque
 const DAYS = ["Lun 15", "Mar 16", "Mié 17", "Jue 18", "Vie 19"];
-const START_H = 8, END_H = 21, SLOTS_PER_H = 4;
+const DIAS_LARGOS = ["lunes 15", "martes 16", "miércoles 17", "jueves 18", "viernes 19"];
+const START_H = 5, END_H = 21, SLOTS_PER_H = 4;
 
 let EVENTS = [
   { day: 0, min: 8 * 60 + 30, dur: 45,  title: "Reunión de equipo",            cat: "trabajo",     origin: "CRM",     sync: "ok" },
@@ -316,6 +443,8 @@ let EVENTS = [
   { day: 2, min: 17 * 60,      dur: 60,  title: "Jonatan · Plan 3",           cat: "consultora",  origin: "Reserva", sync: "fail", sub: "Reintentando sincronizar" },
   { day: 3, min: 10 * 60,      dur: 30,  title: "Seguimiento semanal",        cat: "trabajo",     origin: "CRM",     sync: "ok" },
   { day: 3, min: 13 * 60 + 15, dur: 90,  title: "Taller: Software y Apps",    cat: "software",    origin: "CRM",     sync: "ok" },
+  { day: 1, min: 9 * 60,       dur: 60,  title: "Reunión de socios",          cat: "consultora", origin: "CRM",     sync: "ok" },
+  { day: 1, min: 9 * 60 + 15,  dur: 45,  title: "Llamada: Estudio Norte",     cat: "ministerial",origin: "Reserva", sync: "ok" },
   { day: 4, min: 9 * 60 + 30,  dur: 45,  title: "Fernando Bustos · Plan 1",   cat: "consultora",  origin: "Reserva", sync: "ok" },
   { day: 4, min: 12 * 60,      dur: 60,  title: "Ministerio · Los 1000 Socios",cat: "ministerial",origin: "CRM",     sync: "ok" },
   { day: 4, min: 16 * 60 + 30, dur: 60,  title: "Legendarios · próximas fechas", cat: "ministerial", origin: "Google", sync: null, busy: true },
@@ -328,135 +457,389 @@ const cat = (k) => CATS[k] || { label: "", color: "#6b7280" };
 /* ══════════════════════════════════════════════════════════════════════
    Grilla + interacción (idéntica en las tres; cambia la presentación)
    ══════════════════════════════════════════════════════════════════════ */
-const HOUR_H = { preciso: 44, bloque: 52, flujo: 58 };
-let VARIANT = "preciso";
+const HOUR_H = { franja: 44, pliegue: 50, zoom: 44 };
+const ZOOM_STEPS = [ { m: 0.72, label: "Compacto" }, { m: 1, label: "Cómodo" }, { m: 1.32, label: "Amplio" } ];
+let ZOOM_MULT = 1.32;   // Amplio: la densidad elegida
+let PENDING_SCROLL = null;
+let FIRST_PAINT = true;   // la primera pintura abre en la hora actual
+const VIEWS = ["semana", "lista", "mes"];
+let VIEW = VIEWS.includes(new URLSearchParams(location.search).get("view"))
+  ? new URLSearchParams(location.search).get("view") : "semana";
+// El mes cuadra con la semana: el 15 es lunes, asi que el 1 tambien. Se muestran
+// solo los dias de semana (Lun a Vie), igual que la grilla: la semana de 15-19 es una fila.
+const MES = { dias: 30, hoy: 16, cols: ["lunes", "martes", "miércoles", "jueves", "viernes"] };
+const semanasDelMes = () => {
+  const filas = [];
+  for (let d = 1; d <= MES.dias; d++) {
+    const wd = (d - 1) % 7;
+    if (wd > 4) continue;                       // fin de semana: no se muestra
+    const w = Math.floor((d - 1) / 7);
+    (filas[w] = filas[w] || []).push(d);
+  }
+  return filas;
+};
+let OPEN = new Set();
+let HIDDEN = new Set();          // agendas (categorias) apagadas
+let HIDDEN_ORIGIN = new Set();   // origenes apagados (cubre los importados sin categoria)
+// Un evento se oculta por su agenda; si no tiene agenda (importado), por su origen.
+const oculto = (e) => (e.cat ? HIDDEN.has(e.cat) : HIDDEN_ORIGIN.has(e.origin));
+let VARIANT = "franja";
+
+const WORK_FROM = 9 * 60, WORK_TO = 18 * 60;   // horario del grupo (theme.ts)
+const NOW_MIN = 15 * 60 + 42;                  // "ahora" del prototipo: un solo lugar
+
+function bandsFrom() {
+  const busy = EVENTS.filter((e) => !e.busy);
+  if (!busy.length) return [];
+  const sorted = busy.slice().sort((a, b) => a.min - b.min);
+  const first = Math.floor(sorted[0].min / 30) * 30;
+  const last = Math.ceil(Math.max(...sorted.map((e) => e.min + e.dur)) / 30) * 30;
+  const from = Math.max(START_H * 60, first);
+  const to = Math.min(END_H * 60, last);
+  const out = [];
+  if (from - START_H * 60 > 30) out.push({ from: START_H * 60, to: from });
+  if (END_H * 60 - to > 30) out.push({ from: to, to: END_H * 60 });
+  return out;
+}
+
+const FOLD_H = 30;   // alto de una franja plegada
+let LAST_FIT = 0;    // alto de hora calculado para entrar en pantalla
+
+// El alto de hora se DERIVA del alto real disponible, no de una constante.
+function fitHourHeight() {
+  const wrap = document.querySelector(".gridwrap");
+  const heads = document.querySelector(".heads");
+  if (!wrap || !wrap.clientHeight) return 44;
+  const avail = wrap.clientHeight - (heads ? heads.getBoundingClientRect().height : 0) - 2;
+  const bands = VARIANT === "pliegue" ? bandsFrom() : [];
+  let foldPx = 0, foldHours = 0;
+  for (const b of bands) {
+    if (!OPEN.has(`${b.from}-${b.to}`)) { foldPx += FOLD_H; foldHours += (b.to - b.from) / 60; }
+  }
+  const freeHours = (END_H - START_H) - foldHours;
+  if (avail < 80 || freeHours <= 0) return 44;
+  return Math.max(22, (avail - foldPx) / freeHours);
+}
+
+// minuto que esta en el centro del area visible (para conservar el ancla al cambiar densidad)
+function centerTime() {
+  const wrap = document.querySelector(".gridwrap");
+  if (!wrap) return null;
+  const g = geom();
+  const midY = wrap.scrollTop + wrap.clientHeight / 2;
+  let lo = START_H * 60, hi = END_H * 60;
+  for (let i = 0; i < 26; i++) { const m = (lo + hi) / 2; if (g.yOf(m) < midY) lo = m; else hi = m; }
+  return Math.round((lo + hi) / 2);
+}
+function scrollToTime(min, smooth) {
+  const wrap = document.querySelector(".gridwrap");
+  if (!wrap || min == null) return;
+  const top = geom().yOf(min) - wrap.clientHeight / 2;
+  const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (smooth && !quieto) wrap.scrollTo({ top, behavior: "smooth" });
+  else wrap.scrollTop = top;
+}
+function jumpToNow() {
+  if (VIEW === "lista") {
+    const hoy = document.querySelector(".ldia[data-today]");
+    const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (hoy) hoy.scrollIntoView({ block: "start", behavior: quieto ? "auto" : "smooth" });
+    return;
+  }
+  scrollToTime(NOW_MIN, true);
+}
+
+// Teclado: la grilla scrollea sin mouse (el modelo Amplio vive de scrollear)
+function scrollKeys(ev) {
+  const wrap = document.querySelector(".gridwrap");
+  if (!wrap || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  const g = geom();
+  const hora = g.hourH;
+  const paso = { ArrowDown: hora / 2, ArrowUp: -hora / 2, PageDown: wrap.clientHeight * 0.9, PageUp: -wrap.clientHeight * 0.9 };
+  if (ev.key in paso) { wrap.scrollTop += paso[ev.key]; ev.preventDefault(); }
+  else if (ev.key === "Home") { wrap.scrollTop = 0; ev.preventDefault(); }
+  else if (ev.key === "End") { wrap.scrollTop = wrap.scrollHeight; ev.preventDefault(); }
+  else if (ev.key === "h" || ev.key === "H") { jumpToNow(); ev.preventDefault(); }
+}
 
 function geom() {
-  const hourH = HOUR_H[VARIANT];
-  return {
-    hourH,
-    gridH: (END_H - START_H) * hourH,
-    yOf: (min) => ((min - START_H * 60) / 60) * hourH,
-    minOf: (y) => START_H * 60 + (y / hourH) * 60,
+  const fit = LAST_FIT || fitHourHeight();
+  const hourH = VARIANT === "zoom" ? fit * ZOOM_MULT : fit;
+  const bands = VARIANT === "pliegue" ? bandsFrom() : [];
+  const segs = [];
+  let cursor = START_H * 60;
+  for (const b of bands) {
+    if (b.from > cursor) segs.push({ from: cursor, to: b.from, h: ((b.from - cursor) / 60) * hourH });
+    const key = `${b.from}-${b.to}`;
+    segs.push({ from: b.from, to: b.to, collapsed: !OPEN.has(key), key,
+                h: OPEN.has(key) ? ((b.to - b.from) / 60) * hourH : FOLD_H });
+    cursor = b.to;
+  }
+  if (END_H * 60 > cursor) segs.push({ from: cursor, to: END_H * 60, h: ((END_H * 60 - cursor) / 60) * hourH });
+  const gridH = segs.reduce((a, s) => a + s.h, 0);
+  const yOf = (min) => {
+    let y = 0;
+    for (const s of segs) {
+      if (min < s.from) break;
+      if (min >= s.to) { y += s.h; continue; }
+      y += ((min - s.from) / (s.to - s.from)) * s.h;
+      break;
+    }
+    return y;
   };
+  return { hourH, gridH, segs, yOf };
 }
 
 const overlaps = (cand) => EVENTS.some((e) =>
   e.day === cand.day && !e.busy && e !== cand &&
   cand.min < e.min + e.dur && e.min < cand.min + cand.dur);
 
+/* Solapamiento: se agrupan los eventos que se tocan y se reparten en carriles.
+   El ancho de cada uno es 1/n del grupo, como Google Calendar y FullCalendar. */
+function layoutLanes(evs) {
+  const items = evs.slice().sort((a, b) => a.min - b.min || b.dur - a.dur);
+  const groups = [];
+  let group = [], groupEnd = -1;
+  for (const e of items) {
+    if (group.length && e.min >= groupEnd) { groups.push(group); group = []; groupEnd = -1; }
+    group.push(e);
+    groupEnd = Math.max(groupEnd, e.min + e.dur);
+  }
+  if (group.length) groups.push(group);
+  const out = new Map();
+  for (const g of groups) {
+    const laneEnds = [], assign = new Map();
+    for (const e of g) {
+      let l = 0;
+      while (l < laneEnds.length && laneEnds[l] > e.min) l++;
+      laneEnds[l] = e.min + e.dur;
+      assign.set(e, l);
+    }
+    for (const e of g) out.set(e, { lane: assign.get(e), lanes: laneEnds.length });
+  }
+  return out;
+}
+
 function renderEvent(e, g) {
   const c = cat(e.cat);
   const top = g.yOf(e.min), h = Math.max((e.dur / 60) * g.hourH - 2, 22);
-  const compact = h < 46;
-  const sync = e.sync ? `<span class="sync ${e.sync}" title="Sincronización"></span>` : "";
-  return `<button class="ev" data-i="${EVENTS.indexOf(e)}" data-compact
-    style="top:${top}px;height:${h}px;--c:${c.color}" ${e.busy ? "data-busy" : ""}>
+  const compact = h < 46, tiny = h < 26;
+  const narrow = e.laneCount > 1;
+  const sync = (e.sync && e.sync !== "ok")
+    ? `<span class="sync ${e.sync}" title="${e.sync === "pend" ? "Sin sincronizar con Google" : "Falló la sincronización"}"></span>`
+    : "";
+  const range = `${fmt(e.min)} – ${fmt(e.min + e.dur)}${e.origin === "Reserva" ? " · web" : ""}`;
+  const lane = e.lane == null ? 1 : e.lane;
+  return `<button class="ev" data-i="${EVENTS.indexOf(e)}" ${compact ? "data-compact" : ""} ${tiny ? "data-tiny" : ""} ${narrow ? "data-narrow" : ""}
+    style="top:${top}px;height:${h}px;--c:${c.color};--lane:${e.lane};--lanes:${e.laneCount}" ${e.busy ? "data-busy" : ""}
+    title="${e.title} · ${range}"
+    aria-label="${DIAS_LARGOS[e.day]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", ocupado, importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
     <span class="k"></span>
+    <span class="m">${fmt(e.min)}<span class="to"> – ${fmt(e.min + e.dur)}</span></span>
     <span class="t">${e.title}${sync}</span>
-    <span class="m">${fmt(e.min)} – ${fmt(e.min + e.dur)}${e.origin === "Reserva" ? " · web" : ""}</span>
     ${e.busy ? "" : '<span class="grip" title="Estirar para cambiar la duración"></span>'}
   </button>`;
 }
 
+function bandOverlay(g) {
+  if (VARIANT === "franja") {
+    return `<div class="bandover" aria-hidden="true">${[[START_H * 60, WORK_FROM], [WORK_TO, END_H * 60]]
+      .filter(([a, b]) => b - a >= 60)
+      .map(([a, b]) => `<div class="bandshade" style="top:${g.yOf(a)}px;height:${g.yOf(b) - g.yOf(a)}px"></div>
+        <span class="bandlab" style="top:${(g.yOf(a) + g.yOf(b)) / 2}px">fuera de horario</span>`)
+      .join("")}</div>`;
+  }
+  if (VARIANT === "pliegue") {
+    return `<div class="bandover" aria-hidden="true">${g.segs.filter((s) => s.collapsed)
+      .map((s) => `<button class="bandfold" data-band="${s.key}" style="top:${g.yOf(s.from)}px;height:${s.h}px" title="Mostrar las horas vacías">
+        <b>${fmt(s.from)} – ${fmt(s.to)}</b> sin eventos</button>`)
+      .join("")}</div>`;
+  }
+  return "";
+}
+
 function renderCol(day, g) {
-  const evs = EVENTS.filter((e) => e.day === day);
+  const evs = EVENTS.filter((e) => e.day === day && !oculto(e));
+  const lanes = layoutLanes(evs);
+  for (const e of evs) { const L = lanes.get(e); e.lane = L ? L.lane : 0; e.laneCount = L ? L.lanes : 1; }
   const lines = [];
-  for (let h = START_H; h <= END_H; h++) {
-    lines.push(`<div class="hourline" style="top:${g.yOf(h * 60)}px"></div>`);
-    if (h < END_H) lines.push(`<div class="hourline half" style="top:${g.yOf(h * 60 + 30)}px"></div>`);
-  }
-  // huecos libres (solo en Flujo, donde el vacío es información)
-  const free = [];
-  if (VARIANT === "flujo") {
-    let cursor = START_H * 60;
-    for (const e of evs.slice().sort((a, b) => a.min - b.min)) {
-      if (e.min - cursor > 30) free.push(`<div class="free" style="top:${g.yOf(cursor)}px;height:${((e.min - cursor) / 60) * g.hourH - 4}px"></div>`);
-      cursor = Math.max(cursor, e.min + e.dur);
+  for (const s of g.segs) {
+    if (s.collapsed) continue;
+    const h0 = Math.ceil(s.from / 60), h1 = Math.floor(s.to / 60);
+    for (let h = h0; h <= h1; h++) {
+      const m = h * 60;
+      lines.push(`<div class="hourline" aria-hidden="true" style="top:${g.yOf(m)}px"></div>`);
+      if (h < END_H) lines.push(`<div class="hourline half" aria-hidden="true" style="top:${g.yOf(m + 30)}px"></div>`);
     }
-    if (END_H * 60 - cursor > 30) free.push(`<div class="free" style="top:${g.yOf(cursor)}px;height:${((END_H * 60 - cursor) / 60) * g.hourH - 4}px"></div>`);
   }
-  return `<div class="col" data-day="${day}" style="height:${g.gridH}px">
-    ${VARIANT === "flujo" ? '<div class="rail"></div>' : ""}
-    ${free.join("")}${lines.join("")}
+  return `<div class="col${day === 1 ? " today-col" : ""}" data-day="${day}" style="height:${g.gridH}px">
+    ${lines.join("")}
     <div class="slots"></div>
     ${evs.map((e) => renderEvent(e, g)).join("")}
   </div>`;
 }
 
+/* Vista Mes: un mes ES dato tabular, asi que va una TABLA NATIVA
+   (semanas como filas, dias de semana como columnas). Nada de role=grid. */
+function renderMonth() {
+  const filas = semanasDelMes();
+  const evsDe = (d) => EVENTS.filter((e) => e.day === d - 15 && !oculto(e)).sort((a, b) => a.min - b.min);
+  return `<div class="meswrap" role="region" aria-label="Septiembre de 2026, de lunes a viernes">
+    <table class="mes">
+      <caption class="sr-only">Septiembre de 2026. Se muestran los días de lunes a viernes.</caption>
+      <thead><tr>${MES.cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
+      <tbody>${filas.map((semana) => `<tr>
+        ${semana.map((d) => {
+          const evs = evsDe(d);
+          const esHoy = d === MES.hoy;
+          return `<td class="mcell${esHoy ? " hoy" : ""}"${esHoy ? ' aria-current="date"' : ""}>
+            <span class="mnum">${d}</span>
+            ${evs.slice(0, 3).map((e) => `<button class="mev${e.busy ? " busy" : ""}"
+              title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"
+              aria-label="${MES.cols[(d - 1) % 7]} ${d} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}">
+              <span class="mev-d" style="background:${e.cat ? cat(e.cat).color : "var(--fg-faint)"}"></span>
+              <span class="mev-h">${fmt(e.min)}</span><span class="mev-t">${e.title}</span></button>`).join("")}
+            ${evs.length > 3 ? `<button class="mmas" data-ver-lista>+${evs.length - 3} más</button>` : ""}
+          </td>`;
+        }).join("")}
+        ${Array.from({ length: 5 - semana.length }, () => '<td class="mcell vacia" aria-hidden="true"></td>').join("")}
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+/* Vista Lista: la alternativa accesible. Una grilla 2D de tiempo es dificil de
+   recorrer con lector de pantalla; una lista de secciones por dia, no. */
+function renderList() {
+  return `<div class="lista" id="grilla" role="region" aria-label="Lista de reuniones de la semana">${
+    DAYS.map((_, i) => {
+      const evs = EVENTS.filter((e) => e.day === i && !oculto(e)).sort((a, b) => a.min - b.min);
+      const id = `ldia-${i}`;
+      return `<section class="ldia" aria-labelledby="${id}"${i === 1 ? ' data-today=""' : ""}>
+        <h3 class="ldia-h" id="${id}">
+          <span class="ldia-n">${DIAS_LARGOS[i]} de septiembre</span>
+          <span class="ldia-c">${evs.length ? `${evs.length} reunión${evs.length > 1 ? "es" : ""}` : "sin reuniones"}</span>
+        </h3>
+        ${evs.length
+          ? `<ul class="levs">${evs.map((e) => `<li>
+              <button class="lev${e.busy ? " busy" : ""}" title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"
+                aria-label="${DIAS_LARGOS[i]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
+                <span class="lev-h">${fmt(e.min)} – ${fmt(e.min + e.dur)}</span>
+                <span class="lev-t">${e.title}</span>
+                ${e.cat && !e.busy ? `<span class="lev-c"><i style="background:${cat(e.cat).color}"></i>${cat(e.cat).label}</span>` : ""}
+                ${e.busy ? '<span class="lev-c">de Google</span>' : ""}
+                ${e.sync && e.sync !== "ok" ? '<span class="lev-p">sin sincronizar</span>' : ""}
+              </button></li>`).join("")}</ul>`
+          : '<p class="lvy">Sin reuniones</p>'}
+      </section>`;
+    }).join("")
+  }</div>`;
+}
+
 function render() {
   const g = geom();
-  const total = EVENTS.filter((e) => !e.busy).length;
+  const visibles = EVENTS.filter((e) => !oculto(e));
+  const shown = EVENTS.filter((e) => !e.busy && !oculto(e));
+  const total = shown.length;
+  const pendientes = shown.filter((e) => e.sync && e.sync !== "ok").length;
   const now = 15 * 60 + 42;
-  const gutter = `<div class="gutter" style="height:${g.gridH}px">${
-    Array.from({ length: END_H - START_H + 1 }, (_, i) => {
-      const h = START_H + i;
-      return `<span class="hourlab" style="top:${g.yOf(h * 60)}px;transform:translateY(-50%)">${fmt(h * 60)}</span>`;
-    }).join("")}</div>`;
+  const inFold = (m) => g.segs.some((s) => s.collapsed && m > s.from && m < s.to);
+  const gutter = `<div class="gutter" aria-hidden="true" style="height:${g.gridH}px">${
+    Array.from({ length: END_H - START_H + 1 }, (_, i) => START_H + i)
+      .filter((h) => !inFold(h * 60))
+      .map((h) => {
+        const ty = h === START_H ? "translateY(0)" : h === END_H ? "translateY(-100%)" : "translateY(-50%)";
+        return `<span class="hourlab" style="top:${g.yOf(h * 60)}px;transform:${ty}">${fmt(h * 60)}</span>`;
+      })
+      .join("")
+  }</div>`;
+  // la ventana visible se dice explícitamente, y cuánto se plegó
+  const vis = g.segs.filter((s) => !s.collapsed);
+  const visFrom = vis.length ? vis[0].from : START_H * 60;
+  const visTo = vis.length ? vis[vis.length - 1].to : END_H * 60;
+  const folded = g.segs.filter((s) => s.collapsed).reduce((a, s) => a + (s.to - s.from), 0);
+  const windowChip = `${fmt(visFrom)} – ${fmt(visTo)}${folded ? ` · ${Math.round(folded / 60)} h plegadas` : ""}`;
 
   return `<div class="shell" data-variant="${VARIANT}">
     <aside class="side">
       <div>
-        <p class="block-title">Agendas</p>
-        ${Object.entries(CATS).map(([k, v], i) => `<div class="cal" ${i > 2 ? "data-off" : ""}>
-          <span class="dot" style="background:${v.color}"></span>
+        <h2 class="block-title">Agendas</h2>
+        ${Object.entries(CATS).map(([k, v]) => `<button class="cal" data-cat="${k}" ${HIDDEN.has(k) ? "data-off" : ""} aria-pressed="${!HIDDEN.has(k)}">
+          <span class="dot" style="background:${tint(v.color)}"></span>
           <span class="name">${v.label}</span>
           <span class="count">${EVENTS.filter((e) => e.cat === k).length}</span>
-        </div>`).join("")}
+        </button>`).join("")}
       </div>
       <div>
-        <p class="block-title">Origen</p>
-        ${["CRM", "Reserva web", "Google"].map((o) => `<div class="cal">
+        <h2 class="block-title">Origen</h2>
+        ${["CRM", "Reserva web", "Google"].map((o) => `<button class="cal" data-origin="${o}" ${HIDDEN_ORIGIN.has(o) ? "data-off" : ""} aria-pressed="${!HIDDEN_ORIGIN.has(o)}">
           <span class="dot" style="background:var(--fg-faint)"></span><span class="name">${o}</span>
           <span class="count">${EVENTS.filter((e) => (e.origin || "").startsWith(o.split(" ")[0])).length}</span>
-        </div>`).join("")}
+        </button>`).join("")}
       </div>
       <div>
-        <p class="block-title">Buscador</p>
-        <input class="btn" style="width:100%;text-align:left;color:var(--fg-faint)" value="Buscar…  ⌘K" readonly>
+        <h2 class="block-title">Buscador</h2>
+        <input class="btn" style="width:100%;text-align:left;color:var(--fg-faint)" value="Buscar…  ⌘\u00a0K" readonly aria-label="Buscar reuniones" name="q" autocomplete="off">
       </div>
     </aside>
 
     <main>
       <div class="topbar">
-        <span class="rangetitle">15 – 19 de septiembre</span>
-        <span class="rangecount">${total} reuniones · 3 sin sincronizar</span>
+        <h1 class="rangetitle">${VIEW === "mes" ? "Septiembre" : "15 – 19 de septiembre"}</h1>
+        <span class="rangecount">${VIEW === "mes" ? `${MES.dias} días` : windowChip} · ${total} reuniones${pendientes ? ` · ${pendientes} sin sincronizar` : ""}</span>
+        <span class="sr-only" role="status" aria-live="polite">Mostrando ${total} reuniones${pendientes ? `, ${pendientes} sin sincronizar` : ""}</span>
         <span class="right">
-          <div class="seg"><button class="on">Semana</button><button>Día</button><button>Mes</button></div>
-          <button class="btn">Hoy</button>
+          <div class="seg" role="group" aria-label="Vista">
+            <button data-view="semana" class="${VIEW === "semana" ? "on" : ""}" aria-pressed="${VIEW === "semana"}">Semana</button>
+            <button data-view="lista" class="${VIEW === "lista" ? "on" : ""}" aria-pressed="${VIEW === "lista"}">Lista</button>
+            <button data-view="mes" class="${VIEW === "mes" ? "on" : ""}" aria-pressed="${VIEW === "mes"}">Mes</button>
+          </div>
+          ${VIEW === "semana" ? `<button class="btn mini-toggle" title="Mostrar u ocultar el panel del mes" aria-pressed="false" aria-label="Panel del mes">Panel</button>` : ""}
+          ${VIEW === "semana" && VARIANT === "zoom"
+            ? `<div class="zoomctl" role="group" aria-label="Densidad del calendario">${ZOOM_STEPS
+                .map(({ m, label }) => `<button data-z="${m}" class="${m === ZOOM_MULT ? "on" : ""}" aria-pressed="${m === ZOOM_MULT}">${label}</button>`)
+                .join("")}</div>`
+            : ""}
+          <button class="btn hoy-btn" data-now title="Ir a la hora actual (H)">Hoy · ${fmt(NOW_MIN)}</button>
           <button class="btn primary">Nueva reunión</button>
         </span>
       </div>
-      <div class="gridwrap">
+      ${VIEW === "mes" ? renderMonth() : VIEW === "lista" ? renderList() : `<div class="gridwrap" tabindex="0" role="region" aria-label="Agenda de la semana del 15 al 19 de septiembre">
         <div class="heads">
           ${VARIANT === "flujo" ? '<div class="colhead"></div>' : '<div class="colhead"></div>'}
           ${DAYS.map((d, i) => `<div class="colhead${i === 1 ? " today" : ""}">
             <span class="dow">${d.split(" ")[0]}</span><span class="dom">${d.split(" ")[1]}</span></div>`).join("")}
         </div>
-        <div class="days">
+        <div class="days" id="grilla" tabindex="-1">
           ${gutter}
           ${DAYS.map((_, i) => renderCol(i, g)).join("")}
+          ${bandOverlay(g)}
+          ${visibles.length === 0 ? `<div class="grid-empty">
+            <p class="ge-t">No hay reuniones para mostrar</p>
+            <p class="ge-s">Activá una agenda en la barra de la izquierda, o creá la primera reunión de la semana.</p>
+            <button class="btn primary">Nueva reunión</button>
+          </div>` : ""}
         </div>
-      </div>
+      </div>`}
     </main>
 
     <aside class="mini">
       <div>
-        <p class="block-title">Septiembre</p>
+        <h2 class="block-title">Septiembre</h2>
         <div class="mgrid">
           ${["L", "M", "M", "J", "V", "S", "D"].map((x) => `<span class="h">${x}</span>`).join("")}
           ${Array.from({ length: 35 }, (_, i) => {
             const d = i - 0;
             const isRange = d >= 15 && d <= 19, isToday = d === 16, hasEv = d >= 15 && d <= 19 && d % 2 === 0;
-            return `<span class="${isRange ? "inrange " : ""}${isToday ? "today " : ""}${hasEv ? "ev" : ""}">${d < 1 || d > 30 ? "" : d}</span>`;
+            return `<span class="${isRange ? "inrange " : ""}${isToday ? "today " : ""}${hasEv ? "has-ev" : ""}">${d < 1 || d > 30 ? "" : d}</span>`;
           }).join("")}
         </div>
       </div>
       <div>
-        <p class="block-title">Cómo se lee</p>
+        <h2 class="block-title">Cómo se lee</h2>
         <div class="legend">
-          ${Object.entries(CATS).slice(0, 3).map(([, v]) => `<div><i style="background:${v.color}"></i>${v.label}</div>`).join("")}
-          <div><i style="background:repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 4px,transparent 4px 8px)"></i>Ocupado (de Google)</div>
+          ${Object.values(CATS).map((v) => `<div><i style="background:${tint(v.color)}"></i>${v.label}</div>`).join("")}
+          <div><i style="background:#211f1b;box-shadow:inset 0 0 0 1px rgba(244,241,234,.07)"></i>Ocupado (de Google)</div>
         </div>
       </div>
     </aside>
@@ -474,6 +857,7 @@ function ensureLab() {
 }
 
 function onDown(ev) {
+  if (ev.target.closest(".bandfold, .zoomctl")) return;
   const col = ev.target.closest(".col");
   if (!col) return;
   const g = geom();
@@ -583,10 +967,9 @@ function needle() {
   document.querySelector(".nowline")?.remove();
   document.querySelectorAll(".inlinetime").forEach((n) => n.remove());
   const g = geom();
-  const now = 15 * 60 + 42;
   const line = document.createElement("div");
   line.className = "nowline";
-  line.style.top = g.yOf(now) + "px";
+  line.style.top = g.yOf(NOW_MIN) + "px";
   line.innerHTML = '<div class="knob"></div><div class="bar"></div>';
   document.querySelector('.col[data-day="1"]')?.appendChild(line);
 }
@@ -594,7 +977,7 @@ function needle() {
 /* ══════════════════════════════════════════════════════════════════════
    Picker (verbatim del spec)
    ══════════════════════════════════════════════════════════════════════ */
-const VARIANTS = ["preciso", "bloque", "flujo"];
+const VARIANTS = ["franja", "pliegue", "zoom"];
 const stage = document.getElementById("stage");
 const picker = document.querySelector(".proto-picker");
 const highlight = picker.querySelector(".proto-picker-highlight");
@@ -610,7 +993,28 @@ function moveHighlight() {
 function mount(i) {
   VARIANT = VARIANTS[i];
   stage.innerHTML = "";
-  requestAnimationFrame(() => { stage.innerHTML = render(); needle(); });
+  requestAnimationFrame(() => {
+    stage.innerHTML = render();
+    needle();
+    const h = fitHourHeight();
+    if (Math.abs(h - LAST_FIT) > 0.5) { LAST_FIT = h; stage.innerHTML = render(); needle(); }
+    if (FIRST_PAINT) { FIRST_PAINT = false; requestAnimationFrame(jumpToNow); }
+    else if (PENDING_SCROLL != null) { scrollToTime(PENDING_SCROLL); PENDING_SCROLL = null; }
+  });
+}
+// la costura del encabezado aparece cuando hay contenido scrolleado debajo
+document.addEventListener("scroll", (e) => {
+  const w = e.target.closest ? e.target.closest(".gridwrap") : null;
+  if (!w) return;
+  w.toggleAttribute("data-scrolled", w.scrollTop > 2);
+}, true);
+
+// ResizeObserver en vez de leer layout en cada render + listener de resize
+if (typeof ResizeObserver !== "undefined") {
+  new ResizeObserver(() => {
+    const h = fitHourHeight();
+    if (Math.abs(h - LAST_FIT) > 0.5) { LAST_FIT = h; stage.innerHTML = render(); needle(); }
+  }).observe(document.documentElement);
 }
 function setActive(i) {
   if (i < 0 || i >= VARIANTS.length) return;
@@ -627,6 +1031,59 @@ function setActive(i) {
   mount(i);
 }
 items.forEach((el, i) => el.addEventListener("click", () => setActive(i)));
+
+stage.addEventListener("click", (ev) => {
+  const fold = ev.target.closest(".bandfold");
+  if (fold) {
+    const k = fold.dataset.band;
+    OPEN.has(k) ? OPEN.delete(k) : OPEN.add(k);
+    mount(current);
+    return;
+  }
+  const z = ev.target.closest(".zoomctl button");
+  if (z) { PENDING_SCROLL = centerTime(); ZOOM_MULT = Number(z.dataset.z); mount(current); return; }
+  const vw = ev.target.closest("[data-view]");
+  if (vw) {
+    VIEW = vw.dataset.view;
+    const url = new URL(location);
+    url.searchParams.set("view", VIEW);
+    history.replaceState(null, "", url);
+    FIRST_PAINT = VIEW !== "semana";
+    mount(current);
+    return;
+  }
+  if (ev.target.closest("[data-ver-lista]")) {
+    VIEW = "lista";
+    const u2 = new URL(location);
+    u2.searchParams.set("view", "lista");
+    history.replaceState(null, "", u2);
+    stage.querySelectorAll("[data-view]").forEach((b) => {
+      const on = b.dataset.view === "lista";
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    mount(current);
+    return;
+  }
+  if (ev.target.closest(".hoy-btn")) { jumpToNow(); return; }
+  const mt = ev.target.closest(".mini-toggle");
+  if (mt) {
+    const on = document.querySelector(".shell").getAttribute("data-mini") === "off";
+    document.querySelector(".shell").setAttribute("data-mini", on ? "on" : "off");
+    mt.setAttribute("aria-pressed", String(!on));
+    LAST_FIT = 0;
+    mount(current);
+    return;
+  }
+  const cal = ev.target.closest(".cal[data-cat], .cal[data-origin]");
+  if (cal) {
+    const set = cal.dataset.cat ? HIDDEN : HIDDEN_ORIGIN;
+    const k = cal.dataset.cat || cal.dataset.origin;
+    set.has(k) ? set.delete(k) : set.add(k);
+    LAST_FIT = 0;
+    mount(current);
+  }
+});
 replay?.addEventListener("click", () => mount(current));
 window.addEventListener("resize", moveHighlight);
 window.addEventListener("pointerdown", onDown, true);
@@ -635,6 +1092,7 @@ window.addEventListener("pointerup", onUp);
 
 document.addEventListener("keydown", (e) => {
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  if (e.target.closest(".gridwrap")) { scrollKeys(e); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const num = parseInt(e.key, 10);
   if (num >= 1 && num <= VARIANTS.length) setActive(num - 1);
