@@ -102,7 +102,7 @@ export default function PdfViewer({
             >
               <IconExternal width={15} height={15} /> Abrir
             </a>
-            <button className="icon-btn" onClick={onClose} aria-label="Cerrar">
+            <button className="icon-btn" onClick={onClose} aria-label="Cerrar" autoFocus>
               <IconX />
             </button>
           </div>
