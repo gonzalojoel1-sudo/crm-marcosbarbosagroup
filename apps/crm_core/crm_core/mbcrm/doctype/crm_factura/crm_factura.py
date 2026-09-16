@@ -83,8 +83,15 @@ class CRMFactura(Document):
 
         Se llama en cada save: así, cobrar, acreditar o anular un pago deja el estado
         correcto sin que ningún handler tenga que acordarse de actualizarlo.
+
+        `Borrador` y `Anulada` NO se derivan: son decisiones explícitas.
+        - `Borrador` es el punto de partida y `invoice_status` no tiene esa rama (derivaría
+          `Emitida`, que es mentir sobre una factura que todavía no se emitió).
+        - `Anulada` no se revive sola.
+        `issue()` deja el estado en `Emitida` antes de guardar, así que a partir de ahí la
+        derivación funciona; y el recálculo de cobros (Task 7) también pasa por acá.
         """
-        if self.status == "Anulada":
+        if self.status in ("Borrador", "Anulada"):
             return
         self.status = billing.invoice_status(
             self.total,
@@ -93,7 +100,6 @@ class CRMFactura(Document):
             self.due_date,
             today=None,
             is_return=bool(self.is_return),
-            is_voided=self.status == "Anulada",
             is_uncollectible=self.status == "Incobrable",
         )
         if self.status == "Pagada" and not self.paid_on:
@@ -115,7 +121,7 @@ class CRMFactura(Document):
         self.save()
 
     def mark_sent(self):
-        self._assert_status("Emitida", "Parcial", "Vencida")
+        self._assert_status("Emitida")
         self.sent_on = now()
         self.save()
 

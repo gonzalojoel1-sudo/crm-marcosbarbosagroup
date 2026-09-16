@@ -10,6 +10,7 @@
     "status",
     "is_return",
     "return_against",
+    "credit_reason",
     "deal",
     "organization",
     "vertical",
@@ -68,7 +69,8 @@
       "default": "Borrador",
       "read_only": 1,
       "in_list_view": 1,
-      "in_standard_filter": 1
+      "in_standard_filter": 1,
+      "search_index": 1
     },
     {
       "fieldname": "is_return",
@@ -84,6 +86,12 @@
       "read_only": 1
     },
     {
+      "fieldname": "credit_reason",
+      "fieldtype": "Small Text",
+      "label": "Motivo de la nota de crédito",
+      "read_only": 1
+    },
+    {
       "fieldname": "deal",
       "fieldtype": "Link",
       "label": "Negocio",
@@ -96,7 +104,8 @@
       "label": "Organización",
       "options": "CRM Organization",
       "reqd": 1,
-      "in_standard_filter": 1
+      "in_standard_filter": 1,
+      "search_index": 1
     },
     {
       "fieldname": "vertical",
@@ -124,7 +133,8 @@
     {
       "fieldname": "due_date",
       "fieldtype": "Date",
-      "label": "Vencimiento"
+      "label": "Vencimiento",
+      "search_index": 1
     },
     {
       "fieldname": "period_start",
