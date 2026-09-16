@@ -399,6 +399,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 </head>
 <body>
 <div id="stage"></div>
+<div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <a class="skip" href="#grilla">Saltar a la grilla</a>
 
@@ -453,6 +454,16 @@ let EVENTS = [
 const fmt = (min) => String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
 const snap = (min) => Math.round(min / 15) * 15;
 const cat = (k) => CATS[k] || { label: "", color: "#6b7280" };
+
+/* Anuncios: el nodo vive fuera del subarbol que se reemplaza, y se limpia
+   antes de escribir para que un mensaje identico repetido se vuelva a leer. */
+let lastMsg = "";
+function announce(texto) {
+  const a = document.getElementById("announcer");
+  if (!a) return;
+  a.textContent = "";
+  requestAnimationFrame(() => { a.textContent = texto; lastMsg = texto; });
+}
 
 /* ══════════════════════════════════════════════════════════════════════
    Grilla + interacción (idéntica en las tres; cambia la presentación)
@@ -787,7 +798,6 @@ function render() {
       <div class="topbar">
         <h1 class="rangetitle">${VIEW === "mes" ? "Septiembre" : "15 – 19 de septiembre"}</h1>
         <span class="rangecount">${VIEW === "mes" ? `${MES.dias} días` : windowChip} · ${total} reuniones${pendientes ? ` · ${pendientes} sin sincronizar` : ""}</span>
-        <span class="sr-only" role="status" aria-live="polite">Mostrando ${total} reuniones${pendientes ? `, ${pendientes} sin sincronizar` : ""}</span>
         <span class="right">
           <div class="seg" role="group" aria-label="Vista">
             <button data-view="semana" class="${VIEW === "semana" ? "on" : ""}" aria-pressed="${VIEW === "semana"}">Semana</button>

@@ -351,7 +351,6 @@ const mes = await mp.evaluate(() => {
   };
 });
 await mp.close();
-await browser.close();
 
 console.log("════════ VISTA MES (tabla nativa) ════════");
 {
@@ -371,3 +370,31 @@ const zero = all[0];
 console.log("calendarios apagados (data-off):", zero.offCalendars.join(", ") || "(ninguno)");
 console.log("sidebar declara:", zero.counts.map((c) => `${c.name}=${c.says}`).join("  "));
 console.log("'sin sincronizar' declara:", zero.syncSaid);
+
+// ── Anunciador persistente: hermano de #stage y sobrevive al re-render ──
+const ap = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await ap.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await ap.waitForTimeout(350);
+const ann = await ap.evaluate(() => {
+  const a = document.querySelector("#announcer");
+  if (!a) return { falta: true };
+  const dentro = document.querySelector("#stage").contains(a);
+  window.__annRef = a;                       // referencia antes de re-renderizar
+  return { rol: a.getAttribute("role"), live: a.getAttribute("aria-live"), atomic: a.getAttribute("aria-atomic"), dentro };
+});
+await ap.locator('[data-view="lista"]').click();
+await ap.waitForTimeout(400);
+const sobrevive = await ap.evaluate(() => document.querySelector("#announcer") === window.__annRef);
+await ap.close();
+{
+  const v = [];
+  if (ann.falta) v.push("no existe #announcer");
+  else {
+    if (ann.dentro) v.push("#announcer esta dentro de #stage (se destruye al re-renderizar)");
+    if (!sobrevive) v.push("#announcer no sobrevivio al re-render");
+    if (ann.rol !== "status" || ann.live !== "polite" || ann.atomic !== "true") v.push(`atributos ${ann.rol}/${ann.live}/${ann.atomic}`);
+  }
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `anunciador persistente · fuera de #stage ${!ann.dentro} · sobrevive ${sobrevive}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+await browser.close();
