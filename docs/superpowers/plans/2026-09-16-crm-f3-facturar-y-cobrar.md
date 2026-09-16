@@ -503,8 +503,9 @@ afirmaba (por error) que F2 ya había reservado: verificado, `crm_presupuesto.js
   `CRM Punto de Venta`, `CRM Emisor` (Task 2).
 - Produces: el DocType `CRM Factura` con los campos que consumen Task 5 (PDF), Task 6 (API) y
   Task 13 (UI). **La clase se llama `CRMFactura`** y la del ítem `CRMFacturaItem`.
-  Métodos: `set_interval_months()`, `calculate_totals()`, `refresh_status()`, `guard_frozen()`,
-  `issue()`, `void()`, `mark_uncollectible()`.
+  Métodos: `calculate_totals()`, `guard_frozen()`, `refresh_status()`, `issue()`, `mark_sent()`,
+  `void()`, `mark_uncollectible()`. **No hay `set_interval_months`**: en una factura no hay base de
+  tiempo que normalizar (ver Task 1).
 
 - [ ] **Step 1: `CRM Factura Item`**
 
