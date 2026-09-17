@@ -122,6 +122,16 @@ class TestAgendaApi(FrappeTestCase):
 
         self.assertEqual(self._events("2026-11-04")[res["name"]]["ends_on"], "2026-11-04 10:00:00")
 
+    def test_create_all_day_se_persiste_y_dura_el_dia(self):
+        res = api.create_event("Feriado Crea", "2026-11-17 00:00:00", all_day=1)
+
+        ev = frappe.get_doc("Event", res["name"])
+        self.assertTrue(ev.all_day)
+        self.assertEqual(str(ev.ends_on), "2026-11-18 00:00:00")
+        dto = self._events("2026-11-17")[res["name"]]
+        self.assertTrue(dto["all_day"])
+        self.assertEqual(dto["ends_on"], "2026-11-18 00:00:00")
+
     # ── Mover / duración ───────────────────────────────────────────────
     def test_update_solo_mueve_conserva_la_duracion(self):
         ev = self._event(subject="Mueve", starts="2026-11-06 10:00:00", ends="2026-11-06 11:45:00")

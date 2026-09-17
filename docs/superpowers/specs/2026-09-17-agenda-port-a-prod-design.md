@@ -70,6 +70,15 @@ Cada fase termina con su verificación **medida**, no afirmada. La verificación
 
 Recurrencia (RRULE) y excepciones · invitados y RSVP · recordatorios y colores por evento · zona horaria por evento **más allá de leerla del sync** · táctil (F4 del spec de interacción) · operaciones en la vista Mes · deshacer (`⌘Z`) · la paleta ⌘K en español · notificaciones por email (no hay SMTP).
 
+### Deuda declarada que deja F2 (API sobre `Event`)
+
+Ninguna es un bug de F2: son consecuencias conocidas que se resuelven en otra fase. Se declaran acá para que no sorprendan.
+
+- **Desvincular eventos importados de Google.** Update y delete limpian `google_calendar` (invariante anti-hooks de F2), así que un `Event` que vino de Google pierde el link a su calendario, y borrarlo en el CRM **no** lo borra en Google. Peor: si se re-enciende el pull, el próximo sync lo **re-inserta** (el pull identifica por `google_calendar_event_id`, que no se borra). Se resuelve en la fase del push propio (push con estado + reconciliación), no antes.
+- **`frappe.get_all` salta los permisos** en la ventana de la agenda: correcto para el CRM de un solo usuario (y necesario para no ocultar los `Event` backfilleados con owner `Administrator`), pero con un segundo usuario filtraría títulos privados. **Precondición antes de multiusuario:** filtrar por calendario/categoría o por una regla de share.
+- **La ventana filtra sólo por `starts_on`** (`api.py`): un evento de varios días que empieza antes de la ventana queda afuera. Item de **F4** (es el visor el que decide la ventana).
+- **La UI ignora `all_day`** y `EventDTO` (`apps/web/src/api.ts`) no declara el campo: un evento de todo el día se dibujaría como un bloque de altura cero. Item de **F4**.
+
 ## 7. Riesgos
 
 | Riesgo | Mitigación |

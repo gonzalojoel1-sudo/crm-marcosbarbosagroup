@@ -21,6 +21,32 @@ class TestMeetingEventsBackfill(FrappeTestCase):
     def setUpClass(cls):
         super().setUpClass()
         patches.ensure_custom_fields()
+        cls._ensure_custom_event_id()
+
+    @classmethod
+    def _ensure_custom_event_id(cls):
+        """Siembra `CRM Lead.custom_event_id` para poder probar la reconciliación.
+
+        En `crm-test` el campo legacy no existe, y sin él `reconcile_google_event_ids`
+        sale temprano: la prueba del parche que evita duplicar Google no correría.
+        Es idempotente (no hace nada si el campo ya está).
+        """
+        if frappe.get_meta("CRM Lead").get_field("custom_event_id"):
+            return
+        from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
+
+        create_custom_fields(
+            {
+                "CRM Lead": [
+                    {
+                        "fieldname": "custom_event_id",
+                        "label": "Google Event Id",
+                        "fieldtype": "Data",
+                    }
+                ]
+            },
+            ignore_validate=True,
+        )
 
     def _lead(self, dt, suffix, notes=None, subject=None):
         first = f"EventBackfill{suffix}"
@@ -181,24 +207,58 @@ class TestMeetingEventsBackfill(FrappeTestCase):
         )
 
     # ── Reconciliación del id de Google del lead (F2) ──────────────────
+    def _evento_extra(self, lead, subject, starts_on, ends_on=None):
+        campos = {
+            "subject": subject,
+            "starts_on": starts_on,
+            "all_day": 0,
+            "event_type": "Private",
+            "event_category": "Meeting",
+            "status": "Open",
+            "custom_crm_lead": lead,
+        }
+        if ends_on:
+            campos["ends_on"] = ends_on
+        return api.insertar_evento_sin_sync(campos)
+
     def test_reconciliacion_copia_el_id_de_google_del_lead_al_event(self):
-        if not frappe.get_meta("CRM Lead").get_field("custom_event_id"):
-            self.skipTest("Este sitio no tiene el campo legacy custom_event_id")
         from crm_core.patches_f2 import reconcile_google_event_ids
 
         lead = self._lead("2026-12-07 09:00:00", "GoogleId")
         frappe.db.set_value("CRM Lead", lead, "custom_event_id", "gcal-abc123")
         patches.backfill_events_from_meetings()
 
+        # Sin correr la reconciliación el id queda vacío; después, copiado.
+        self.assertFalse(self._eventos(lead)[0]["google_calendar_event_id"])
         reconcile_google_event_ids()
         self.assertEqual(self._eventos(lead)[0]["google_calendar_event_id"], "gcal-abc123")
         # Idempotente: una segunda corrida no cambia el valor.
         reconcile_google_event_ids()
         self.assertEqual(self._eventos(lead)[0]["google_calendar_event_id"], "gcal-abc123")
 
+    def test_reconciliacion_elige_la_reunion_del_inicio_del_lead_con_varias(self):
+        from crm_core.patches_f2 import reconcile_google_event_ids
+
+        lead = self._lead("2026-12-09 09:00:00", "GoogleVarias")
+        frappe.db.set_value("CRM Lead", lead, "custom_event_id", "gcal-varias")
+        patches.backfill_events_from_meetings()  # Event en el inicio congelado
+        extra = self._evento_extra(
+            lead, "Segunda reunión", "2026-12-10 15:00:00", "2026-12-10 16:00:00"
+        )
+
+        reconcile_google_event_ids()
+
+        eventos = self._eventos(lead)
+        self.assertEqual(len(eventos), 2)
+        # El id legacy va a la reunión del inicio congelado, no a la segunda.
+        self.assertEqual(eventos[0]["starts_on"], "2026-12-09 09:00:00")
+        self.assertEqual(eventos[0]["google_calendar_event_id"], "gcal-varias")
+        self.assertNotEqual(eventos[0]["name"], extra.name)
+        self.assertFalse(eventos[1]["google_calendar_event_id"])
+        # Idempotente también con varias reuniones.
+        self.assertEqual(reconcile_google_event_ids(), 0)
+
     def test_reconciliacion_no_pisa_un_id_ya_existente(self):
-        if not frappe.get_meta("CRM Lead").get_field("custom_event_id"):
-            self.skipTest("Este sitio no tiene el campo legacy custom_event_id")
         from crm_core.patches_f2 import reconcile_google_event_ids
 
         lead = self._lead("2026-12-08 09:00:00", "GoogleIdPisado")
@@ -209,3 +269,37 @@ class TestMeetingEventsBackfill(FrappeTestCase):
 
         reconcile_google_event_ids()
         self.assertEqual(self._eventos(lead)[0]["google_calendar_event_id"], "gcal-propio")
+
+    # ── Selección del `Event` (pura, sin base de datos) ────────────────
+    def test_seleccion_toma_el_nombre_menor_entre_varios_iguales(self):
+        from crm_core.patches_f2 import _evento_objetivo
+
+        lead = {"custom_meeting_datetime": "2026-12-11 09:00:00"}
+        eventos = [
+            {"name": "EV.2", "starts_on": "2026-12-11 09:00:00", "google_calendar_event_id": None},
+            {"name": "EV.1", "starts_on": "2026-12-11 09:00:00", "google_calendar_event_id": None},
+            {"name": "EV.3", "starts_on": "2026-12-12 09:00:00", "google_calendar_event_id": None},
+        ]
+
+        self.assertEqual(_evento_objetivo(lead, eventos)["name"], "EV.1")
+
+    def test_seleccion_no_adivina_con_varias_y_sin_coincidencia(self):
+        from crm_core.patches_f2 import _evento_objetivo
+
+        lead = {"custom_meeting_datetime": "2026-12-11 09:00:00"}
+        eventos = [
+            {"name": "EV.1", "starts_on": "2026-12-12 09:00:00", "google_calendar_event_id": None},
+            {"name": "EV.2", "starts_on": "2026-12-13 09:00:00", "google_calendar_event_id": None},
+        ]
+
+        self.assertIsNone(_evento_objetivo(lead, eventos))
+
+    def test_seleccion_cae_a_una_sola_reunion_sin_coincidencia(self):
+        from crm_core.patches_f2 import _evento_objetivo
+
+        lead = {"custom_meeting_datetime": "2026-12-11 09:00:00"}
+        eventos = [
+            {"name": "EV.1", "starts_on": "2026-12-12 09:00:00", "google_calendar_event_id": None},
+        ]
+
+        self.assertEqual(_evento_objetivo(lead, eventos)["name"], "EV.1")

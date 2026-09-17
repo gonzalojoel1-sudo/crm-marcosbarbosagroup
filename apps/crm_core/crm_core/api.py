@@ -798,24 +798,31 @@ def update_lead(name, email=None, mobile_no=None, organization=None, status=None
 
 
 @frappe.whitelist()
-def create_event(subject, starts_on, ends_on=None, lead=None):
+def create_event(subject, starts_on, ends_on=None, lead=None, all_day=0):
     """Crea la reunión como `Event` (ya no como `CRM Lead`).
 
     Si se pasa `lead`, el `Event` queda linkeado por `custom_crm_lead`; el contacto
-    no se toca."""
+    no se toca. `all_day` viaja al `Event` (F4 lo necesita para crear todo-el-día);
+    sin fin explícito un todo-el-día dura el día entero, no una hora."""
     subject = (subject or "").strip()
     if not subject:
         frappe.throw("El título no puede estar vacío")
     starts_on = get_datetime(starts_on)
-    # Sin fin explícito, una reunión dura una hora (default histórico).
-    ends_on = get_datetime(ends_on) if ends_on else add_to_date(starts_on, hours=1)
+    all_day = cint(all_day)
+    # Sin fin explícito: 1 h (reunión) o el día entero (todo-el-día, fin exclusivo).
+    if ends_on:
+        ends_on = get_datetime(ends_on)
+    elif all_day:
+        ends_on = add_days(starts_on, 1)
+    else:
+        ends_on = add_to_date(starts_on, hours=1)
     if ends_on <= starts_on:
         frappe.throw("La hora de fin tiene que ser posterior a la de inicio")
     campos = {
         "subject": subject,
         "starts_on": starts_on,
         "ends_on": ends_on,
-        "all_day": 0,
+        "all_day": all_day,
         "event_type": "Private",
         "event_category": "Meeting",
         "status": "Open",
