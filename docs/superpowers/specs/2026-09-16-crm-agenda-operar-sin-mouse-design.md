@@ -187,8 +187,8 @@ Complemento rápido de S3, no lo reemplaza.
 
 | Tecla | Acción |
 |---|---|
-| `⌥ (Alt) + ↑ / ↓` | Mueve la reunión ±15 minutos |
-| `⌥ (Alt) + ← / →` | Mueve la reunión ±1 día (dentro de Lun–Vie) |
+| `⌃⌥ (Ctrl+Alt) + ↑ / ↓` | Mueve la reunión ±15 minutos |
+| `⌃⌥ (Ctrl+Alt) + ← / →` | Mueve la reunión ±1 día (dentro de Lun–Vie) |
 | `⇧ (Shift) + ↑ / ↓` | Cambia la duración ±15 minutos |
 | `Enter` / `Space` | Abre el menú de la reunión (S3) |
 | `E` | Menú → "Editar" (abre S1) |
@@ -290,9 +290,10 @@ El prototipo confirma al soltar en `pointerup` (eso **sí** cumple 2.5.2 hoy). L
 2. **¿Se implementa la paleta ⌘K con lenguaje natural?** Recomendación: **no por ahora.** Chrono
    marca `es` como parcial y no hay datos de fraseo argentino. Si se hace, en fase separada y con
    la regla de que **el texto nunca guarda solo: abre S1 con un borrador.**
-3. **¿`⌥`+flechas (Alt) o `⌃⌥`+flechas (Control+Option)?** Fantastical y Apple usan `⌃⌥`; en Windows
-   `⌥` es `Alt`. Recomendación: **`Alt`+flechas**, y documentar que en macOS es `⌥`.
-4. **¿La ventana de días es siempre Lun–Vie?** Si alguna vez incluye sábado, `⌥←/→` debe respetarlo.
+3. **¿`Alt`+flechas o `⌃⌥`+flechas (Ctrl+Alt)?** Fantastical y Apple usan `⌃⌥`; en Windows/Linux
+   `Alt`+←/→ es Atrás/Adelante y el W3C documenta que el navegador puede ignorar `preventDefault`.
+   **Decidido: `⌃⌥` (Ctrl+Alt)+flechas**, no reservado por Chromium, Firefox ni WebKit.
+4. **¿La ventana de días es siempre Lun–Vie?** Si alguna vez incluye sábado, `⌃⌥←/→` debe respetarlo.
 
 ---
 
@@ -303,7 +304,7 @@ El prototipo confirma al soltar en `pointerup` (eso **sí** cumple 2.5.2 hoy). L
 | El panel lateral toca componentes existentes (`MeetingModal`, `DealDrawer`) | Medio | Fase propia, con verificación visual de la grilla detrás |
 | 24×24 px en bloques cortos | Medio | Área de impacto ampliada; excepción **"Essential"** donde el área no llegue + entrada por la Lista; guarda que **mide** cada objetivo |
 | El parser de español si se hace ⌘K | Alto | Fase separada; borrador, nunca guardado automático |
-| `Alt`+flechas colisiona con el navegador (historial) | Medio | `preventDefault` solo sobre una reunión enfocada; verificar en Chrome/Safari/Firefox |
+| `Alt`+flechas colisiona con el navegador (historial) — el diseño inicial usaba `Alt` solo | Medio | Se movió el acorde a **`Ctrl+Alt`+flechas**, no reservado por ningún motor; `preventDefault` solo sobre una reunión enfocada; verificado que llega a la página en Chromium/Firefox/WebKit |
 | Foco perdido después de guardar | Medio | Guarda: después de crear/editar/mover el foco está en el elemento afectado |
 | El arrastre y el click se pisan | Medio | Umbral de 4 px + prueba explícita |
 
@@ -317,7 +318,7 @@ no una afirmación**:
 1. **A1 por puntero sin arrastre**: click en hueco → se abre el panel con día/hora precargados.
 2. **A1 por teclado**: foco en la grilla + `Enter` → mismo resultado.
 3. **A2 y A3 por puntero sin arrastre**: "Mover a…" y "Cambiar duración…" cambian el evento.
-4. **A2 y A3 por teclado**: `Alt`+flechas y `Shift`+flechas cambian el evento y lo anuncian.
+4. **A2 y A3 por teclado**: `Ctrl+Alt`+flechas y `Shift`+flechas cambian el evento y lo anuncian.
 5. **Matriz de conformidad**: para cada una de A1–A3, ambos caminos dan el **mismo resultado**.
 6. **Tamaños**: todo objetivo de puntero ≥ 24×24 px **o** tiene equivalente declarado en el menú.
 7. **Foco**: después de crear/editar/cancelar, el foco está donde corresponde.
@@ -333,7 +334,7 @@ no una afirmación**:
 |---|---|---|
 | **F1** | Panel lateral no-modal + click en hueco + `Enter` en hueco | **2.5.7 de A1** + 2.1.1 de A1 |
 | **F2** | Menú de la reunión: "Mover a…", "Cambiar duración…", "Duplicar" | **2.5.7 de A2/A3/A5** |
-| **F3** | Nudge por teclado (`Alt`/`Shift` + flechas) + `⌘Z` | **2.1.1 completo** |
+| **F3** | Nudge por teclado (`Ctrl+Alt`/`Shift` + flechas) + `⌘Z` | **2.1.1 completo** |
 | **F4** | Táctil: manijas ≥24 px, long-press 1000 ms, tap en hueco | 2.5.8 en táctil |
 | **F5** | Anuncios, foco, confirmación de borrado, guardas del arnés | **4.1.3** + verificación |
 | **F6 (opcional)** | ⌘K con lenguaje natural en español, con borrador | ninguno (velocidad) |
@@ -372,7 +373,7 @@ declaran como trabajo de fase.
 |---|---|---|
 | 5 | La excepción **"Equivalent"** para 24×24 era **circular**: el menú solo se alcanza activando el bloque subdimensionado | Área de impacto ampliada; **"Essential"** donde no llegue; entrada por la Lista; guarda que mide |
 | 6 | **SC 2.4.11 Focus Not Obscured (AA, nuevo en 2.2)** es exactamente el riesgo que crea el panel no-modal: el Understanding nombra *"non-modal dialogs"* como culpable típico | Fase F7 + desplazamiento en vez de superposición |
-| 7 | **`Alt`+flechas no es cancelable de forma confiable**: en Windows/Linux es Atrás/Adelante y el W3C documenta que el navegador *puede ignorar* `preventDefault` | Fase F3 con acordes documentados por plataforma y verificados en los 3 navegadores |
+| 7 | **`Alt`+flechas no es cancelable de forma confiable**: en Windows/Linux es Atrás/Adelante y el W3C documenta que el navegador *puede ignorar* `preventDefault` | Resuelto en F3: el acorde se movió a **`Ctrl+Alt`+flechas**, no reservado; verificado en Chromium/Firefox/WebKit (macOS) |
 | 8 | **`M`/`D` colisionan** con la convención de Google Calendar y `M` choca con la vista "Mes" de la app | Se reasignan y se acotan al foco |
 | 9 | **La matriz de conformidad no reflejaba lo que el prototipo puede hacer**: **el arrastre entre días no existe** (usa `drag.day` sin actualizarlo) y crear-arrastrando **siempre da 30 min** | Se corrige el inventario de acciones y se cae la afirmación de paridad |
 | 10 | Los campos del panel no tenían **3.3.1 / 3.3.3** (identificación y sugerencia de error) | Fase F7 |

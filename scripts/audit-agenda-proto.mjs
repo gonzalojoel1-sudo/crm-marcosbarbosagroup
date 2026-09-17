@@ -454,7 +454,7 @@ const abierto = await pp.evaluate(() => {
     solapa,
     shellPanel: document.querySelector(".shell")?.getAttribute("data-panel"),
     texto: (t?.textContent || "").trim(),
-    contrastes: ["#panel-titulo", "#panel label", "#panel .p-hint"].map(contraste),
+    contrastes: ["#panel-titulo", "#panel label", "#panel .p-hint", "#panel select", "#panel textarea"].map(contraste),
   };
 });
 await pp.keyboard.press("Escape");
@@ -769,7 +769,7 @@ const porCal = await mu.evaluate(() => ({
 await mu.locator('.cal[data-cat="software"]').click();   // restaurar
 await mu.waitForTimeout(200);
 // "Editar" del menú abre el panel de ESA reunión, sin anunciar
-const iEdit = await mu.evaluate(() => {
+const iEditMenu = await mu.evaluate(() => {
   const e = document.querySelector("#grilla .ev");
   e.focus();
   document.querySelector("#announcer").textContent = "";
@@ -788,7 +788,7 @@ const porEditar = await mu.evaluate((i) => {
     menu: !!document.querySelector("#menu"),
     anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   };
-}, iEdit);
+}, iEditMenu);
 await mu.keyboard.press("Escape");
 await mu.waitForTimeout(250);
 // click sin movimiento sobre una reunión: también abre el menú, sin anunciar
@@ -1696,11 +1696,23 @@ const nudgeAntes = await nudge.evaluate((idx) => {
   return { min: EVENTS[idx].min, dur: EVENTS[idx].dur, day: EVENTS[idx].day, titulo: EVENTS[idx].title, scroll: w.scrollTop };
 }, nudgeIdx);
 await nudge.waitForTimeout(120);
-const nudgeKey = async (mod, key) => {
-  await nudge.keyboard.down(mod); await nudge.keyboard.press(key); await nudge.keyboard.up(mod);
+const nudgeKey = async (mods, key) => {
+  const ms = Array.isArray(mods) ? mods : [mods];
+  for (const m of ms) await nudge.keyboard.down(m);
+  await nudge.keyboard.press(key);
+  for (const m of [...ms].reverse()) await nudge.keyboard.up(m);
   await nudge.waitForTimeout(250);
 };
+// El acorde VIEJO (Alt solo) ya no debe mover nada: es Atrás/Adelante en Windows/Linux
+// y el navegador puede ignorar preventDefault. Si todavía moviera, el cambio no sería real.
+const viejoMin = await nudge.evaluate((idx) => EVENTS[idx].min, nudgeIdx);
 await nudgeKey("Alt", "ArrowDown");
+const nViejo = await nudge.evaluate((idx) => ({
+  min: EVENTS[idx].min,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}), nudgeIdx);
+// El acorde NUEVO (Ctrl+Alt), no reservado por ningún motor.
+await nudgeKey(["Control", "Alt"], "ArrowDown");
 const nMin = await nudge.evaluate((idx) => ({
   min: EVENTS[idx].min,
   aria: document.activeElement?.getAttribute("aria-label") || "",
@@ -1708,7 +1720,7 @@ const nMin = await nudge.evaluate((idx) => ({
   foco: document.activeElement === document.querySelector(`#grilla .ev[data-i="${idx}"]`),
   scroll: document.querySelector(".gridwrap").scrollTop,
 }), nudgeIdx);
-await nudgeKey("Alt", "ArrowRight");
+await nudgeKey(["Control", "Alt"], "ArrowRight");
 const nDia = await nudge.evaluate((idx) => ({
   day: EVENTS[idx].day,
   min: EVENTS[idx].min,
@@ -1732,7 +1744,7 @@ await nudge.evaluate((idx) => {
   document.querySelector(`#grilla .ev[data-i="${idx}"]`).focus();
   const a = document.querySelector("#announcer"); if (a) a.textContent = "";
 }, nudgeIdx);
-await nudgeKey("Alt", "ArrowUp");
+await nudgeKey(["Control", "Alt"], "ArrowUp");
 const nPiso = await nudge.evaluate((idx) => ({ min: EVENTS[idx].min, piso: START_H * 60, anuncio: (document.querySelector("#announcer")?.textContent || "").trim() }), nudgeIdx);
 // contra el tope por duración: no se estira y lo dice
 await nudge.evaluate((idx) => {
@@ -1815,7 +1827,9 @@ await supr.close();
 {
   const v = [];
   // nudge
-  if (nMin.min !== nudgeAntes.min + 15) v.push(`Alt+ArrowDown no movio 15 min: ${nudgeAntes.min} -> ${nMin.min}`);
+  if (nViejo.min !== viejoMin) v.push(`el acorde viejo (Alt solo) todavia mueve la reunion: ${viejoMin} -> ${nViejo.min}`);
+  if (nViejo.anuncio) v.push(`el acorde viejo (Alt solo) anuncio: "${nViejo.anuncio}"`);
+  if (nMin.min !== nudgeAntes.min + 15) v.push(`Ctrl+Alt+ArrowDown no movio 15 min: ${nudgeAntes.min} -> ${nMin.min}`);
   // el repintado reemplaza el nodo y su nombre accesible ya trae la hora nueva:
   // enfocar ESO es el anuncio, así que la live region debe quedar vacía (alternancia).
   if (!nMin.aria.includes(fmt2(nudgeAntes.min + 15))) v.push(`el nombre accesible enfocado no trae la hora nueva: "${nMin.aria}"`);
@@ -1823,7 +1837,7 @@ await supr.close();
   if (!nMin.foco) v.push("tras el nudge el foco no sigue en la reunion");
   if (!(nudgeAntes.scroll > 0)) v.push(`no se pudo fijar un scroll no nulo para probar (${nudgeAntes.scroll})`);
   if (nMin.scroll !== nudgeAntes.scroll) v.push(`el nudge reseteo el scroll: ${nudgeAntes.scroll} -> ${nMin.scroll}`);
-  if (nDia.day !== nudgeAntes.day + 1) v.push(`Alt+ArrowRight no movio 1 dia: ${nudgeAntes.day} -> ${nDia.day}`);
+  if (nDia.day !== nudgeAntes.day + 1) v.push(`Ctrl+Alt+ArrowRight no movio 1 dia: ${nudgeAntes.day} -> ${nDia.day}`);
   if (nDia.min !== nMin.min) v.push(`el nudge de dia cambio la hora: ${nMin.min} -> ${nDia.min}`);
   if (!nDia.aria.includes(nDia.diaLargo)) v.push(`el nombre accesible enfocado no trae el dia nuevo (${nDia.diaLargo}): "${nDia.aria}"`);
   if (nDia.anuncio) v.push(`el nudge de dia anuncio ademas de re-enfocar: "${nDia.anuncio}"`);
@@ -1852,7 +1866,7 @@ await supr.close();
   if (!suprConfirm.vivo || suprConfirm.n !== suprInfo.n) v.push("Supr borro antes de confirmar");
   if (!suprDirecto.confirm) v.push("Supr sobre la reunion enfocada no abrio la confirmacion");
   if (!suprDirecto.vivo || suprDirecto.n !== suprInfo.n) v.push("Supr directo borro antes de confirmar");
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `A6 nudge por teclado · Alt+↓ ${nudgeAntes.min}->${nMin.min} nombre "${nMin.aria}" live "${nMin.anuncio || "(vacia)"}" scroll ${nudgeAntes.scroll}->${nMin.scroll} · Alt+→ dia ${nudgeAntes.day}->${nDia.day} nombre trae "${nDia.diaLargo}" live "${nDia.anuncio || "(vacia)"}" · Shift+↓ dur ${nudgeAntes.dur}->${nDur.dur} fin ${fmt2(nDur.fin)} live "${nDur.anuncio || "(vacia)"}" · piso ${nPiso.min} anuncio "${nPiso.anuncio}" · tope dur ${nTope.dur} anuncio "${nTope.anuncio}" · 2.1.4 campo "${tras214.valor}" eventos ${tras214.n} vista ${tras214.view} · ajeno panel ${trasAjeno.panel} · Supr hint "${suprHint.hint}" confirm ${suprConfirm.confirm} foco ${suprConfirm.foco} · directo ${suprDirecto.confirm} foco ${suprDirecto.foco}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A6 nudge por teclado · Alt solo inerte ${nViejo.min === viejoMin} · Ctrl+Alt+↓ ${nudgeAntes.min}->${nMin.min} nombre "${nMin.aria}" live "${nMin.anuncio || "(vacia)"}" scroll ${nudgeAntes.scroll}->${nMin.scroll} · Ctrl+Alt+→ dia ${nudgeAntes.day}->${nDia.day} nombre trae "${nDia.diaLargo}" live "${nDia.anuncio || "(vacia)"}" · Shift+↓ dur ${nudgeAntes.dur}->${nDur.dur} fin ${fmt2(nDur.fin)} live "${nDur.anuncio || "(vacia)"}" · piso ${nPiso.min} anuncio "${nPiso.anuncio}" · tope dur ${nTope.dur} anuncio "${nTope.anuncio}" · 2.1.4 campo "${tras214.valor}" eventos ${tras214.n} vista ${tras214.view} · ajeno panel ${trasAjeno.panel} · Supr hint "${suprHint.hint}" confirm ${suprConfirm.confirm} foco ${suprConfirm.foco} · directo ${suprDirecto.confirm} foco ${suprDirecto.foco}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 
@@ -1878,7 +1892,7 @@ const medirObjetivos = () => {
   // el texto de un control puede vivir en un hijo (.mev-h, .lev-p, .m-tecla): se miden todos
   const textos = (el) => { const out = []; const walk = (n) => { for (const c of n.childNodes) { if (c.nodeType === 3) { if (c.textContent.trim()) out.push(n); } else if (c.nodeType === 1) walk(c); } }; walk(el); return out; };
   const EXCEPCIONES = { "[data-densa]": "bloque de evento corto: densidad necesaria (Essential, 2.5.8)" };
-  const SEL = 'button, a[href], [role="menuitem"], input, .grip';
+  const SEL = 'button, a[href], [role="menuitem"], input, select, textarea, .grip';
   const chicos = [], contraste = [], excepcionados = [];
   for (const el of q(SEL).filter(vis)) {
     if (el.closest("#announcer, .sr-only, .skip")) continue;
@@ -2500,6 +2514,201 @@ await lz.close();
   if (!trasZ.focoGrilla) v.push("sin filas el foco no quedo en el contenedor de la Lista");
   if (!/Eliminada/.test(trasZ.anuncio)) v.push(`el borrado que vacia la Lista no anuncio: "${trasZ.anuncio}"`);
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A10 Lista operable (compuesto APG) · filas ${comp.filas} con data-i ${comp.conIndice} · tab stops ${comp.tabbables} (roving ${comp.filaTabbable}) · flechas ${k0}→↓${kDown}→↑${kUp}→End ${kEnd}→Home ${kHome}→→dia ${kRight.day}→←${kLeft} · Tab Nueva→fila ${tab1.esFila}(${tab1.i})→fuera ${!tab2.esFila} · menú anclado a fila ${menuAncla.fila}=${menuAncla.indice} dentro ${menuAncla.dentro} sin anuncio ${!menuAncla.anuncio} · Mover ${antesMvL.min}→${trasMvL.min} dia ${trasMvL.day} foco fila ${trasMvL.focoI} · Duración ${antesDurL.dur}→${trasDurL.dur} foco fila ${trasDurL.focoI} · Duplicar ${nDupL}→${trasDupL.n} foco copia ${trasDupL.focoI} sin anuncio ${!trasDupL.anuncio} · Eliminar ${delInfo.n}→${trasDelL.n} foco siguiente "${trasDelL.focoTitulo}" anuncio "${trasDelL.anuncio}" · última→anterior "${trasLast.focoTitulo}" · día vacío→día ${finDia?.focoDia} "${finDia?.focoTitulo}" · lista vacía→contenedor ${trasZ.focoGrilla}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+
+// ── A11 · Panel completo (A4): agenda (categoría), notas y día ──
+// El panel solo tenía título / hora / duración. Se suman agenda, notas y día, y las
+// tres se persisten al crear y al editar. La agenda define color y nombre accesible
+// (se ve al instante); el día mueve la reunión en la grilla Y en la Lista; las notas
+// se guardan pero NO entran al nombre accesible (lo inflarían). La guarda MIDE el
+// contraste de los controles nuevos, no lo asume.
+const a4p = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await a4p.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await a4p.waitForTimeout(450);
+
+await a4p.evaluate(() => abrirPanel({ dia: 1, min: 9 * 60, dur: 45 }));
+await a4p.waitForTimeout(300);
+const campos = await a4p.evaluate(() => {
+  const panel = document.querySelector("#panel");
+  if (!panel) return { falta: true };
+  const catEl = panel.querySelector("#p-cat");
+  const diaEl = panel.querySelector("#p-dia");
+  const notasEl = panel.querySelector("#p-notas");
+  const asociado = (el) => !!el && !!panel.querySelector(`label[for="${el.id}"]`);
+  const tamano = (el) => { const b = el.getBoundingClientRect(); return b.width >= 24 && b.height >= 24; };
+  const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  const pixel = (bg, fg) => { cx.clearRect(0, 0, 1, 1); cx.fillStyle = bg; cx.fillRect(0, 0, 1, 1);
+    if (fg) { cx.fillStyle = fg; cx.fillRect(0, 0, 1, 1); } const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]]; };
+  const rel = (rgb) => { const f = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+  const ratio = (a, b) => { const la = rel(a), lb = rel(b); const hi = Math.max(la, lb), lo = Math.min(la, lb); return (hi + 0.05) / (lo + 0.05); };
+  const bgOf = (el) => { let n = el; while (n && n !== document.documentElement) { const bg = getComputedStyle(n).backgroundColor; if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg; n = n.parentElement; } return getComputedStyle(document.body).backgroundColor; };
+  const contraste = (el) => el ? Math.round(ratio(pixel(bgOf(el), null), pixel(bgOf(el), getComputedStyle(el).color)) * 100) / 100 : null;
+  return {
+    hayCat: !!catEl, hayDia: !!diaEl, hayNotas: !!notasEl,
+    labelCat: asociado(catEl), labelDia: asociado(diaEl), labelNotas: asociado(notasEl),
+    cats: catEl ? [...catEl.options].map((o) => o.value) : null,
+    catsLabel: catEl ? [...catEl.options].map((o) => o.textContent.trim()) : null,
+    dias: diaEl ? [...diaEl.options].map((o) => o.value) : null,
+    diasLabel: diaEl ? [...diaEl.options].map((o) => o.textContent.trim()) : null,
+    diasFuente: DAYS.slice(),
+    esperados: Object.keys(CATS),
+    labels: Object.values(CATS).map((v) => v.label),
+    tamano: [catEl, diaEl, notasEl].every((el) => el && tamano(el)),
+    contrasteCat: contraste(catEl), contrasteDia: contraste(diaEl), contrasteNotas: contraste(notasEl),
+    prohibido: !!panel.querySelector('[role="grid"], [aria-grabbed], [aria-dropeffect]'),
+  };
+});
+await a4p.keyboard.press("Escape");
+await a4p.waitForTimeout(250);
+
+// 1) Editar la AGENDA: cambia cat, color y nombre accesible; y las NOTAS se guardan sin entrar al nombre
+const iEdit = await a4p.evaluate(() => EVENTS.findIndex((e) => e.title === "Fernando Bustos · Plan 1"));
+const antesEdit = await a4p.evaluate((i) => ({
+  cat: EVENTS[i].cat,
+  color: getComputedStyle(document.querySelector(`#grilla .ev[data-i="${i}"]`)).getPropertyValue("--c").trim(),
+}), iEdit);
+await a4p.evaluate((i) => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; }, iEdit);
+await a4p.evaluate((i) => abrirPanel({ dia: EVENTS[i].day, min: EVENTS[i].min, dur: EVENTS[i].dur, evento: EVENTS[i] }), iEdit);
+await a4p.waitForTimeout(300);
+await a4p.locator("#p-cat").selectOption("personal");
+await a4p.locator("#p-notas").fill("Llevar propuesta impresa");
+// Enter envía el formulario desde un input (en el textarea insertaría un salto): sigue siendo teclado
+await a4p.locator("#p-titulo").focus();
+await a4p.keyboard.press("Enter");
+await a4p.waitForTimeout(450);
+const trasEdit = await a4p.evaluate((i) => {
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  return {
+    cat: EVENTS[i].cat,
+    notes: EVENTS[i].notes,
+    color: el ? getComputedStyle(el).getPropertyValue("--c").trim() : null,
+    colorEsperado: CATS.personal.color,
+    label: CATS.personal.label,
+    aria: el?.getAttribute("aria-label") || "",
+    panel: !!document.querySelector("#panel"),
+    focoEnEl: document.activeElement === el,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+}, iEdit);
+
+// 2) Cambiar el DÍA: mueve la reunión en la grilla y en la Lista, y el foco aterriza en ella
+const diaIns = await a4p.evaluate((i) => EVENTS[i].day, iEdit);
+const diaDestino2 = (diaIns + 3) % 5;
+await a4p.evaluate((i) => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; }, iEdit);
+await a4p.evaluate((i) => abrirPanel({ dia: EVENTS[i].day, min: EVENTS[i].min, dur: EVENTS[i].dur, evento: EVENTS[i] }), iEdit);
+await a4p.waitForTimeout(300);
+await a4p.locator("#p-dia").selectOption(String(diaDestino2));
+await a4p.locator("#p-titulo").focus();
+await a4p.keyboard.press("Enter");
+await a4p.waitForTimeout(450);
+const trasDia2 = await a4p.evaluate((i) => {
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  return {
+    day: EVENTS[i].day,
+    colDia: el ? Number(el.closest(".col").dataset.day) : null,
+    focoEnEl: document.activeElement === el,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+}, iEdit);
+await a4p.locator('[data-view="lista"]').click();
+await a4p.waitForTimeout(500);
+const trasDiaLista = await a4p.evaluate((i) => {
+  const fila = document.querySelector(`#grilla .lev[data-i="${i}"]`);
+  const sec = fila ? fila.closest(".ldia") : null;
+  return {
+    existe: !!fila,
+    seccion: sec ? [...document.querySelectorAll("#grilla .ldia")].indexOf(sec) : null,
+    dia: EVENTS[i].day,
+  };
+}, iEdit);
+
+// 3) Crear con TODOS los campos: forma idéntica a las entradas existentes
+await a4p.locator('[data-view="semana"]').click();
+await a4p.waitForTimeout(500);
+await a4p.evaluate(() => abrirPanel({ dia: 1, min: 10 * 60, dur: 30 }));
+await a4p.waitForTimeout(300);
+await a4p.locator("#p-titulo").fill("Reunión completa");
+await a4p.locator("#p-cat").selectOption("software");
+await a4p.locator("#p-dia").selectOption("3");
+await a4p.locator("#p-inicio").fill("14:15");
+await a4p.locator('#panel .p-dur[data-dur="60"]').click();
+await a4p.locator("#p-notas").fill("Notas de la reunión");
+await a4p.locator("#p-titulo").focus();
+await a4p.keyboard.press("Enter");
+await a4p.waitForTimeout(450);
+const creadoCompleto = await a4p.evaluate(() => {
+  const idx = EVENTS.findIndex((e) => e.title === "Reunión completa");
+  const e = idx >= 0 ? EVENTS[idx] : null;
+  const ref = EVENTS.find((x) => x.title === "Reunión de equipo");
+  const RUNTIME = new Set(["lane", "laneCount"]);
+  const claves = (o) => Object.keys(o).filter((k) => !RUNTIME.has(k)).sort();
+  const el = document.querySelector(`#grilla .ev[data-i="${idx}"]`);
+  return {
+    idx,
+    objeto: e ? { day: e.day, min: e.min, dur: e.dur, title: e.title, cat: e.cat, origin: e.origin, sync: e.sync, notes: e.notes } : null,
+    claves: e ? claves(e) : null,
+    clavesRef: ref ? claves(ref) : null,
+    focoEnEl: el ? document.activeElement === el : false,
+    panel: !!document.querySelector("#panel"),
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+await a4p.close();
+
+{
+  const v = [];
+  if (campos.falta) v.push("no se abre el panel");
+  else {
+    if (!campos.hayCat || !campos.hayDia || !campos.hayNotas) v.push(`faltan campos: cat ${campos.hayCat} / dia ${campos.hayDia} / notas ${campos.hayNotas}`);
+    if (!campos.labelCat || !campos.labelDia || !campos.labelNotas) v.push("hay campos sin label asociada por for/id");
+    if (JSON.stringify(campos.cats) !== JSON.stringify(campos.esperados)) v.push(`agenda no lista CATS: ${(campos.cats || []).join(",")}`);
+    if (JSON.stringify(campos.catsLabel) !== JSON.stringify(campos.labels)) v.push(`agenda no usa los labels de CATS: ${(campos.catsLabel || []).join(",")}`);
+    if (JSON.stringify(campos.dias) !== JSON.stringify(["0", "1", "2", "3", "4"])) v.push(`dia no lista los 5 dias habiles: ${(campos.dias || []).join(",")}`);
+    if (JSON.stringify(campos.diasLabel) !== JSON.stringify(campos.diasFuente)) v.push(`dia no usa los labels de DAYS: ${(campos.diasLabel || []).join(",")}`);
+    if (!campos.tamano) v.push("hay controles nuevos menores a 24x24");
+    for (const [k, r] of [["agenda", campos.contrasteCat], ["día", campos.contrasteDia], ["notas", campos.contrasteNotas]]) {
+      if (r === null) v.push(`no se pudo medir el contraste de ${k}`);
+      else if (r < 4.5) v.push(`contraste ${r}:1 en ${k} (minimo 4.5)`);
+    }
+    if (campos.prohibido) v.push("usa role=grid/aria-grabbed/aria-dropeffect");
+  }
+  // agenda
+  if (trasEdit.cat !== "personal") v.push(`editar la agenda no persistio cat: ${trasEdit.cat} (era ${antesEdit.cat})`);
+  if (trasEdit.color !== trasEdit.colorEsperado) v.push(`el color no siguio a la agenda: ${trasEdit.color} (esperado ${trasEdit.colorEsperado})`);
+  if (!trasEdit.aria.includes(trasEdit.label)) v.push(`el nombre accesible no trae la agenda nueva "${trasEdit.label}": "${trasEdit.aria}"`);
+  // notas
+  if (trasEdit.notes !== "Llevar propuesta impresa") v.push(`editar las notas no las persistio: "${trasEdit.notes}"`);
+  if (trasEdit.aria.includes("Llevar propuesta impresa")) v.push(`las notas entraron al nombre accesible: "${trasEdit.aria}"`);
+  if (trasEdit.panel) v.push("el panel no se cerro al editar");
+  if (!trasEdit.focoEnEl) v.push("editar no dejo el foco en la reunion");
+  if (trasEdit.anuncio) v.push(`editar anuncio ademas de re-enfocar: "${trasEdit.anuncio}"`);
+  // dia
+  if (trasDia2.day !== diaDestino2) v.push(`cambiar el dia no movio la reunion: ${diaIns} -> ${trasDia2.day} (esperado ${diaDestino2})`);
+  if (trasDia2.colDia !== diaDestino2) v.push(`la grilla no re-renderizo el evento en la columna ${diaDestino2}: ${trasDia2.colDia}`);
+  if (!trasDia2.focoEnEl) v.push("cambiar el dia no dejo el foco en la reunion movida");
+  if (trasDia2.anuncio) v.push(`cambiar el dia anuncio ademas de re-enfocar: "${trasDia2.anuncio}"`);
+  if (!trasDiaLista.existe) v.push("la Lista no re-renderizo el evento movido");
+  else if (trasDiaLista.seccion !== diaDestino2) v.push(`la Lista dejo el evento en la seccion ${trasDiaLista.seccion} (esperado ${diaDestino2})`);
+  // crear
+  const o = creadoCompleto.objeto;
+  if (!o) v.push("crear con todos los campos no agrego el evento");
+  else {
+    if (o.day !== 3) v.push(`crear: day ${o.day} (esperado 3)`);
+    if (o.min !== 14 * 60 + 15) v.push(`crear: min ${o.min} (esperado 855)`);
+    if (o.dur !== 60) v.push(`crear: dur ${o.dur} (esperado 60)`);
+    if (o.title !== "Reunión completa") v.push(`crear: title "${o.title}"`);
+    if (o.cat !== "software") v.push(`crear: cat ${o.cat} (esperado software)`);
+    if (o.notes !== "Notas de la reunión") v.push(`crear: notes "${o.notes}"`);
+    if (o.origin !== "CRM" || o.sync !== "ok") v.push(`crear: origin/sync ${o.origin}/${o.sync}`);
+    if (JSON.stringify(creadoCompleto.claves) !== JSON.stringify(creadoCompleto.clavesRef)) v.push(`crear: forma ${JSON.stringify(creadoCompleto.claves)} != existente ${JSON.stringify(creadoCompleto.clavesRef)}`);
+  }
+  if (creadoCompleto.panel) v.push("crear no cerro el panel");
+  if (!creadoCompleto.focoEnEl) v.push("crear no dejo el foco en la reunion nueva");
+  if (creadoCompleto.anuncio) v.push(`crear anuncio ademas de re-enfocar: "${creadoCompleto.anuncio}"`);
+  const mejorContraste = Math.min(...[campos.contrasteCat, campos.contrasteDia, campos.contrasteNotas].map((r) => r ?? 99));
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A11 panel completo · campos agenda/día/notas ${campos.hayCat && campos.hayDia && campos.hayNotas} labels ${campos.labelCat && campos.labelDia && campos.labelNotas} ≥24px ${campos.tamano} contraste ${mejorContraste}:1 · cat ${antesEdit.cat}→${trasEdit.cat} color ${trasEdit.color === trasEdit.colorEsperado} nombre trae "${trasEdit.label}" ${trasEdit.aria.includes(trasEdit.label)} · notas persistidas ${trasEdit.notes === "Llevar propuesta impresa"} fuera del nombre ${!trasEdit.aria.includes("Llevar propuesta impresa")} · día ${diaIns}→${trasDia2.day} grilla col ${trasDia2.colDia} Lista sección ${trasDiaLista.seccion} foco ${trasDia2.focoEnEl} · crear ${JSON.stringify(creadoCompleto.objeto)} forma ${JSON.stringify(creadoCompleto.claves) === JSON.stringify(creadoCompleto.clavesRef)} foco ${creadoCompleto.focoEnEl}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 await browser.close();

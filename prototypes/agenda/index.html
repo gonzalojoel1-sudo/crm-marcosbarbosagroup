@@ -344,7 +344,8 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .shell[data-panel="on"] .mini { display: none; }   /* el panel ocupa el lugar del mes */
 #panel h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
 #panel label { font-size: 12px; color: var(--fg-dim); }
-#panel input { background: var(--surface-2); border: 0; border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--fg); width: 100%; }
+#panel input, #panel select, #panel textarea { background: var(--surface-2); border: 0; border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--fg); width: 100%; min-height: 24px; }
+#panel textarea { resize: vertical; }
 #panel .p-hint { margin: -4px 0 0; font-size: 11px; color: var(--fg-dim); }
 #panel fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 #panel .p-dur { background: var(--surface-2); border: 0; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12px; color: var(--fg-dim); cursor: pointer; min-height: 24px; }
@@ -544,23 +545,23 @@ const DIAS_LARGOS = ["lunes 15", "martes 16", "miércoles 17", "jueves 18", "vie
 const START_H = 5, END_H = 21, SLOTS_PER_H = 4;
 
 let EVENTS = [
-  { day: 0, min: 8 * 60 + 30, dur: 45,  title: "Reunión de equipo",            cat: "trabajo",     origin: "CRM",     sync: "ok" },
-  { day: 0, min: 10 * 60,      dur: 60,  title: "Constructora Del Sur S.A.",  cat: "consultora",  origin: "CRM",     sync: "ok",   sub: "Diagnóstico 360°" },
-  { day: 0, min: 14 * 60 + 15, dur: 45,  title: "Revisión de propuesta",      cat: "software",    origin: "CRM",     sync: "pend", sub: "Cabral, Franco" },
-  { day: 0, min: 16 * 60,      dur: 90,  title: "Ocupado",                    cat: null,          origin: "Google",  sync: null,   busy: true },
-  { day: 1, min: 9 * 60,       dur: 30,  title: "Llamada: Oscar Vera",        cat: "consultora",  origin: "Reserva", sync: "ok",   sub: "Reservó por la web" },
-  { day: 1, min: 11 * 60 + 30, dur: 60,  title: "Ministerial · Cuerpo de Cristo", cat: "ministerial", origin: "CRM", sync: "ok" },
-  { day: 1, min: 15 * 60,      dur: 120, title: "Block: trabajo profundo",    cat: "personal",    origin: "CRM",     sync: "ok" },
-  { day: 2, min: 8 * 60,       dur: 60,  title: "Cuerpo de Cristo",           cat: "ministerial", origin: "Google",  sync: null,   busy: true },
-  { day: 2, min: 12 * 60 + 30, dur: 45,  title: "Almuerzo con Marcos",        cat: "personal",    origin: "Google",  sync: null,   busy: true },
-  { day: 2, min: 17 * 60,      dur: 60,  title: "Jonatan · Plan 3",           cat: "consultora",  origin: "Reserva", sync: "fail", sub: "Reintentando sincronizar" },
-  { day: 3, min: 10 * 60,      dur: 30,  title: "Seguimiento semanal",        cat: "trabajo",     origin: "CRM",     sync: "ok" },
-  { day: 3, min: 13 * 60 + 15, dur: 90,  title: "Taller: Software y Apps",    cat: "software",    origin: "CRM",     sync: "ok" },
-  { day: 1, min: 9 * 60,       dur: 60,  title: "Reunión de socios",          cat: "consultora", origin: "CRM",     sync: "ok" },
-  { day: 1, min: 9 * 60 + 15,  dur: 45,  title: "Llamada: Estudio Norte",     cat: "ministerial",origin: "Reserva", sync: "ok" },
-  { day: 4, min: 9 * 60 + 30,  dur: 45,  title: "Fernando Bustos · Plan 1",   cat: "consultora",  origin: "Reserva", sync: "ok" },
-  { day: 4, min: 12 * 60,      dur: 60,  title: "Ministerio · Los 1000 Socios",cat: "ministerial",origin: "CRM",     sync: "ok" },
-  { day: 4, min: 16 * 60 + 30, dur: 60,  title: "Legendarios · próximas fechas", cat: "ministerial", origin: "Google", sync: null, busy: true },
+  { day: 0, min: 8 * 60 + 30, dur: 45,  title: "Reunión de equipo",            cat: "trabajo",     origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 0, min: 10 * 60,      dur: 60,  title: "Constructora Del Sur S.A.",  cat: "consultora",  origin: "CRM",     sync: "ok",   notes: "", sub: "Diagnóstico 360°" },
+  { day: 0, min: 14 * 60 + 15, dur: 45,  title: "Revisión de propuesta",      cat: "software",    origin: "CRM",     sync: "pend", notes: "", sub: "Cabral, Franco" },
+  { day: 0, min: 16 * 60,      dur: 90,  title: "Ocupado",                    cat: null,          origin: "Google",  sync: null,   notes: "", busy: true },
+  { day: 1, min: 9 * 60,       dur: 30,  title: "Llamada: Oscar Vera",        cat: "consultora",  origin: "Reserva", sync: "ok",   notes: "", sub: "Reservó por la web" },
+  { day: 1, min: 11 * 60 + 30, dur: 60,  title: "Ministerial · Cuerpo de Cristo", cat: "ministerial", origin: "CRM", sync: "ok", notes: "" },
+  { day: 1, min: 15 * 60,      dur: 120, title: "Block: trabajo profundo",    cat: "personal",    origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 2, min: 8 * 60,       dur: 60,  title: "Cuerpo de Cristo",           cat: "ministerial", origin: "Google",  sync: null,   notes: "", busy: true },
+  { day: 2, min: 12 * 60 + 30, dur: 45,  title: "Almuerzo con Marcos",        cat: "personal",    origin: "Google",  sync: null,   notes: "", busy: true },
+  { day: 2, min: 17 * 60,      dur: 60,  title: "Jonatan · Plan 3",           cat: "consultora",  origin: "Reserva", sync: "fail", notes: "", sub: "Reintentando sincronizar" },
+  { day: 3, min: 10 * 60,      dur: 30,  title: "Seguimiento semanal",        cat: "trabajo",     origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 3, min: 13 * 60 + 15, dur: 90,  title: "Taller: Software y Apps",    cat: "software",    origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 1, min: 9 * 60,       dur: 60,  title: "Reunión de socios",          cat: "consultora", origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 1, min: 9 * 60 + 15,  dur: 45,  title: "Llamada: Estudio Norte",     cat: "ministerial",origin: "Reserva", sync: "ok",   notes: "" },
+  { day: 4, min: 9 * 60 + 30,  dur: 45,  title: "Fernando Bustos · Plan 1",   cat: "consultora",  origin: "Reserva", sync: "ok",   notes: "" },
+  { day: 4, min: 12 * 60,      dur: 60,  title: "Ministerio · Los 1000 Socios",cat: "ministerial",origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 4, min: 16 * 60 + 30, dur: 60,  title: "Legendarios · próximas fechas", cat: "ministerial", origin: "Google", sync: null, notes: "", busy: true },
 ];
 
 const fmt = (min) => String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
@@ -937,24 +938,25 @@ function cerrarPanel({ volverFoco = true } = {}) {
    hora y título): si el foco cambia no se anuncia; si el bloque no se pintó (por
    ejemplo su agenda está oculta) no hay foco posible y entonces sí se anuncia. */
 function guardarPanel(datos) {
-  const { dia, evento } = PANEL;   // leer antes de cerrar: cerrarPanel deja PANEL en null
+  const { evento } = PANEL;   // leer antes de cerrar: cerrarPanel deja PANEL en null
   if (evento) {
     evento.title = datos.titulo; evento.min = datos.min; evento.dur = datos.dur;
+    evento.cat = datos.cat; evento.day = datos.dia; evento.notes = datos.notes;
     cerrarPanel({ volverFoco: false });
     requestAnimationFrame(() => {
       const el = bloqueDe(EVENTS.indexOf(evento));
       if (el) el.focus();
-      else announce(`Actualizada ${evento.title}, ${DIAS_LARGOS[dia]} de ${fmt(evento.min)} a ${fmt(evento.min + evento.dur)}`);
+      else announce(`Actualizada ${evento.title}, ${DIAS_LARGOS[evento.day]} de ${fmt(evento.min)} a ${fmt(evento.min + evento.dur)}`);
     });
     return;
   }
-  const nuevo = { day: dia, min: datos.min, dur: datos.dur, title: datos.titulo, cat: "consultora", origin: "CRM", sync: "ok" };
+  const nuevo = { day: datos.dia, min: datos.min, dur: datos.dur, title: datos.titulo, cat: datos.cat, origin: "CRM", sync: "ok", notes: datos.notes };
   EVENTS.push(nuevo);
   cerrarPanel({ volverFoco: false });
   requestAnimationFrame(() => {
     const el = bloqueDe(EVENTS.indexOf(nuevo));
     if (el) el.focus();
-    else announce(`Creada ${nuevo.title}, ${DIAS_LARGOS[dia]} de ${fmt(nuevo.min)} a ${fmt(nuevo.min + nuevo.dur)}`);
+    else announce(`Creada ${nuevo.title}, ${DIAS_LARGOS[nuevo.day]} de ${fmt(nuevo.min)} a ${fmt(nuevo.min + nuevo.dur)}`);
   });
 }
 
@@ -964,17 +966,24 @@ function renderPanel() {
   const fin = min + dur;
   const rango = `${fmt(min)} – ${fmt(fin)}`;
   const titulo = evento ? `Editar · ${evento.title} · ${DIAS_LARGOS[dia]}, ${rango}` : `Nueva reunión · ${DIAS_LARGOS[dia]}, ${rango}`;
+  const catSel = evento ? evento.cat : "consultora";
   return `<aside id="panel" role="dialog" aria-modal="false" aria-labelledby="panel-titulo">
     <h2 id="panel-titulo">${titulo}</h2>
     <form id="panel-form">
       <label for="p-titulo">Título</label>
       <input id="p-titulo" name="titulo" autocomplete="off" value="${evento ? evento.title : ""}">
+      <label for="p-cat">Agenda</label>
+      <select id="p-cat" name="cat">${Object.entries(CATS).map(([k, v]) => `<option value="${k}"${k === catSel ? " selected" : ""}>${v.label}</option>`).join("")}</select>
+      <label for="p-dia">Día</label>
+      <select id="p-dia" name="dia">${DAYS.map((d, i) => `<option value="${i}"${i === dia ? " selected" : ""}>${d}</option>`).join("")}</select>
       <label for="p-inicio">Hora de inicio</label>
       <p class="p-hint" id="p-inicio-ayuda">Formato 24 h, por ejemplo 09:30</p>
       <input id="p-inicio" name="inicio" inputmode="numeric" value="${fmt(min)}" aria-describedby="p-inicio-ayuda">
       <fieldset><legend>Duración</legend>
         ${[15, 30, 45, 60, 90].map((d) => `<button type="button" class="p-dur${d === dur ? " on" : ""}" data-dur="${d}" aria-pressed="${d === dur}">${d} min</button>`).join("")}
       </fieldset>
+      <label for="p-notas">Notas</label>
+      <textarea id="p-notas" name="notas" rows="3">${evento ? (evento.notes || "") : ""}</textarea>
       <div class="p-acciones">
         <button type="submit" class="btn primary">Guardar</button>
         <button type="button" class="btn" data-cerrar-panel>Cancelar</button>
@@ -1086,7 +1095,7 @@ function renderMenu() {
 function duplicarEvento(i) {
   const e = EVENTS[i];
   if (!e) return;
-  const copia = { day: e.day, min: e.min, dur: e.dur, title: `${e.title} (copia)`, cat: e.cat, origin: e.origin, sync: e.sync };
+  const copia = { day: e.day, min: e.min, dur: e.dur, title: `${e.title} (copia)`, cat: e.cat, origin: e.origin, sync: e.sync, notes: e.notes || "" };
   if (e.sub) copia.sub = e.sub;   // lane/laneCount los recalcula renderCol
   EVENTS.push(copia);
   cerrarMenu({ volverFoco: false });
@@ -1184,7 +1193,7 @@ function nudgeEvento(i) {
   if (el) { el.focus(); el.scrollIntoView({ block: "nearest" }); }
 }
 
-// Alt+↑/↓: ±15 min. Contra el borde visible no se mueve y se dice por qué.
+// Ctrl+Alt+↑/↓: ±15 min. Contra el borde visible no se mueve y se dice por qué.
 function moverEvento(i, deltaMin) {
   const e = EVENTS[i];
   if (!e) return;
@@ -1197,7 +1206,7 @@ function moverEvento(i, deltaMin) {
   nudgeEvento(i);
 }
 
-// Alt+←/→: ±1 día, acotado a la ventana Lun–Vie.
+// Ctrl+Alt+←/→: ±1 día, acotado a la ventana Lun–Vie.
 function moverEventoDia(i, deltaDias) {
   const e = EVENTS[i];
   if (!e) return;
@@ -1719,7 +1728,7 @@ function onUp(ev) {
     }
   }
   if (d.moved && d.kind === "create") {
-    EVENTS.push({ day: d.day, min: d.min0, dur: d.dur || 30, title: "Nueva reunión", cat: "trabajo", origin: "CRM", sync: "pend" });
+    EVENTS.push({ day: d.day, min: d.min0, dur: d.dur || 30, title: "Nueva reunión", cat: "trabajo", origin: "CRM", sync: "pend", notes: "" });
   }
   paint();
 }
@@ -1947,7 +1956,10 @@ stage.addEventListener("submit", (ev) => {
   // sin parseo válido se conserva el minuto con el que se abrió el panel
   const min = m ? Math.max(0, Math.min(23 * 60 + 59, Number(m[1]) * 60 + Number(m[2]))) : PANEL.min;
   const dur = Number(document.querySelector("#panel .p-dur.on")?.dataset.dur || PANEL.dur);
-  guardarPanel({ titulo, min, dur });
+  const categoria = form.cat.value;
+  const dia = Number(form.dia.value);
+  const notas = form.notas.value;
+  guardarPanel({ titulo, min, dur, cat: categoria, dia, notes: notas });
 });
 window.addEventListener("resize", moveHighlight);
 // Roving tabindex de la Lista: la fila que recibe el foco (teclado o click) pasa a
@@ -2069,16 +2081,18 @@ document.addEventListener("keydown", (e) => {
       e.preventDefault(); return;
     }
   }
-  // Nudge: con una reunión enfocada, Alt+flechas mueve (15 min o 1 día) y
+  // Nudge: con una reunión enfocada, Ctrl+Alt+flechas mueve (15 min o 1 día) y
   // Shift+flechas cambia la duración. El foco no cambia, así que se anuncia.
+  // Se usa Ctrl+Alt (no Alt solo): en Windows/Linux Alt+←/→ es Atrás/Adelante y el
+  // W3C documenta que el navegador puede ignorar preventDefault en combinaciones reservadas.
   const elFoco = document.activeElement;
   const iFoco = elFoco?.classList?.contains("ev") && !elFoco.hasAttribute("data-busy")
     ? Number(elFoco.dataset.i) : -1;
   if (iFoco >= 0) {
-    if (e.altKey && e.key === "ArrowDown") { moverEvento(iFoco, 15); e.preventDefault(); return; }
-    if (e.altKey && e.key === "ArrowUp") { moverEvento(iFoco, -15); e.preventDefault(); return; }
-    if (e.altKey && e.key === "ArrowRight") { moverEventoDia(iFoco, 1); e.preventDefault(); return; }
-    if (e.altKey && e.key === "ArrowLeft") { moverEventoDia(iFoco, -1); e.preventDefault(); return; }
+    if (e.ctrlKey && e.altKey && e.key === "ArrowDown") { moverEvento(iFoco, 15); e.preventDefault(); return; }
+    if (e.ctrlKey && e.altKey && e.key === "ArrowUp") { moverEvento(iFoco, -15); e.preventDefault(); return; }
+    if (e.ctrlKey && e.altKey && e.key === "ArrowRight") { moverEventoDia(iFoco, 1); e.preventDefault(); return; }
+    if (e.ctrlKey && e.altKey && e.key === "ArrowLeft") { moverEventoDia(iFoco, -1); e.preventDefault(); return; }
     if (e.shiftKey && !e.altKey && e.key === "ArrowDown") { cambiarDuracion(iFoco, 15); e.preventDefault(); return; }
     if (e.shiftKey && !e.altKey && e.key === "ArrowUp") { cambiarDuracion(iFoco, -15); e.preventDefault(); return; }
     // Supr sobre la reunión enfocada: abre su menú y entra directo a la confirmación.
