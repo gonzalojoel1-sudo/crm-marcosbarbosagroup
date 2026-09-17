@@ -1825,4 +1825,326 @@ await supr.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A6 nudge por teclado · Alt+↓ ${nudgeAntes.min}->${nMin.min} nombre "${nMin.aria}" live "${nMin.anuncio || "(vacia)"}" scroll ${nudgeAntes.scroll}->${nMin.scroll} · Alt+→ dia ${nudgeAntes.day}->${nDia.day} nombre trae "${nDia.diaLargo}" live "${nDia.anuncio || "(vacia)"}" · Shift+↓ dur ${nudgeAntes.dur}->${nDur.dur} fin ${fmt2(nDur.fin)} live "${nDur.anuncio || "(vacia)"}" · piso ${nPiso.min} anuncio "${nPiso.anuncio}" · tope dur ${nTope.dur} anuncio "${nTope.anuncio}" · 2.1.4 campo "${tras214.valor}" eventos ${tras214.n} vista ${tras214.view} · ajeno panel ${trasAjeno.panel} · Supr hint "${suprHint.hint}" confirm ${suprConfirm.confirm} foco ${suprConfirm.foco} · directo ${suprDirecto.confirm} foco ${suprDirecto.foco}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+
+// ── A7 · Objetivos de puntero (SC 2.5.8) y contraste de todo control con relleno ──
+// Hasta acá el arnés solo medía el texto DENTRO de los bloques de evento: por eso
+// el defecto de #fff sobre --accent (3.52:1) vivió escondido en .btn.primary. Esta
+// guarda MIDE cada objetivo (botones, links, inputs, items de menú y el asa de
+// redimensionar). La única excepción es la "Essential" de 2.5.8 para bloques de
+// evento cortos —datos cuya densidad es necesaria—, marcados con data-densa en
+// renderEvent: la excepción es explícita y revisable, y NO tapa un arreglo posible.
+// Corre en las 3 variantes × 3 densidades (en franja/pliegue el alto se ajusta solo,
+// pero se recorren las 3 multiplicidades) + las vistas Lista y Mes.
+const medirObjetivos = () => {
+  const q = (s) => [...document.querySelectorAll(s)];
+  const vis = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
+  const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  const set = (c) => { cx.fillStyle = Array.isArray(c) ? `rgb(${c[0]},${c[1]},${c[2]})` : c; };
+  const pixel = (bg, fg) => { cx.clearRect(0, 0, 1, 1); set(bg); cx.fillRect(0, 0, 1, 1); if (fg) { set(fg); cx.fillRect(0, 0, 1, 1); } const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]]; };
+  const rel = (rgb) => { const f = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+  const ratio = (a, b) => { const la = rel(a), lb = rel(b); const hi = Math.max(la, lb), lo = Math.min(la, lb); return (hi + 0.05) / (lo + 0.05); };
+  const bgOf = (el) => { let n = el; while (n && n !== document.documentElement) { const bg = getComputedStyle(n).backgroundColor; if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg; n = n.parentElement; } return getComputedStyle(document.body).backgroundColor; };
+  // el texto de un control puede vivir en un hijo (.mev-h, .lev-p, .m-tecla): se miden todos
+  const textos = (el) => { const out = []; const walk = (n) => { for (const c of n.childNodes) { if (c.nodeType === 3) { if (c.textContent.trim()) out.push(n); } else if (c.nodeType === 1) walk(c); } }; walk(el); return out; };
+  const EXCEPCIONES = { "[data-densa]": "bloque de evento corto: densidad necesaria (Essential, 2.5.8)" };
+  const SEL = 'button, a[href], [role="menuitem"], input, .grip';
+  const chicos = [], contraste = [], excepcionados = [];
+  for (const el of q(SEL).filter(vis)) {
+    if (el.closest("#announcer, .sr-only, .skip")) continue;
+    const b = el.getBoundingClientRect();
+    const cls = (el.className || "").toString().split(" ")[0] || el.tagName;
+    const exceptuado = Object.keys(EXCEPCIONES).find((sel) => el.matches(sel) || el.closest(sel));
+    if (b.width < 24 || b.height < 24) {
+      const m = `${cls}:${Math.round(b.width)}x${Math.round(b.height)}`;
+      if (exceptuado) excepcionados.push(m); else chicos.push(m);
+    }
+    if (el.classList.contains("ev")) continue;   // el texto de los bloques lo mide su propia guarda
+    const propio = getComputedStyle(el).backgroundColor;
+    if (propio === "rgba(0, 0, 0, 0)" || propio === "transparent") continue;   // sin relleno propio: no es el caso de 1.4.3 que se cierra acá
+    const relleno = pixel(bgOf(el.parentElement || el), propio);
+    const tns = textos(el);
+    if (!tns.length && el.tagName === "INPUT" && el.value.trim()) tns.push(el);
+    for (const tn of tns) {
+      const r = ratio(relleno, pixel(relleno, getComputedStyle(tn).color));
+      if (r < 4.5) contraste.push(`${cls}${el.classList.contains("on") ? ".on" : ""} ${r.toFixed(2)}:1 "${(el.value || el.textContent).trim().slice(0, 14)}"`);
+    }
+  }
+  return { chicos: [...new Set(chicos)], contraste: [...new Set(contraste)], excepcionados: [...new Set(excepcionados)] };
+};
+// mide el contraste del texto (actual y con #fff) sobre cualquier relleno == --accent
+const medirAcento = () => {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 1;
+  const cx = cv.getContext("2d", { willReadFrequently: true });
+  const set = (c) => { cx.fillStyle = Array.isArray(c) ? `rgb(${c[0]},${c[1]},${c[2]})` : c; };
+  const pixel = (bg, fg) => { cx.clearRect(0, 0, 1, 1); set(bg); cx.fillRect(0, 0, 1, 1); if (fg) { set(fg); cx.fillRect(0, 0, 1, 1); } const d = cx.getImageData(0, 0, 1, 1).data; return [d[0], d[1], d[2]]; };
+  const rel = (rgb) => { const f = rgb.map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+  const ratio = (a, b) => { const la = rel(a), lb = rel(b); const hi = Math.max(la, lb), lo = Math.min(la, lb); return (hi + 0.05) / (lo + 0.05); };
+  const bgOf = (el) => { let n = el; while (n && n !== document.documentElement) { const bg = getComputedStyle(n).backgroundColor; if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") return bg; n = n.parentElement; } return getComputedStyle(document.body).backgroundColor; };
+  const ACC = [254, 65, 0];
+  const out = [];
+  for (const el of document.querySelectorAll('button, a[href], input')) {
+    const b = el.getBoundingClientRect(); if (!b.width || !b.height) continue;
+    const cs = getComputedStyle(el);
+    const comp = pixel(bgOf(el.parentElement || el), cs.backgroundColor);
+    if (comp.join(",") !== ACC.join(",")) continue;
+    out.push({ el: (el.className || el.tagName).toString().split(" ")[0], texto: (el.value || el.textContent || "").trim().slice(0, 16), actual: +ratio(comp, pixel(comp, cs.color)).toFixed(2), blanco: +ratio(comp, pixel(comp, "#fff")).toFixed(2) });
+  }
+  return [...new Map(out.map((o) => [`${o.el}|${o.texto}`, o])).values()];
+};
+const DENSIDADES = [0.72, 1, 1.32];
+const obj = { chicos: [], contraste: [], excepcionados: [] };
+const acumular = (m) => { obj.chicos.push(...m.chicos); obj.contraste.push(...m.contraste); obj.excepcionados.push(...m.excepcionados); };
+for (const va of VARIANTS) {
+  for (const z of DENSIDADES) {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    await page.goto(`${FILE}?v=${va.v}`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(340);
+    await page.evaluate((zz) => { ZOOM_MULT = zz; mount(current); }, z);
+    await page.waitForTimeout(340);
+    acumular(await page.evaluate(medirObjetivos));
+    await page.evaluate(() => abrirPanel({ dia: 1, min: 9 * 60, dur: 45 }));   // trae .p-dur.on
+    await page.waitForTimeout(240);
+    acumular(await page.evaluate(medirObjetivos));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+    await page.evaluate(() => abrirMenu(EVENTS.findIndex((e) => !e.busy)));
+    await page.waitForTimeout(220);
+    acumular(await page.evaluate(medirObjetivos));
+    await page.locator('[data-accion="mover"]').click();                       // trae [data-dia].on
+    await page.waitForTimeout(220);
+    acumular(await page.evaluate(medirObjetivos));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(180);
+    await page.evaluate(() => abrirMenu(EVENTS.findIndex((e) => !e.busy)));
+    await page.waitForTimeout(180);
+    await page.locator('[data-accion="duracion"]').click();                    // trae [data-dpreset].on
+    await page.waitForTimeout(220);
+    acumular(await page.evaluate(medirObjetivos));
+    await page.close();
+  }
+}
+for (const view of ["lista", "mes"]) {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`${FILE}?v=3&view=${view}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(380);
+  acumular(await page.evaluate(medirObjetivos));
+  await page.close();
+}
+obj.chicos = [...new Set(obj.chicos)];
+obj.contraste = [...new Set(obj.contraste)];
+obj.excepcionados = [...new Set(obj.excepcionados)];
+
+// evidencia del defecto cerrado: texto sobre el acento, con el color actual y con
+// blanco (el valor anterior). Todas las muestras deben dar >= 4.5 con el actual.
+const acP = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await acP.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await acP.waitForTimeout(380);
+const acento = [];
+await acP.evaluate(() => abrirPanel({ dia: 1, min: 9 * 60, dur: 45 }));
+await acP.waitForTimeout(240);
+acento.push(...await acP.evaluate(medirAcento));
+await acP.keyboard.press("Escape");
+await acP.waitForTimeout(180);
+await acP.evaluate(() => abrirMenu(EVENTS.findIndex((e) => !e.busy)));
+await acP.waitForTimeout(180);
+await acP.locator('[data-accion="mover"]').click();
+await acP.waitForTimeout(220);
+acento.push(...await acP.evaluate(medirAcento));
+await acP.keyboard.press("Escape");
+await acP.waitForTimeout(180);
+await acP.evaluate(() => abrirMenu(EVENTS.findIndex((e) => !e.busy)));
+await acP.waitForTimeout(180);
+await acP.locator('[data-accion="duracion"]').click();
+await acP.waitForTimeout(220);
+acento.push(...await acP.evaluate(medirAcento));
+await acP.close();
+const acentoU = [...new Map(acento.map((o) => [`${o.el}|${o.texto}`, o])).values()];
+
+{
+  const v = [];
+  if (obj.chicos.length) v.push(`objetivos < 24x24 sin excepción: ${obj.chicos.slice(0, 8).join(", ")}`);
+  if (obj.contraste.length) v.push(`contraste < 4.5:1 en controles con relleno: ${obj.contraste.slice(0, 8).join(", ")}`);
+  for (const a of acentoU) if (a.actual < 4.5) v.push(`texto sobre el acento ${a.actual}:1 en ${a.el} "${a.texto}"`);
+  const peor = acentoU.reduce((m, a) => Math.min(m, a.actual), 99);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A7 objetivos ≥24px y contraste de controles · 3 variantes × 3 densidades + Lista/Mes · chicos ${obj.chicos.length} · contraste <4.5 ${obj.contraste.length} · excepción ${Object.keys({ "[data-densa]": 1 })[0]} (bloque corto, Essential) en ${obj.excepcionados.length} objetivos · texto sobre --accent: antes(hoy sin tocar 3.52) ahora peor ${peor}:1 en ${acentoU.length} controles`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+
+// ── A8 · Arrastre: crear, mover y cancelación de puntero (SC 2.5.2) ──
+// El arrastre es la interacción más vieja del prototipo y hasta ahora no se medía:
+// por eso un TypeError (minOf inexistente) sobrevivió. Acá se mide el camino feliz
+// —día de la columna y minuto derivado de la POSICIÓN del puntero vía geom().minOf,
+// sin números mágicos— y las dos salidas que exige 2.5.2: Escape durante el gesto y
+// soltar fuera de la grilla. Ninguna escribe. Mover no abre menú ni panel.
+const dg = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await dg.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await dg.waitForTimeout(420);
+// 1) crear arrastrando (viernes, 15:00: hueco libre)
+const planCrear = await dg.evaluate(() => {
+  const col = document.querySelector('.col[data-day="4"]');
+  const r = col.getBoundingClientRect(), g = geom();
+  const yRel = g.yOf(15 * 60);
+  return { x: r.left + r.width / 2, y: r.top + yRel, esperado: Math.round(g.minOf(yRel) / 15) * 15, n: EVENTS.length };
+});
+await dg.mouse.move(planCrear.x, planCrear.y);
+await dg.mouse.down();
+await dg.mouse.move(planCrear.x, planCrear.y + 40, { steps: 6 });
+await dg.mouse.up();
+await dg.waitForTimeout(400);
+const trasCrear = await dg.evaluate((n) => {
+  const e = EVENTS[n];
+  return { n: EVENTS.length, dia: e?.day, min: e?.min, dur: e?.dur,
+    panel: !!document.querySelector("#panel"), fantasma: !!document.querySelector("#ghost") };
+}, planCrear.n);
+// 2) Escape durante un arrastre de creación: no crea
+const nPre = await dg.evaluate(() => EVENTS.length);
+const planEsc = await dg.evaluate(() => {
+  const col = document.querySelector('.col[data-day="3"]');
+  const r = col.getBoundingClientRect(), g = geom();
+  return { x: r.left + r.width / 2, y: r.top + g.yOf(15 * 60) };
+});
+await dg.mouse.move(planEsc.x, planEsc.y);
+await dg.mouse.down();
+await dg.mouse.move(planEsc.x, planEsc.y + 50, { steps: 5 });
+await dg.keyboard.press("Escape");
+await dg.mouse.up();
+await dg.waitForTimeout(320);
+const trasEsc = await dg.evaluate(() => ({
+  n: EVENTS.length, panel: !!document.querySelector("#panel"),
+  fantasma: !!document.querySelector("#ghost"),
+  etiqueta: document.querySelector(".droplab")?.style.display || "",
+}));
+// 3) Escape durante un arrastre de MOVER: restaura el evento
+const planEscMv = await dg.evaluate(() => {
+  const i = EVENTS.findIndex((e) => e.title === "Reunión de equipo");
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  const r = el.getBoundingClientRect();
+  return { i, x: r.left + r.width / 2, y: r.top + r.height / 2, antes: { min: EVENTS[i].min, dur: EVENTS[i].dur, day: EVENTS[i].day } };
+});
+await dg.mouse.move(planEscMv.x, planEscMv.y);
+await dg.mouse.down();
+await dg.mouse.move(planEscMv.x, planEscMv.y + 60, { steps: 6 });
+await dg.keyboard.press("Escape");
+await dg.mouse.up();
+await dg.waitForTimeout(320);
+const trasEscMv = await dg.evaluate((i) => ({ min: EVENTS[i].min, dur: EVENTS[i].dur, day: EVENTS[i].day, menu: !!document.querySelector("#menu") }), planEscMv.i);
+// 4) soltar FUERA de la grilla: no crea
+const nFuera = await dg.evaluate(() => EVENTS.length);
+const planFuera = await dg.evaluate(() => {
+  const col = document.querySelector('.col[data-day="3"]');
+  const r = col.getBoundingClientRect(), g = geom();
+  const side = document.querySelector(".side").getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + g.yOf(16 * 60), outX: side.left + side.width / 2, outY: side.top + 40 };
+});
+await dg.mouse.move(planFuera.x, planFuera.y);
+await dg.mouse.down();
+await dg.mouse.move(planFuera.outX, planFuera.outY, { steps: 8 });
+await dg.mouse.up();
+await dg.waitForTimeout(320);
+const trasFuera = await dg.evaluate(() => ({ n: EVENTS.length, panel: !!document.querySelector("#panel") }));
+// 5) arrastrar una reunión existente: la mueve, no abre menú ni panel
+const planMover = await dg.evaluate(() => {
+  const i = EVENTS.findIndex((e) => e.title === "Reunión de equipo");
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  const r = el.getBoundingClientRect();
+  return { i, x: r.left + r.width / 2, y: r.top + r.height / 2, antes: { min: EVENTS[i].min, dur: EVENTS[i].dur, day: EVENTS[i].day }, n: EVENTS.length };
+});
+await dg.mouse.move(planMover.x, planMover.y);
+await dg.mouse.down();
+await dg.mouse.move(planMover.x, planMover.y + 45, { steps: 6 });
+await dg.mouse.up();
+await dg.waitForTimeout(380);
+const trasMover = await dg.evaluate((i) => ({
+  min: EVENTS[i].min, dur: EVENTS[i].dur, day: EVENTS[i].day, n: EVENTS.length,
+  menu: !!document.querySelector("#menu"), panel: !!document.querySelector("#panel"), fantasma: !!document.querySelector("#ghost"),
+}), planMover.i);
+await dg.close();
+{
+  const v = [];
+  if (trasCrear.n !== planCrear.n + 1) v.push(`crear arrastrando no sumó exactamente 1 (${planCrear.n} -> ${trasCrear.n})`);
+  if (trasCrear.dia !== 4) v.push(`el evento creado cayó en el día ${trasCrear.dia} (esperado 4)`);
+  if (trasCrear.min !== planCrear.esperado) v.push(`el evento creado cayó en ${trasCrear.min} (derivado del puntero: ${planCrear.esperado})`);
+  if (trasCrear.panel) v.push("crear arrastrando abrió el panel");
+  if (trasCrear.fantasma) v.push("el fantasma del arrastre quedó en el DOM");
+  if (trasEsc.n !== nPre) v.push(`Escape durante el arrastre creó ${trasEsc.n - nPre} evento(s)`);
+  if (trasEsc.panel) v.push("Escape durante el arrastre abrió el panel");
+  if (trasEsc.fantasma) v.push("Escape durante el arrastre dejó el fantasma");
+  if (trasEsc.etiqueta && trasEsc.etiqueta !== "none") v.push(`Escape durante el arrastre dejó la etiqueta visible (${trasEsc.etiqueta})`);
+  if (trasEscMv.min !== planEscMv.antes.min || trasEscMv.day !== planEscMv.antes.day) v.push(`Escape no restauró la reunión movida (${planEscMv.antes.min} -> ${trasEscMv.min})`);
+  if (trasEscMv.dur !== planEscMv.antes.dur) v.push(`Escape durante el mover cambió la duración (${planEscMv.antes.dur} -> ${trasEscMv.dur})`);
+  if (trasEscMv.menu) v.push("Escape durante el arrastre abrió el menú");
+  if (trasFuera.n !== nFuera) v.push(`soltar fuera de la grilla creó ${trasFuera.n - nFuera} evento(s)`);
+  if (trasFuera.panel) v.push("soltar fuera de la grilla abrió el panel");
+  if (!(trasMover.min > planMover.antes.min)) v.push(`arrastrar no movió la reunión (${planMover.antes.min} -> ${trasMover.min})`);
+  if (trasMover.day !== planMover.antes.day) v.push(`arrastrar cambió el día (${planMover.antes.day} -> ${trasMover.day})`);
+  if (trasMover.dur !== planMover.antes.dur) v.push(`arrastrar cambió la duración (${planMover.antes.dur} -> ${trasMover.dur})`);
+  if (trasMover.n !== planMover.n) v.push(`arrastrar cambió la cantidad de eventos (${planMover.n} -> ${trasMover.n})`);
+  if (trasMover.menu) v.push("arrastrar una reunión abrió el menú");
+  if (trasMover.panel) v.push("arrastrar una reunión abrió el panel");
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A8 arrastre · crear ${planCrear.n} -> ${trasCrear.n} día ${trasCrear.dia} min ${trasCrear.min} (puntero ${planCrear.esperado}) sin panel ${!trasCrear.panel} · Escape no crea ${trasEsc.n === nPre} · Escape restaura mover ${trasEscMv.min === planEscMv.antes.min && trasEscMv.dur === planEscMv.antes.dur} · soltar fuera no crea ${trasFuera.n === nFuera} · mover ${planMover.antes.min} -> ${trasMover.min} sin menú ${!trasMover.menu} ni panel ${!trasMover.panel}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+
+// ── A9 · Sin modos, sin atributos deprecados y sin controles muertos en el menú ──
+// R4: no hay estado de "modo" ni aria-grabbed/aria-dropeffect/role=grid en ninguna parte.
+// R5: la lista esperada se DERIVA de ACCIONES_HECHAS y además se verifica que cada item
+// renderizado tenga un handler REAL (click → efecto observable). Un id agregado al
+// marcador sin cablear hace fallar esta guarda, no la deja pasar.
+const modp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await modp.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await modp.waitForTimeout(420);
+const prohibidos = await modp.evaluate(() => ({
+  modo: document.querySelectorAll("[data-modo]").length,
+  grabbed: document.querySelectorAll("[aria-grabbed]").length,
+  dropeffect: document.querySelectorAll("[aria-dropeffect]").length,
+  grid: document.querySelectorAll('[role="grid"]').length,
+}));
+const marcador = await modp.evaluate(() => ({
+  ids: [...ACCIONES_HECHAS],
+  sinAccion: [...ACCIONES_HECHAS].filter((id) => !ACCIONES.some((a) => a.id === id)),
+}));
+const EFECTO = {
+  editar: (o) => o.panel,
+  mover: (o) => o.mover,
+  duracion: (o) => o.dur,
+  duplicar: (o) => o.n > o.n0,
+  eliminar: (o) => o.confirm,
+};
+const sinMapa = [], sinEfecto = [], noRenderizados = [];
+const renderizados = new Set();
+for (const id of marcador.ids) {
+  await modp.reload({ waitUntil: "networkidle" });
+  await modp.waitForTimeout(380);
+  await modp.evaluate(() => abrirMenu(EVENTS.findIndex((e) => !e.busy)));
+  await modp.waitForTimeout(220);
+  const set = await modp.evaluate(() => [...document.querySelectorAll('#menu [role="menuitem"]')].map((b) => b.dataset.accion));
+  for (const s of set) renderizados.add(s);
+  if (!set.includes(id)) { noRenderizados.push(id); continue; }
+  const n0 = await modp.evaluate(() => EVENTS.length);
+  await modp.locator(`[data-accion="${id}"]`).click();
+  await modp.waitForTimeout(280);
+  const obs = await modp.evaluate(() => ({
+    panel: !!document.querySelector("#panel"), mover: !!document.querySelector("#mover-dialog"),
+    dur: !!document.querySelector("#dur-dialog"), confirm: !!document.querySelector("#confirmar-eliminar"),
+    n: EVENTS.length,
+  }));
+  obs.n0 = n0;
+  if (!EFECTO[id]) sinMapa.push(id);
+  else if (!EFECTO[id](obs)) sinEfecto.push(id);
+}
+await modp.close();
+{
+  const v = [];
+  if (prohibidos.modo) v.push(`${prohibidos.modo} elementos con [data-modo]`);
+  if (prohibidos.grabbed) v.push(`${prohibidos.grabbed} elementos con aria-grabbed`);
+  if (prohibidos.dropeffect) v.push(`${prohibidos.dropeffect} elementos con aria-dropeffect`);
+  if (prohibidos.grid) v.push(`${prohibidos.grid} elementos con role=grid`);
+  if (marcador.sinAccion.length) v.push(`ACCIONES_HECHAS tiene ids sin acción en ACCIONES: ${marcador.sinAccion.join(", ")}`);
+  if (sinMapa.length) v.push(`sin efecto esperado declarado (handler no verificable): ${sinMapa.join(", ")}`);
+  if (sinEfecto.length) v.push(`items del menú sin handler cableado: ${sinEfecto.join(", ")}`);
+  if (noRenderizados.length) v.push(`ids del marcador que no se renderizan: ${noRenderizados.join(", ")}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A9 sin modos ni deprecados · [data-modo] ${prohibidos.modo} · aria-grabbed ${prohibidos.grabbed} · aria-dropeffect ${prohibidos.dropeffect} · role=grid ${prohibidos.grid} · marcador {${marcador.ids.join(", ")}} · renderizados {${[...renderizados].join(", ")}} · handlers verificados ${marcador.ids.length - sinMapa.length - sinEfecto.length - noRenderizados.length}/${marcador.ids.length}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();

@@ -97,7 +97,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 }
 .skip {
   position: fixed; top: 8px; left: 8px; z-index: 100;
-  transform: translateY(-200%); background: var(--accent); color: #fff;
+  transform: translateY(-200%); background: var(--accent); color: var(--bg);
   font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 8px;
 }
 .skip:focus { transform: none; }
@@ -111,10 +111,10 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
   transition: border-color 140ms ease-out, background 140ms ease-out;
 }
 .btn:hover { border-color: var(--border-2); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
 .btn.primary:hover { background: var(--accent-2); }
 .seg { display: inline-flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
-.seg button { background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 12px; padding: 4px 9px; border-radius: 6px; cursor: pointer; }
+.seg button { background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 12px; padding: 4px 9px; border-radius: 6px; cursor: pointer; min-height: 24px; }
 .seg button.on { background: var(--surface-2); color: var(--fg); }
 
 .gridwrap {
@@ -149,7 +149,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .nowline .knob { position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
 
 .ev {
-  position: absolute; overflow: hidden; cursor: grab; text-align: left; font: inherit; color: var(--fg);
+  position: absolute; overflow: visible; cursor: grab; text-align: left; font: inherit; color: var(--fg);
   border: 0; appearance: none;
   /* ancho = 1/carriles del grupo de solapamiento */
   left: calc(var(--lane, 0) * (100% / var(--lanes, 1)) + 4px);
@@ -158,8 +158,9 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .ev:active { cursor: grabbing; }
 .ev .t { font-weight: 600; }
 .ev .m { font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
-.ev .grip { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; }
-.ev[data-compact] .grip { height: 5px; }
+/* El asa de redimensionar mide 24 px de alto y está centrada en el borde inferior:
+   12 px dentro del bloque y 12 fuera. Lo que crece es el ÁREA de puntero, no el glifo (SC 2.5.8). */
+.ev .grip { position: absolute; left: 0; right: 0; bottom: -12px; height: 24px; cursor: ns-resize; }
 .ev[data-busy] { cursor: default; }
 .ev .sync { width: 7px; height: 7px; border-radius: 999px; display: inline-block; margin-left: 5px; }
 .sync.ok { background: var(--ok); }
@@ -243,7 +244,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .bandfold {
   position: absolute; left: 0; right: 0; display: flex; align-items: center;
   justify-content: center; gap: 7px; cursor: pointer; font: inherit;
-  font-family: var(--mono); font-size: 11px; letter-spacing: .03em; color: var(--fg-faint);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .03em; color: var(--fg-dim);
   background: rgba(244,241,234,.022); border: 0;
   border-top: 1px solid rgba(244,241,234,.05);
   border-bottom: 1px solid rgba(244,241,234,.05); z-index: 3;
@@ -265,7 +266,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .zoomctl { display: flex; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; }
 .zoomctl button {
   background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 11px;
-  padding: 3px 7px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  padding: 3px 7px; border-radius: 6px; cursor: pointer; white-space: nowrap; min-height: 24px;
 }
 .zoomctl button.on { background: var(--surface); color: var(--fg); }
 .meswrap { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
@@ -284,7 +285,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .mev {
   display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
   background: var(--surface); border: 0; border-radius: 5px;
-  padding: 3px 7px; margin-bottom: 3px;
+  padding: 3px 7px; margin-bottom: 3px; min-height: 24px;
   font: inherit; color: var(--fg); cursor: pointer; overflow: hidden;
   transition: background 140ms ease-out;
 }
@@ -293,7 +294,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .mev-h { font-family: var(--mono); font-size: 10.5px; color: var(--fg-dim); flex: none; }
 .mev-t { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mev.busy { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
-.mmas { background: none; border: 0; padding: 1px 6px; font: inherit; font-size: 11.5px; color: var(--fg-dim); cursor: pointer; text-align: left; width: 100%; border-radius: 5px; }
+.mmas { background: none; border: 0; padding: 1px 6px; font: inherit; font-size: 11.5px; color: var(--fg-dim); cursor: pointer; text-align: left; width: 100%; border-radius: 5px; min-height: 24px; }
 .mmas:hover { background: var(--surface); color: var(--fg); }
 
 .lista { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
@@ -317,7 +318,8 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .lev-c { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--fg-dim); flex: none; }
 .lev-c i { width: 8px; height: 8px; border-radius: 3px; display: block; }
 .lev.busy { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
-.lev-p { font-family: var(--mono); font-size: 11px; color: var(--ok); flex: none; }
+/* verde legible: --ok sobre --surface da 3.5:1; este tono da 5.2:1 (texto normal) */
+.lev-p { font-family: var(--mono); font-size: 11px; color: #1f9a7e; flex: none; }
 .lvy { margin: 0; font-size: 13px; color: var(--fg-faint); }
 
 .grid-empty {
@@ -346,7 +348,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 #panel .p-hint { margin: -4px 0 0; font-size: 11px; color: var(--fg-dim); }
 #panel fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
 #panel .p-dur { background: var(--surface-2); border: 0; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12px; color: var(--fg-dim); cursor: pointer; min-height: 24px; }
-#panel .p-dur.on { background: var(--accent); color: #fff; }
+#panel .p-dur.on { background: var(--accent); color: var(--bg); }
 #panel .p-acciones { display: flex; gap: 6px; margin-top: 6px; }
 
 /* ── Menú de la reunión: superficie de acciones sin arrastrar ─────────────
@@ -365,7 +367,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 }
 #menu [role="menuitem"]:hover,
 #menu [role="menuitem"]:focus-visible { background: var(--surface); }
-.m-tecla { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
+.m-tecla { font-family: var(--mono); font-size: 11px; color: var(--fg-dim); }
 
 /* Confirmación de "Eliminar": vive DENTRO del menú (no es un modal anidado).
    El foco entra en "Sí, eliminar", así que un segundo Enter confirma; Escape
@@ -406,7 +408,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 }
 #mover-dialog button[data-paso]:hover:not(:disabled),
 #mover-dialog button[data-dia]:hover:not(:disabled) { border-color: var(--border-2); }
-#mover-dialog button[data-dia].on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#mover-dialog button[data-dia].on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 #mover-dialog button:disabled { opacity: .4; cursor: not-allowed; }
 #mover-dialog .mv-acciones { display: flex; gap: 6px; margin-top: 2px; }
 #mover-dialog .mv-acciones .btn { min-height: 24px; }
@@ -435,7 +437,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 }
 #dur-dialog button[data-dpreset]:hover:not(:disabled),
 #dur-dialog button[data-dpaso]:hover:not(:disabled) { border-color: var(--border-2); }
-#dur-dialog button[data-dpreset].on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#dur-dialog button[data-dpreset].on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 #dur-dialog button:disabled { opacity: .4; cursor: not-allowed; }
 #dur-dialog .du-acciones { display: flex; gap: 6px; margin-top: 2px; }
 #dur-dialog .du-acciones .btn { min-height: 24px; }
@@ -772,7 +774,7 @@ function renderEvent(e, g) {
   const range = `${fmt(e.min)} – ${fmt(e.min + e.dur)}${e.origin === "Reserva" ? " · web" : ""}`;
   const lane = e.lane == null ? 1 : e.lane;
   const abierto = MENU && MENU.i === EVENTS.indexOf(e);
-  return `<button class="ev" data-i="${EVENTS.indexOf(e)}" ${compact ? "data-compact" : ""} ${tiny ? "data-tiny" : ""} ${narrow ? "data-narrow" : ""}
+  return `<button class="ev" data-i="${EVENTS.indexOf(e)}" ${compact ? "data-compact" : ""} ${tiny ? "data-tiny" : ""} ${h < 24 ? "data-densa" : ""} ${narrow ? "data-narrow" : ""}
     style="top:${top}px;height:${h}px;--c:${c.color};--lane:${e.lane};--lanes:${e.laneCount}" ${e.busy ? "data-busy" : ""}
     ${e.busy ? "" : `aria-haspopup="menu" aria-expanded="${abierto ? "true" : "false"}"`}
     title="${e.title} · ${range}"
@@ -1480,7 +1482,7 @@ function render() {
       </div>
       <div>
         <h2 class="block-title">Buscador</h2>
-        <input class="btn" style="width:100%;text-align:left;color:var(--fg-faint)" value="Buscar…  ⌘\u00a0K" readonly aria-label="Buscar reuniones" name="q" autocomplete="off">
+        <input class="btn" style="width:100%;text-align:left;color:var(--fg-dim)" value="Buscar…  ⌘\u00a0K" readonly aria-label="Buscar reuniones" name="q" autocomplete="off">
       </div>
     </aside>
 
@@ -1654,8 +1656,25 @@ function showLab(ev, text, clash) {
   l.style.display = "block";
 }
 
+/* SC 2.5.2: cancelar es una salida de primera clase. El gesto confirma recién en
+   pointerup (nunca en down); Escape a mitad del arrastre, soltar fuera de la
+   grilla y un pointercancel del sistema no escriben. Move/resize ya mutaron el
+   evento y repintaron durante el gesto, así que se restauran min0/dur0. */
+function cancelDrag() {
+  if (!drag) return;
+  const d = drag; drag = null;
+  downEn = null;
+  if (lab) lab.style.display = "none";
+  document.getElementById("ghost")?.remove();
+  if (d.kind === "resize" && d.e) d.e.dur = d.dur0;
+  if (d.kind === "move" && d.e) d.e.min = d.min0;
+  if (d.kind !== "create") paint();
+}
+
 function onUp(ev) {
   if (!drag) return;
+  // soltar fuera de la grilla cancela (SC 2.5.2): no se crea ni se mueve nada
+  if (!ev || !ev.target || !ev.target.closest || !ev.target.closest("#grilla")) { cancelDrag(); return; }
   const d = drag; drag = null;
   if (lab) lab.style.display = "none";
   document.getElementById("ghost")?.remove();
@@ -1901,8 +1920,11 @@ document.addEventListener("pointerdown", (ev) => {
 }, true);
 window.addEventListener("pointermove", onMove);
 window.addEventListener("pointerup", onUp);
+window.addEventListener("pointercancel", cancelDrag);
 
 document.addEventListener("keydown", (e) => {
+  // SC 2.5.2: Escape a mitad de un arrastre lo cancela y no crea ni mueve nada
+  if (drag && e.key === "Escape") { cancelDrag(); e.preventDefault(); return; }
   // El menú abierto se maneja ANTES que el panel: Escape no debe cerrar lo de atrás.
   // Y solo mientras el foco esté ADENTRO: si se fue, el menú es un huérfano que se limpia.
   const menu = document.getElementById("menu");
