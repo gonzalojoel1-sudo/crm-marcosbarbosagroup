@@ -544,4 +544,46 @@ await kp.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A1 puntero sin arrastre · ${creado.texto} · arrastre crea ${drag.ev > evAntes} sin panel ${!drag.panel} · tecla N "${porTecla}" · por dia "${porDia}"`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── Guardar desde el panel: crea el evento con lo elegido, cierra, enfoca y NO anuncia ──
+// (el foco ES el anuncio: moverlo y anunciar son alternativas, nunca simultaneos)
+const gp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await gp.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await gp.waitForTimeout(400);
+await gp.evaluate(() => abrirPanel({ dia: 2, min: 11 * 60, dur: 45 }));
+await gp.waitForTimeout(300);
+await gp.locator('#panel .p-dur[data-dur="90"]').click();
+await gp.locator("#p-inicio").fill("13:30");
+await gp.locator("#p-titulo").fill("Reunión de prueba");
+await gp.keyboard.press("Enter");
+await gp.waitForTimeout(500);
+const guardado = await gp.evaluate(() => {
+  const nuevo = [...document.querySelectorAll(".ev")].find((e) => (e.textContent || "").includes("Reunión de prueba"));
+  const idx = nuevo ? Number(nuevo.dataset.i) : -1;
+  const ev = idx >= 0 ? EVENTS[idx] : null;
+  return {
+    creado: !!nuevo,
+    panel: !!document.querySelector("#panel"),
+    focoEnNuevo: nuevo ? document.activeElement === nuevo : false,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+    ev: ev ? { day: ev.day, min: ev.min, dur: ev.dur, title: ev.title, cat: ev.cat, origin: ev.origin, sync: ev.sync } : null,
+  };
+});
+await gp.close();
+{
+  const v = [];
+  const e = guardado.ev;
+  if (!guardado.creado) v.push("no se creo la reunion");
+  if (!e) v.push("el evento creado no esta en EVENTS");
+  else {
+    if (e.day !== 2) v.push(`dia ${e.day} (esperado 2)`);
+    if (e.min !== 13 * 60 + 30) v.push(`hora ${e.min} (esperado 810)`);
+    if (e.dur !== 90) v.push(`duracion ${e.dur} (esperado 90)`);
+    if (e.cat !== "consultora" || e.origin !== "CRM" || e.sync !== "ok") v.push(`campos ${e.cat}/${e.origin}/${e.sync}`);
+  }
+  if (guardado.panel) v.push("el panel no se cerro al guardar");
+  if (!guardado.focoEnNuevo) v.push("el foco no quedo en la reunion creada");
+  if (guardado.anuncio) v.push(`se anuncio y ademas se movio el foco: "${guardado.anuncio}"`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `guardar · creado ${guardado.creado} · panel cerrado ${!guardado.panel} · foco ${guardado.focoEnNuevo} · anuncio "${guardado.anuncio}" · EVENTS ${JSON.stringify(e)}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();
