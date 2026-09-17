@@ -1060,11 +1060,7 @@ function pintarMover() {
     b.setAttribute("aria-disabled", String(!ok));
   });
   d.querySelectorAll("[data-dia]").forEach((b) => {
-    const dia = Number(b.dataset.dia);
-    const ok = dia >= 0 && dia < DAYS.length;   // solo la ventana Lun-Vie
-    b.disabled = !ok;
-    b.setAttribute("aria-disabled", String(!ok));
-    const on = dia === MOVER.dia;
+    const on = Number(b.dataset.dia) === MOVER.dia;
     b.setAttribute("aria-pressed", String(on));
     b.classList.toggle("on", on);
   });
@@ -1091,10 +1087,10 @@ function renderMover() {
     const ok = pasoPermitido(Number(p));
     return `<button type="button" data-paso="${p}" aria-label="${label}" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${label}</button>`;
   }).join("");
+  // Los cinco destinos SON la ventana Lun-Vie: no hay destino fuera de rango que deshabilitar.
   const dias = DAYS.map((d, i) => {
-    const ok = i >= 0 && i < DAYS.length;
     const on = i === MOVER.dia;
-    return `<button type="button" data-dia="${i}" class="${on ? "on" : ""}" aria-pressed="${on}" aria-disabled="${!ok}" aria-label="${DIAS_LARGOS[i]} de septiembre" ${ok ? "" : "disabled"}>${d}</button>`;
+    return `<button type="button" data-dia="${i}" class="${on ? "on" : ""}" aria-pressed="${on}" aria-disabled="false" aria-label="${DIAS_LARGOS[i]} de septiembre">${d}</button>`;
   }).join("");
   return `<div id="mover-dialog" role="dialog" aria-modal="false" aria-labelledby="mover-titulo"
       style="left:${MOVER_ANCHOR.x}px;top:${MOVER_ANCHOR.y}px">
@@ -1566,14 +1562,26 @@ document.addEventListener("keydown", (e) => {
     // Tab también cierra: si no, el foco saldría y el menú se quedaría comiéndose las teclas
     if (e.key === "Escape" || e.key === "Tab") { cerrarMenu(); e.preventDefault(); return; }
     if (e.key === "Enter" || e.key === " ") { document.activeElement?.click(); e.preventDefault(); return; }
+    // La tecla que muestra cada ítem tiene que hacer algo: si no, es una promesa falsa.
+    const atajo = ACCIONES.find((a) => ACCIONES_HECHAS.has(a.id) && a.tecla.length === 1 && a.tecla.toLowerCase() === e.key.toLowerCase());
+    if (atajo) { menu.querySelector(`[data-accion="${atajo.id}"]`)?.click(); e.preventDefault(); return; }
     return;   // con el menú abierto ninguna otra tecla debe llegar al resto
   }
   if (MENU) desmontarMenu();   // foco huérfano: limpiar antes de seguir con la página
   // El diálogo Mover se maneja antes que el panel: Escape no debe cerrar lo de atrás.
   const moverEl = document.getElementById("mover-dialog");
   if (MOVER && moverEl?.contains(document.activeElement)) {
-    // con el diálogo abierto se queda con las teclas mientras el foco esté adentro
-    if (e.key === "Escape" || e.key === "Tab") { cerrarMover(); e.preventDefault(); }
+    if (e.key === "Escape") { cerrarMover(); e.preventDefault(); return; }
+    // Es un diálogo, no un menú: Tab recorre SUS controles y cicla en los extremos,
+    // así el borrador no se pierde tabulando hacia la página de atrás.
+    if (e.key === "Tab") {
+      const ctr = [...moverEl.querySelectorAll("button:not(:disabled)")];
+      const idx = ctr.indexOf(document.activeElement);
+      const dir = e.shiftKey ? -1 : 1;
+      ctr[(idx + dir + ctr.length) % ctr.length]?.focus();
+      e.preventDefault(); return;
+    }
+    // Enter/Space los activa el propio <button>; el resto de teclas no pasa al fondo.
     return;
   }
   if (MOVER) cerrarMover({ volverFoco: false });   // foco huérfano: limpiar

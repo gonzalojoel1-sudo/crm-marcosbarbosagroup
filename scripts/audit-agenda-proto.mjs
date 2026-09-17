@@ -908,6 +908,7 @@ const mvAbierto = await mvp.evaluate(() => {
     etiquetado: !!d.querySelector("#mover-titulo"),
     pasos: pasos.map((b) => b.dataset.paso),
     dias: dias.map((b) => b.textContent.trim()),
+    diasEnVentana: dias.length === DAYS.length && dias.every((b) => !b.disabled && b.getAttribute("aria-disabled") === "false"),
     diaActual: dias.findIndex((b) => b.getAttribute("aria-pressed") === "true"),
     horaReal: /(lunes|martes|miércoles|jueves|viernes) \d+ de septiembre/.test(d.querySelector("#mover-hora")?.textContent || ""),
     tamano: ctr.every((b) => { const r = b.getBoundingClientRect(); return r.width >= 24 && r.height >= 24; }),
@@ -942,7 +943,8 @@ const trasDia = await mvp.evaluate(() => ({
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
 }));
 
-// 3) Escape: el borrador no debe tocar el evento ni anunciar
+// 3) Escape: el borrador no debe tocar el evento ni anunciar (se compara el objeto EVENTO completo)
+const antesEscape = await mvp.evaluate(() => JSON.stringify(EVENTS[0]));
 await abrirMenuReunion0();
 await mvp.locator('[data-accion="mover"]').click();
 await mvp.waitForTimeout(200);
@@ -951,7 +953,7 @@ await mvp.waitForTimeout(120);
 await mvp.keyboard.press("Escape");
 await mvp.waitForTimeout(300);
 const trasEscape = await mvp.evaluate(() => ({
-  min: EVENTS[0].min, dia: EVENTS[0].day,
+  objeto: JSON.stringify(EVENTS[0]),
   dialogo: !!document.querySelector("#mover-dialog"),
   focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
@@ -971,15 +973,107 @@ const borde = await mvp.evaluate(() => {
   }
   const m15 = d.querySelector('[data-paso="-15"]');
   const m60 = d.querySelector('[data-paso="-60"]');
+  const p15 = d.querySelector('[data-paso="+15"]');
   const minBorrador = MOVER ? MOVER.min : null;
   d.querySelector("#mover-cancelar")?.click();
   return {
     minBorrador, minEvento: EVENTS[0].min, piso: START_H * 60,
     m15: m15.disabled, m60: m60.disabled, m15aria: m15.getAttribute("aria-disabled"),
+    p15: p15.disabled,   // el corte es del borde, no un apagón general
   };
 });
 await mvp.waitForTimeout(200);
 await mvp.close();
+
+// 5) teclado de punta a punta: Enter abre el menú, ArrowDown a "Mover a…", Enter abre el diálogo,
+//    Tab recorre SUS controles (no cierra), Enter en el paso y Enter en Aplicar
+const kbd = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await kbd.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await kbd.waitForTimeout(400);
+const antesKbd = await kbd.evaluate(() => ({ min: EVENTS[0].min, dia: EVENTS[0].day, titulo: EVENTS[0].title }));
+await kbd.evaluate(() => {
+  const a = document.querySelector("#announcer"); if (a) a.textContent = "";
+  document.querySelector('#grilla .ev[data-i="0"]').focus();
+});
+await kbd.waitForTimeout(80);
+await kbd.keyboard.press("Enter");                 // abre el menú (foco: primer ítem "Editar")
+await kbd.waitForTimeout(200);
+const kbdMenu = await kbd.evaluate(() => ({
+  menu: !!document.querySelector("#menu"),
+  foco: document.activeElement?.getAttribute("aria-label") || "",
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+await kbd.keyboard.press("ArrowDown");             // "Editar" -> "Mover a…"
+await kbd.waitForTimeout(80);
+await kbd.keyboard.press("Enter");                 // abre el diálogo
+await kbd.waitForTimeout(200);
+const kbdAbierto = await kbd.evaluate(() => {
+  const d = document.querySelector("#mover-dialog");
+  const foco = document.activeElement;
+  return {
+    dialogo: !!d,
+    focoPaso: foco?.dataset?.paso || null,
+    enDialogo: d ? d.contains(foco) : false,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+await kbd.keyboard.press("Tab");                   // -1 h -> -15 min
+await kbd.keyboard.press("Tab");                   // -15 min -> +15 min
+const kbdFocoPaso = await kbd.evaluate(() => ({
+  paso: document.activeElement?.dataset?.paso || null,
+  dialogo: !!document.querySelector("#mover-dialog"),
+}));
+await kbd.keyboard.press("Enter");                 // aplica +15 min AL BORRADOR
+await kbd.waitForTimeout(120);
+const kbdDraft = await kbd.evaluate(() => (document.querySelector("#mover-hora")?.textContent || "").trim());
+// seguir con Tab hasta Aplicar y activarlo con Enter
+let kbdTabs = 0, kbdFoco = null;
+while (kbdTabs++ < 12) {
+  kbdFoco = await kbd.evaluate(() => document.activeElement?.id
+    || document.activeElement?.dataset?.paso
+    || document.activeElement?.dataset?.dia
+    || (document.activeElement?.textContent || "").trim());
+  if (kbdFoco === "mover-aplicar") break;
+  await kbd.keyboard.press("Tab");
+}
+await kbd.keyboard.press("Enter");                 // Aplicar
+await kbd.waitForTimeout(400);
+const trasKbd = await kbd.evaluate(() => ({
+  min: EVENTS[0].min, dia: EVENTS[0].day,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  dialogo: !!document.querySelector("#mover-dialog"),
+  focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
+}));
+await kbd.close();
+
+// 6) zoom: mover NO resetea el scroll de la grilla (la regresión de mount(), SC de continuidad)
+const zp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await zp.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await zp.waitForTimeout(500);
+const idxScroll = await zp.evaluate(() => EVENTS.findIndex((e) => e.title === "Block: trabajo profundo"));
+const scrollAntes = await zp.evaluate((i) => {
+  const w = document.querySelector(".gridwrap");
+  const heads = document.querySelector(".heads").getBoundingClientRect().height;
+  const e = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  const top = parseFloat(e.style.top), h = parseFloat(e.style.height);
+  w.scrollTop = Math.max(0, Math.round(heads + top + h / 2 - w.clientHeight / 2));
+  return w.scrollTop;
+}, idxScroll);
+const minScrollAntes = await zp.evaluate((i) => EVENTS[i].min, idxScroll);
+await zp.waitForTimeout(120);
+await zp.locator(`#grilla .ev[data-i="${idxScroll}"]`).click();
+await zp.waitForTimeout(250);
+await zp.locator('[data-accion="mover"]').click();
+await zp.waitForTimeout(200);
+await zp.locator('#mover-dialog [data-paso="+15"]').click();
+await zp.waitForTimeout(120);
+await zp.locator("#mover-aplicar").click();
+await zp.waitForTimeout(400);
+const trasScroll = await zp.evaluate((i) => ({
+  scrollTop: document.querySelector(".gridwrap").scrollTop,
+  min: EVENTS[i].min,
+}), idxScroll);
+await zp.close();
 {
   const v = [];
   const minEsperado = antesMv.min + 15;
@@ -994,6 +1088,7 @@ await mvp.close();
     if (!mvAbierto.etiquetado) v.push("sin titulo que lo nombre");
     if (JSON.stringify(mvAbierto.pasos) !== JSON.stringify(["-60", "-15", "+15", "+60"])) v.push(`pasos ${mvAbierto.pasos.join(",")}`);
     if (mvAbierto.dias.length !== 5) v.push(`dias ${mvAbierto.dias.length} (esperado 5)`);
+    if (!mvAbierto.diasEnVentana) v.push("algún destino de día queda fuera de la ventana Lun-Vie o deshabilitado");
     if (mvAbierto.diaActual !== antesMv.dia) v.push(`no marca el dia actual (${mvAbierto.diaActual} != ${antesMv.dia})`);
     if (!mvAbierto.horaReal) v.push("el destino no nombra el dia real de la semana");
     if (!mvAbierto.tamano) v.push("hay controles menores a 24x24");
@@ -1009,14 +1104,35 @@ await mvp.close();
   if (trasDia.dia !== 3) v.push(`el boton de dia no movio a jueves: ${antesMv.dia} -> ${trasDia.dia}`);
   if (trasDia.min !== minEsperado) v.push(`el boton de dia cambio la hora: ${minEsperado} -> ${trasDia.min}`);
   if (!/Movida/.test(trasDia.anuncio)) v.push(`el movimiento de dia no anuncio: "${trasDia.anuncio}"`);
-  if (trasEscape.min !== minEsperado || trasEscape.dia !== 3) v.push(`Escape si escribio: min ${trasEscape.min}, dia ${trasEscape.dia}`);
+  if (trasEscape.objeto !== antesEscape) v.push("Escape si escribio el evento (objeto distinto)");
   if (trasEscape.dialogo) v.push("Escape no cerro el dialogo");
   if (trasEscape.anuncio) v.push(`Escape anuncio: "${trasEscape.anuncio}"`);
   if (!trasEscape.focoEnEvento) v.push("Escape no devolvio el foco");
   if (borde.minEvento !== minEsperado) v.push(`los pasos del borde escribieron el evento: min ${borde.minEvento}`);
   if (!borde.m15 || !borde.m60 || borde.m15aria !== "true") v.push(`en el piso del rango los pasos negativos no se deshabilitan (${borde.m15}/${borde.m60}/${borde.m15aria})`);
+  if (borde.p15) v.push("en el piso del rango tambien se deshabilito un paso valido (+15)");
   if (borde.minBorrador !== null && borde.minBorrador < borde.piso) v.push(`el borrador paso el piso: ${borde.minBorrador} < ${borde.piso}`);
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `A2 "Mover a…" · ${antesMv.min} -> ${trasPaso.min} · dia ${antesMv.dia} -> ${trasDia.dia} · anuncio "${trasPaso.anuncio}" · sin anuncio al abrir ${!enMenu.anuncio && !mvAbierto.anuncio} · Escape no escribe ${trasEscape.min === minEsperado} · borde disabled ${borde.m15}/${borde.m60}`);
+  // teclado de punta a punta
+  const anuncioKbd = `Movida ${antesKbd.titulo} a las ${fmt2(antesKbd.min + 15)}`;
+  if (!kbdMenu.menu) v.push("Enter no abrio el menu para el viaje de teclado");
+  if (kbdMenu.anuncio) v.push(`se anuncio al abrir el menu por teclado: "${kbdMenu.anuncio}"`);
+  if (!kbdAbierto.dialogo) v.push("el atajo del menu no abrio el dialogo por teclado");
+  if (kbdAbierto.focoPaso !== "-60") v.push(`el foco al abrir no quedo en el primer paso: ${kbdAbierto.focoPaso}`);
+  if (!kbdAbierto.enDialogo) v.push("el foco no entra al dialogo por teclado");
+  if (kbdAbierto.anuncio) v.push(`se anuncio al abrir el dialogo por teclado: "${kbdAbierto.anuncio}"`);
+  if (!kbdFocoPaso.dialogo) v.push("Tab cerro el dialogo en vez de recorrer sus controles");
+  if (kbdFocoPaso.paso !== "+15") v.push(`Tab no alcanzo el paso +15: ${kbdFocoPaso.paso}`);
+  if (!/08:45/.test(kbdDraft)) v.push(`Enter en el paso no ajusto el borrador: "${kbdDraft}"`);
+  if (kbdFoco !== "mover-aplicar") v.push(`Tab no llego a Aplicar: ${kbdFoco}`);
+  if (trasKbd.min !== antesKbd.min + 15) v.push(`Enter en Aplicar no movio 15 min: ${antesKbd.min} -> ${trasKbd.min}`);
+  if (trasKbd.anuncio !== anuncioKbd) v.push(`anuncio de teclado "${trasKbd.anuncio}" (esperado "${anuncioKbd}")`);
+  if (trasKbd.dialogo) v.push("Aplicar por teclado no cerro el dialogo");
+  if (!trasKbd.focoEnEvento) v.push("Aplicar por teclado no devolvio el foco");
+  // scroll de la variante zoom
+  if (!(scrollAntes > 0)) v.push(`no se pudo fijar un scroll no nulo para probar (${scrollAntes})`);
+  if (trasScroll.min !== minScrollAntes + 15) v.push(`el viaje de scroll no movio la reunion: ${minScrollAntes} -> ${trasScroll.min}`);
+  if (trasScroll.scrollTop !== scrollAntes) v.push(`mover reseteo el scroll: ${scrollAntes} -> ${trasScroll.scrollTop}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A2 "Mover a…" · ${antesMv.min} -> ${trasPaso.min} · dia ${antesMv.dia} -> ${trasDia.dia} · anuncio "${trasPaso.anuncio}" · sin anuncio al abrir ${!enMenu.anuncio && !mvAbierto.anuncio} · Escape no escribe ${trasEscape.objeto === antesEscape} · borde disabled ${borde.m15}/${borde.m60} (+15 ok ${!borde.p15}) · teclado foco ${kbdAbierto.focoPaso}→Tab×2 ${kbdFocoPaso.paso}→Aplicar ${kbdFoco} · min ${antesKbd.min} -> ${trasKbd.min} · scroll ${scrollAntes} -> ${trasScroll.scrollTop}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 await browser.close();
