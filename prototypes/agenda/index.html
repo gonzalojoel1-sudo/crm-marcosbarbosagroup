@@ -854,11 +854,19 @@ function renderMonth() {
 }
 
 /* Vista Lista: la alternativa accesible. Una grilla 2D de tiempo es dificil de
-   recorrer con lector de pantalla; una lista de secciones por dia, no. */
+   recorrer con lector de pantalla; una lista de secciones por dia, no. Es un
+   compuesto APG: un solo tab stop (roving tabindex), flechas adentro y cada fila
+   abre el MISMO menú que un bloque de la grilla. */
 function renderList() {
-  return `<div class="lista" id="grilla" role="region" aria-label="Lista de reuniones de la semana">${
+  const filas = DAYS.map((_, i) =>
+    EVENTS.filter((e) => e.day === i && !oculto(e)).sort((a, b) => a.min - b.min));
+  const plano = filas.flat();
+  // La fila tabbable es la que el usuario dejó enfocada; si desapareció (se ocultó
+  // su agenda, se borró), recae en la primera fila visible.
+  ROVING = ROVING && plano.includes(ROVING) ? ROVING : (plano[0] || null);
+  return `<div class="lista" id="grilla" role="region" aria-label="Lista de reuniones de la semana" tabindex="-1">${
     DAYS.map((_, i) => {
-      const evs = EVENTS.filter((e) => e.day === i && !oculto(e)).sort((a, b) => a.min - b.min);
+      const evs = filas[i];
       const id = `ldia-${i}`;
       return `<section class="ldia" aria-labelledby="${id}"${i === 1 ? ' data-today=""' : ""}>
         <h3 class="ldia-h" id="${id}">
@@ -868,20 +876,31 @@ function renderList() {
         <div class="ldia-cuerpo">
           <button class="ldia-nueva btn" data-nueva-dia="${i}">Nueva reunión</button>
           ${evs.length
-          ? `<ul class="levs">${evs.map((e) => `<li>
-              <button class="lev${e.busy ? " busy" : ""}" title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"
+          ? `<ul class="levs">${evs.map((e) => {
+              const abierto = MENU && MENU.i === EVENTS.indexOf(e);
+              return `<li>
+              <button class="lev${e.busy ? " busy" : ""}" data-i="${EVENTS.indexOf(e)}" tabindex="${e === ROVING ? "0" : "-1"}"${e.busy ? " data-busy" : ""}
+                title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"${e.busy ? "" : ` aria-haspopup="menu" aria-expanded="${abierto ? "true" : "false"}"`}
                 aria-label="${DIAS_LARGOS[i]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
                 <span class="lev-h">${fmt(e.min)} – ${fmt(e.min + e.dur)}</span>
                 <span class="lev-t">${e.title}</span>
                 ${e.cat && !e.busy ? `<span class="lev-c"><i style="background:${cat(e.cat).color}"></i>${cat(e.cat).label}</span>` : ""}
                 ${e.busy ? '<span class="lev-c">de Google</span>' : ""}
                 ${e.sync && e.sync !== "ok" ? '<span class="lev-p">sin sincronizar</span>' : ""}
-              </button></li>`).join("")}</ul>`
+              </button></li>`;
+            }).join("")}</ul>`
           : '<p class="lvy">Sin reuniones</p>'}
         </div>
       </section>`;
     }).join("")
   }</div>`;
+}
+
+/* La reunión se pinta distinto según la vista (bloque en la grilla, fila en la
+   Lista), pero las dos formas llevan data-i y abren el MISMO menú. Este es el
+   único punto que conoce las dos: posicionamiento y acciones no se duplican. */
+function bloqueDe(i) {
+  return document.querySelector(`#grilla .ev[data-i="${i}"], #grilla .lev[data-i="${i}"]`);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -906,8 +925,8 @@ function cerrarPanel({ volverFoco = true } = {}) {
   PANEL = null;
   mount(current);
   if (volverFoco) requestAnimationFrame(() => {
-    // sin evento enfocable (Lista/Mes o grilla vacía) cae en un control estable del stage
-    const destino = document.querySelector("#grilla .ev")
+    // sin evento enfocable (Lista vacía/Mes o grilla vacía) cae en un control estable del stage
+    const destino = document.querySelector("#grilla .ev, #grilla .lev")
       || document.querySelector("#stage button");
     destino?.focus();
   });
@@ -923,7 +942,7 @@ function guardarPanel(datos) {
     evento.title = datos.titulo; evento.min = datos.min; evento.dur = datos.dur;
     cerrarPanel({ volverFoco: false });
     requestAnimationFrame(() => {
-      const el = document.querySelector(`#grilla .ev[data-i="${EVENTS.indexOf(evento)}"]`);
+      const el = bloqueDe(EVENTS.indexOf(evento));
       if (el) el.focus();
       else announce(`Actualizada ${evento.title}, ${DIAS_LARGOS[dia]} de ${fmt(evento.min)} a ${fmt(evento.min + evento.dur)}`);
     });
@@ -933,7 +952,7 @@ function guardarPanel(datos) {
   EVENTS.push(nuevo);
   cerrarPanel({ volverFoco: false });
   requestAnimationFrame(() => {
-    const el = document.querySelector(`#grilla .ev[data-i="${EVENTS.indexOf(nuevo)}"]`);
+    const el = bloqueDe(EVENTS.indexOf(nuevo));
     if (el) el.focus();
     else announce(`Creada ${nuevo.title}, ${DIAS_LARGOS[dia]} de ${fmt(nuevo.min)} a ${fmt(nuevo.min + nuevo.dur)}`);
   });
@@ -971,7 +990,8 @@ function renderPanel() {
    Solo se renderizan las acciones YA implementadas: un ítem que no hace
    nada es un defecto. Las tareas 6/7/8 suman su id a ACCIONES_HECHAS.
    ══════════════════════════════════════════════════════════════════════ */
-let MENU = null;   // { i, x, y } | null
+let MENU = null;    // { i, x, y } | null
+let ROVING = null;  // evento cuya fila es el único tab stop de la Lista (roving tabindex)
 
 const ACCIONES = [
   { id: "editar",   label: "Editar",            tecla: "E" },
@@ -993,21 +1013,22 @@ function teclaDeAccion(a, key) {
 }
 
 function abrirMenu(i) {
-  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  const el = bloqueDe(i);
   if (!el || el.hasAttribute("data-busy")) return;   // los importados de Google son de solo lectura
   const r = el.getBoundingClientRect();
   MENU = { i, x: r.left, y: r.bottom + 4 };
   // Se inserta el menú directo en el DOM, sin re-renderizar la grilla: así no se
   // pierde el scroll ni el control bajo el puntero, y el ancla no se corre.
   document.getElementById("menu")?.remove();
-  document.querySelectorAll('#grilla .ev[aria-expanded="true"]').forEach((x) => x.setAttribute("aria-expanded", "false"));
+  document.querySelectorAll('#grilla .ev[aria-expanded="true"], #grilla .lev[aria-expanded="true"]')
+    .forEach((x) => x.setAttribute("aria-expanded", "false"));
   document.getElementById("stage").insertAdjacentHTML("beforeend", renderMenu());
   el.setAttribute("aria-expanded", "true");
-  // Mover el foco ES el anuncio: abrir nunca anuncia.
-  requestAnimationFrame(() => {
-    posicionarMenu();
-    document.querySelector('#menu [role="menuitem"]')?.focus();
-  });
+  // El foco entra al menú YA: si una flecha llegara en el mismo frame, el menú ya
+  // tiene el foco y no se lo trata como huérfano. Mover el foco ES el anuncio:
+  // abrir nunca anuncia. El posicionamiento sí espera al layout.
+  document.querySelector('#menu [role="menuitem"]')?.focus();
+  requestAnimationFrame(posicionarMenu);
 }
 
 // Cierra el menú sin re-renderizar ni mover el foco: el control que recibió el
@@ -1015,7 +1036,8 @@ function abrirMenu(i) {
 function desmontarMenu() {
   MENU = null;
   document.getElementById("menu")?.remove();
-  document.querySelectorAll('#grilla .ev[aria-expanded="true"]').forEach((x) => x.setAttribute("aria-expanded", "false"));
+  document.querySelectorAll('#grilla .ev[aria-expanded="true"], #grilla .lev[aria-expanded="true"]')
+    .forEach((x) => x.setAttribute("aria-expanded", "false"));
 }
 
 function cerrarMenu({ volverFoco = true } = {}) {
@@ -1023,7 +1045,7 @@ function cerrarMenu({ volverFoco = true } = {}) {
   desmontarMenu();
   // Devolver el foco a la reunión también es el anuncio: cerrar nunca anuncia.
   if (volverFoco) requestAnimationFrame(() => {
-    document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus();
+    bloqueDe(i)?.focus();
   });
 }
 
@@ -1068,12 +1090,8 @@ function duplicarEvento(i) {
   if (e.sub) copia.sub = e.sub;   // lane/laneCount los recalcula renderCol
   EVENTS.push(copia);
   cerrarMenu({ volverFoco: false });
-  const wrap = document.querySelector(".gridwrap");
-  const st = wrap ? wrap.scrollTop : 0;
-  paint();
-  const wrap2 = document.querySelector(".gridwrap");
-  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
-  document.querySelector(`#grilla .ev[data-i="${EVENTS.indexOf(copia)}"]`)?.focus();
+  paintConservandoScroll();
+  bloqueDe(EVENTS.indexOf(copia))?.focus();
 }
 
 /* La confirmación reemplaza a la lista de acciones DENTRO del mismo #menu.
@@ -1100,20 +1118,35 @@ function renderConfirmar(i) {
 
 /* Al borrar, el elemento deja de existir y el foco cae forzosamente en OTRO
    objeto (un vecino o la grilla): el lector leería al vecino, no la eliminación.
-   Por eso acá SÍ se anuncia, además de mover el foco. Vecino = bloque más
-   cercano en el mismo día; si el día quedó vacío, el foco va a #grilla. */
+   Por eso acá SÍ se anuncia, además de mover el foco.
+   Grilla: vecino = bloque más cercano en el mismo día; si el día quedó vacío, va a #grilla.
+   Lista (APG): vecino = la fila siguiente en orden de DOM; si era la última, la
+   anterior; si el día quedó vacío, la siguiente fila es el primer evento del día
+   siguiente; sin filas, el contenedor. MUI tuvo que escribir esto a mano: por eso
+   se resuelve explícitamente y se mide. */
 function eliminarEvento(i) {
   const e = EVENTS[i];
   if (!e) return;
+  const esLista = !!document.getElementById("grilla")?.classList.contains("lista");
+  let objetivoLista = null;
+  if (esLista) {
+    const filas = [...document.querySelectorAll("#grilla .lev")];
+    const pos = filas.findIndex((el) => Number(el.dataset.i) === i);
+    const vecino = filas[pos + 1] || filas[pos - 1];
+    objetivoLista = vecino ? EVENTS[Number(vecino.dataset.i)] : null;
+    ROVING = objetivoLista;   // la fila vecina pasa a ser el único tab stop
+  }
   MENU = null;
   document.getElementById("menu")?.remove();
   EVENTS.splice(i, 1);
-  const wrap = document.querySelector(".gridwrap");
-  const st = wrap ? wrap.scrollTop : 0;
-  paint();
-  const wrap2 = document.querySelector(".gridwrap");
-  if (wrap2) wrap2.scrollTop = st;
+  paintConservandoScroll();
   announce(`Eliminada ${e.title}, ${DIAS_LARGOS[e.day]} a las ${fmt(e.min)}`);
+  if (esLista) {
+    const destino = objetivoLista ? bloqueDe(EVENTS.indexOf(objetivoLista)) : null;
+    if (destino) { destino.focus(); destino.scrollIntoView({ block: "nearest" }); return; }
+    document.getElementById("grilla")?.focus();
+    return;
+  }
   const vecino = vecinoDe(e.day, e.min);
   if (vecino) { vecino.focus(); return; }
   const g = document.getElementById("grilla");
@@ -1201,7 +1234,7 @@ let MOVER = null;                  // { i, dia, min } — borrador, no el evento
 let MOVER_ANCHOR = { x: 0, y: 0 }; // rect del bloque que lo abrió
 
 function abrirMover(i) {
-  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  const el = bloqueDe(i);
   if (!el || !EVENTS[i]) return;
   const e = EVENTS[i];
   MOVER = { i, dia: e.day, min: e.min };
@@ -1225,7 +1258,7 @@ function cerrarMover({ volverFoco = true } = {}) {
   document.getElementById("mover-dialog")?.remove();
   // Devolver el foco a la reunión también es el anuncio: cerrar no anuncia.
   if (volverFoco) requestAnimationFrame(() => {
-    document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus();
+    bloqueDe(i)?.focus();
   });
 }
 
@@ -1239,12 +1272,8 @@ function aplicarMover() {
   e.day = m.dia;
   e.min = m.min;
   cerrarMover({ volverFoco: false });
-  const wrap = document.querySelector(".gridwrap");
-  const st = wrap ? wrap.scrollTop : 0;
-  paint();
-  const wrap2 = document.querySelector(".gridwrap");
-  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
-  document.querySelector(`#grilla .ev[data-i="${m.i}"]`)?.focus();
+  paintConservandoScroll();
+  bloqueDe(m.i)?.focus();
 }
 
 // El borde del rango se corta con disabled: el control que no puede mover no se
@@ -1324,7 +1353,7 @@ const DUR_PRESETS = [15, 30, 45, 60, 90, 120];
 const DUR_MIN = 15;
 
 function abrirDur(i) {
-  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  const el = bloqueDe(i);
   if (!el || !EVENTS[i]) return;
   const e = EVENTS[i];
   DUR = { i, dur: e.dur };   // releer la duración actual: nunca confiar en estado viejo entre aperturas
@@ -1346,7 +1375,7 @@ function cerrarDur({ volverFoco = true } = {}) {
   document.getElementById("dur-dialog")?.remove();
   // Devolver el foco a la reunión también es el anuncio: cerrar no anuncia.
   if (volverFoco) requestAnimationFrame(() => {
-    document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus();
+    bloqueDe(i)?.focus();
   });
 }
 
@@ -1359,12 +1388,8 @@ function aplicarDur() {
   const e = EVENTS[d.i];
   e.dur = d.dur;
   cerrarDur({ volverFoco: false });
-  const wrap = document.querySelector(".gridwrap");
-  const st = wrap ? wrap.scrollTop : 0;
-  paint();
-  const wrap2 = document.querySelector(".gridwrap");
-  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
-  document.querySelector(`#grilla .ev[data-i="${d.i}"]`)?.focus();
+  paintConservandoScroll();
+  bloqueDe(d.i)?.focus();
 }
 
 // El control que no puede cambiar la duración no se ofrece, en vez de recortar
@@ -1712,6 +1737,16 @@ function paint() {
   needle();
 }
 
+/* Acciones y diálogos repintan sin usar mount() para no resetear el scroll del
+   contenedor activo. En Semana es .gridwrap; en Lista, .lista. */
+function paintConservandoScroll() {
+  const w = document.querySelector(".gridwrap") || document.querySelector(".lista");
+  const st = w ? w.scrollTop : 0;
+  paint();
+  const w2 = document.querySelector(".gridwrap") || document.querySelector(".lista");
+  if (w2) w2.scrollTop = st;
+}
+
 function needle() {
   document.querySelector(".nowline")?.remove();
   document.querySelectorAll(".inlinetime").forEach((n) => n.remove());
@@ -1801,6 +1836,12 @@ stage.addEventListener("click", (ev) => {
   }
   if (ev.target.closest("#eliminar-si")) { eliminarEvento(MENU?.i); return; }
   if (ev.target.closest("#eliminar-no")) { cerrarMenu(); return; }
+  // Lista: cada fila es un botón que ABRE el mismo menú que un bloque de la grilla.
+  const lev = ev.target.closest("#grilla .lev");
+  if (lev) {
+    if (!lev.hasAttribute("data-busy")) abrirMenu(Number(lev.dataset.i));
+    return;
+  }
   const paso = ev.target.closest("#mover-dialog [data-paso]");
   if (paso) {
     // un paso deshabilitado no llega acá (el navegador no dispara click), pero se revalida
@@ -1909,6 +1950,14 @@ stage.addEventListener("submit", (ev) => {
   guardarPanel({ titulo, min, dur });
 });
 window.addEventListener("resize", moveHighlight);
+// Roving tabindex de la Lista: la fila que recibe el foco (teclado o click) pasa a
+// ser la única tabbable, incluso si el foco llegó sin pasar por las flechas.
+document.addEventListener("focusin", (e) => {
+  const f = e.target.closest?.("#grilla .lev");
+  if (!f) return;
+  ROVING = EVENTS[Number(f.dataset.i)] || ROVING;
+  document.querySelectorAll("#grilla .lev").forEach((r) => r.setAttribute("tabindex", r === f ? "0" : "-1"));
+});
 window.addEventListener("pointerdown", onDown, true);
 // un pointerdown fuera del menú lo cierra sin re-renderizar, para que el control
 // bajo el puntero sobreviva y su click llegue
@@ -1992,6 +2041,34 @@ document.addEventListener("keydown", (e) => {
   // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
   if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  // Lista = compuesto APG: un único tab stop con roving tabindex y flechas adentro.
+  // ↑/↓ recorren fila por fila (y cruzan de día al terminar el grupo); ←/→ saltan al
+  // primer evento del día anterior/siguiente —dos velocidades, para no caminar fila
+  // por fila un día largo—; Home/End van a los extremos. Enter/Space y Supr abren el
+  // MISMO menú que un bloque de la grilla (no hay acciones propias de la Lista).
+  const filaFoco = document.activeElement?.closest?.("#grilla .lev");
+  if (filaFoco && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    const filas = [...document.querySelectorAll("#grilla .lev")];
+    const ir = (el) => { if (el) { el.focus(); el.scrollIntoView({ block: "nearest" }); } };
+    if (e.key === "ArrowDown") { ir(filas[filas.indexOf(filaFoco) + 1]); e.preventDefault(); return; }
+    if (e.key === "ArrowUp") { ir(filas[filas.indexOf(filaFoco) - 1]); e.preventDefault(); return; }
+    if (e.key === "Home") { ir(filas[0]); e.preventDefault(); return; }
+    if (e.key === "End") { ir(filas[filas.length - 1]); e.preventDefault(); return; }
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const d = EVENTS[Number(filaFoco.dataset.i)]?.day;
+      const dir = e.key === "ArrowRight" ? 1 : -1;
+      ir(filas.find((el) => { const dd = EVENTS[Number(el.dataset.i)]?.day; return dir > 0 ? dd > d : dd < d; }));
+      e.preventDefault(); return;
+    }
+    if (e.key === "Delete" || e.key === "Del") {
+      if (!filaFoco.hasAttribute("data-busy")) { abrirMenu(Number(filaFoco.dataset.i)); abrirConfirmarEliminar(); }
+      e.preventDefault(); return;
+    }
+    if (e.key === "Enter" || e.key === " ") {
+      if (!filaFoco.hasAttribute("data-busy")) abrirMenu(Number(filaFoco.dataset.i));
+      e.preventDefault(); return;
+    }
+  }
   // Nudge: con una reunión enfocada, Alt+flechas mueve (15 min o 1 día) y
   // Shift+flechas cambia la duración. El foco no cambia, así que se anuncia.
   const elFoco = document.activeElement;

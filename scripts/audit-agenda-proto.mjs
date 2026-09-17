@@ -2178,4 +2178,328 @@ await modp.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A9 sin modos ni deprecados · [data-modo] ${prohibidos.modo} · aria-grabbed ${prohibidos.grabbed} · aria-dropeffect ${prohibidos.dropeffect} · role=grid ${prohibidos.grid} · marcador {${marcador.ids.join(", ")}} · renderizados {${[...renderizados].join(", ")}} · handlers verificados ${marcador.ids.length - sinMapa.length - sinEfecto.length - noRenderizados.length}/${marcador.ids.length}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── A10 · La Lista opera las reuniones reusando el menú de la grilla ──
+// La Lista es la alternativa accesible declarada, pero sus filas eran botones inertes.
+// Acá se prueba, con viajes REALES de teclado desde la Lista, que: es UN solo tab stop
+// (roving tabindex), las flechas/Home/End mueven el foco adentro, Enter abre el MISMO
+// menú anclado a esa fila, y cada acción existente (Mover / Cambiar duración / Duplicar
+// / Eliminar) opera el evento. El borrado implementa la regla de APG: el foco cae en la
+// fila SIGUIENTE (o la anterior si era la última; o el primer evento del día siguiente
+// si el día quedó vacío; o el contenedor si no queda ninguna). Abrir el menú NO anuncia
+// (el foco entra al menú); borrar SÍ (el foco va a otro objeto).
+const abrirLista = async () => {
+  const p = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await p.goto(`${FILE}?v=3&view=lista`, { waitUntil: "networkidle" });
+  await p.waitForTimeout(400);
+  return p;
+};
+const focoFila = async (p, i) => {
+  await p.evaluate((x) => document.querySelector(`#grilla .lev[data-i="${x}"]`)?.focus(), i);
+  await p.waitForTimeout(70);
+};
+const abrirMenuLista = async (p, i) => { await focoFila(p, i); await p.keyboard.press("Enter"); await p.waitForTimeout(180); };
+const menuBajarA = async (p, n) => { for (let k = 0; k < n; k++) { await p.keyboard.press("ArrowDown"); await p.waitForTimeout(70); } };
+const borrarFila = async (p, i) => {
+  await abrirMenuLista(p, i);                    // menú (foco: Editar)
+  await menuBajarA(p, 4);                        // → Eliminar
+  await p.keyboard.press("Enter");               // confirmación (foco: Sí, eliminar)
+  await p.waitForTimeout(160);
+  await p.keyboard.press("Enter");               // confirma
+  await p.waitForTimeout(350);
+};
+
+// 1) Compuesto: roving, flechas, un solo tab stop y menú anclado (sin anunciar)
+const lc = await abrirLista();
+const comp = await lc.evaluate(() => {
+  const filas = [...document.querySelectorAll("#grilla .lev")];
+  return {
+    filas: filas.length,
+    filaPrimera: Number(filas[0]?.dataset?.i),
+    filaUltima: Number(filas[filas.length - 1]?.dataset?.i),
+    filaTabbable: Number(filas.find((f) => f.getAttribute("tabindex") === "0")?.dataset?.i),
+    tabbables: filas.filter((f) => f.getAttribute("tabindex") === "0").length,
+    conIndice: filas.every((f) => /^\d+$/.test(f.dataset.i || "")),
+    noBusy: filas.filter((f) => !f.hasAttribute("data-busy")).length,
+    conMenu: filas.filter((f) => !f.hasAttribute("data-busy") && f.getAttribute("aria-haspopup") === "menu").length,
+    busyConExpanded: filas.filter((f) => f.hasAttribute("data-busy") && f.hasAttribute("aria-expanded")).length,
+    region: document.querySelector("#grilla")?.getAttribute("role"),
+    alcanzables: filas.filter((f) => { const b = f.getBoundingClientRect(); return b.width > 0 && b.height > 0; }).length,
+    inalcanzables: filas.filter((f) => f.closest('[inert], [aria-hidden="true"]')).length,
+    prohibido: !!document.querySelector('[role="grid"], [aria-grabbed], [aria-dropeffect]'),
+  };
+});
+await focoFila(lc, comp.filaPrimera);
+const k0 = await lc.evaluate(() => Number(document.activeElement?.dataset?.i));
+await lc.keyboard.press("ArrowDown"); await lc.waitForTimeout(90);
+const kDown = await lc.evaluate(() => Number(document.activeElement?.dataset?.i));
+await lc.keyboard.press("ArrowUp"); await lc.waitForTimeout(90);
+const kUp = await lc.evaluate(() => Number(document.activeElement?.dataset?.i));
+await lc.keyboard.press("End"); await lc.waitForTimeout(90);
+const kEnd = await lc.evaluate(() => Number(document.activeElement?.dataset?.i));
+await lc.keyboard.press("Home"); await lc.waitForTimeout(90);
+const kHome = await lc.evaluate(() => Number(document.activeElement?.dataset?.i));
+await lc.keyboard.press("ArrowRight"); await lc.waitForTimeout(90);
+const kRight = await lc.evaluate(() => ({ i: Number(document.activeElement?.dataset?.i), day: EVENTS[Number(document.activeElement?.dataset?.i)]?.day }));
+await lc.keyboard.press("ArrowLeft"); await lc.waitForTimeout(90);
+const kLeft = await lc.evaluate(() => Number(document.activeElement?.dataset?.i));
+// un solo tab stop: Nueva reunión (día 0) → Tab → fila roving → Tab → control siguiente
+await lc.evaluate(() => document.querySelector('[data-nueva-dia="0"]')?.focus());
+await lc.waitForTimeout(60);
+await lc.keyboard.press("Tab"); await lc.waitForTimeout(90);
+const tab1 = await lc.evaluate(() => ({ esFila: !!document.activeElement?.classList?.contains("lev"), i: Number(document.activeElement?.dataset?.i) }));
+await lc.keyboard.press("Tab"); await lc.waitForTimeout(90);
+const tab2 = await lc.evaluate(() => ({ esFila: !!document.activeElement?.classList?.contains("lev"), nueva: document.activeElement?.dataset?.nuevaDia ?? null }));
+await focoFila(lc, comp.filaPrimera);
+await lc.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await lc.keyboard.press("Enter"); await lc.waitForTimeout(200);
+const menuAncla = await lc.evaluate(() => {
+  const m = document.querySelector("#menu");
+  const fila = document.querySelector(`#grilla .lev[data-i="${MENU?.i}"]`);
+  const rb = fila.getBoundingClientRect(), mb = m.getBoundingClientRect();
+  return {
+    hay: !!m, indice: MENU?.i ?? null, fila: Number(fila.dataset.i),
+    items: [...m.querySelectorAll('[role="menuitem"]')].map((b) => b.dataset.accion),
+    ancla: Math.abs(mb.top - (rb.bottom + 4)) < 90 || mb.bottom <= rb.top + 1,
+    dentro: mb.left >= -1 && mb.top >= -1 && mb.right <= innerWidth + 1 && mb.bottom <= innerHeight + 1,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+await lc.close();
+
+// 2) Mover desde la Lista: el diálogo existente cambia día y minuto
+const lm = await abrirLista();
+const iMv = await lm.evaluate(() => EVENTS.findIndex((e) => !e.busy));
+const antesMvL = await lm.evaluate((i) => ({ min: EVENTS[i].min, day: EVENTS[i].day }), iMv);
+const diaDestino = (antesMvL.day + 2) % 5;
+await lm.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await abrirMenuLista(lm, iMv);
+await menuBajarA(lm, 1);
+await lm.keyboard.press("Enter"); await lm.waitForTimeout(200);
+const mvAbiertoLista = await lm.evaluate(() => ({
+  hay: !!document.querySelector("#mover-dialog"),
+  focoEnPaso: document.activeElement?.dataset?.paso || null,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+let tPaso = 0;
+while (tPaso++ < 8) { const p2 = await lm.evaluate(() => document.activeElement?.dataset?.paso || null); if (p2 === "+15") break; await lm.keyboard.press("Tab"); await lm.waitForTimeout(50); }
+await lm.keyboard.press("Enter"); await lm.waitForTimeout(90);
+await lm.locator(`#mover-dialog [data-dia="${diaDestino}"]`).click();
+await lm.waitForTimeout(90);
+let tMv = 0, focoMv = null;
+while (tMv++ < 14) { focoMv = await lm.evaluate(() => document.activeElement?.id || null); if (focoMv === "mover-aplicar") break; await lm.keyboard.press("Tab"); await lm.waitForTimeout(50); }
+await lm.keyboard.press("Enter"); await lm.waitForTimeout(350);
+const trasMvL = await lm.evaluate((i) => ({
+  min: EVENTS[i].min, day: EVENTS[i].day,
+  focoFila: !!document.activeElement?.classList?.contains("lev"),
+  focoI: Number(document.activeElement?.dataset?.i),
+  dialogo: !!document.querySelector("#mover-dialog"),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}), iMv);
+await lm.close();
+
+// 3) Cambiar duración desde la Lista: el diálogo existente cambia dur
+const ld = await abrirLista();
+const iDur = await ld.evaluate(() => EVENTS.findIndex((e) => !e.busy));
+const antesDurL = await ld.evaluate((i) => ({ dur: EVENTS[i].dur, min: EVENTS[i].min }), iDur);
+await ld.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await abrirMenuLista(ld, iDur);
+await menuBajarA(ld, 2);
+await ld.keyboard.press("Enter"); await ld.waitForTimeout(200);
+const durAbiertoL = await ld.evaluate(() => ({
+  hay: !!document.querySelector("#dur-dialog"),
+  foco: document.activeElement?.dataset?.dpreset || null,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+let tPre = 0;
+while (tPre++ < 12) { const v = await ld.evaluate(() => document.activeElement?.dataset?.dpreset || null); if (v === "90") break; await ld.keyboard.press("Tab"); await ld.waitForTimeout(50); }
+await ld.keyboard.press("Enter"); await ld.waitForTimeout(100);
+let tDur = 0, focoD = null;
+while (tDur++ < 14) { focoD = await ld.evaluate(() => document.activeElement?.id || null); if (focoD === "dur-aplicar") break; await ld.keyboard.press("Tab"); await ld.waitForTimeout(50); }
+await ld.keyboard.press("Enter"); await ld.waitForTimeout(350);
+const trasDurL = await ld.evaluate((i) => ({
+  dur: EVENTS[i].dur, min: EVENTS[i].min,
+  focoFila: !!document.activeElement?.classList?.contains("lev"),
+  focoI: Number(document.activeElement?.dataset?.i),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}), iDur);
+await ld.close();
+
+// 4) Duplicar desde la Lista: crece EVENTS y el foco pasa a la copia, sin anunciar
+const lu = await abrirLista();
+const nDupL = await lu.evaluate(() => EVENTS.length);
+const iDup = await lu.evaluate(() => EVENTS.findIndex((e) => !e.busy));
+const baseDup = await lu.evaluate((i) => ({ title: EVENTS[i].title, min: EVENTS[i].min, day: EVENTS[i].day }), iDup);
+await lu.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await abrirMenuLista(lu, iDup);
+await menuBajarA(lu, 3);
+await lu.keyboard.press("Enter"); await lu.waitForTimeout(350);
+const trasDupL = await lu.evaluate((n) => ({
+  n: EVENTS.length,
+  copia: EVENTS[n] ? { title: EVENTS[n].title, min: EVENTS[n].min, day: EVENTS[n].day } : null,
+  focoFila: !!document.activeElement?.classList?.contains("lev"),
+  focoI: Number(document.activeElement?.dataset?.i),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}), nDupL);
+await lu.close();
+
+// 5) Eliminar desde la Lista: la fila siguiente recibe el foco (regla APG)
+const lx = await abrirLista();
+const iDel = await lx.evaluate(() => EVENTS.findIndex((e) => e.title === "Revisión de propuesta"));
+const delInfo = await lx.evaluate((i) => {
+  const f = [...document.querySelectorAll("#grilla .lev")];
+  const j = f.findIndex((x) => Number(x.dataset.i) === i);
+  return { titulo: EVENTS[i].title, day: EVENTS[i].day, min: EVENTS[i].min, n: EVENTS.length, nextTitle: EVENTS[Number(f[j + 1].dataset.i)].title };
+}, iDel);
+await lx.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await borrarFila(lx, iDel);
+const trasDelL = await lx.evaluate(({ titulo, day, min }) => ({
+  n: EVENTS.length,
+  existe: EVENTS.some((e) => e.title === titulo),
+  focoFila: !!document.activeElement?.classList?.contains("lev"),
+  focoTitulo: (() => { const i = document.activeElement?.dataset?.i; return i != null ? EVENTS[Number(i)]?.title : null; })(),
+  focoGrilla: document.activeElement?.id === "grilla",
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  esperado: `Eliminada ${titulo}, ${DIAS_LARGOS[day]} a las ${fmt(min)}`,
+}), { titulo: delInfo.titulo, day: delInfo.day, min: delInfo.min });
+await lx.close();
+
+// 6) Última fila: el foco cae en la anterior (se oculta la agenda Ministerial, cuyo
+//    ocupado de Google es de solo lectura y no se puede borrar, para que la última
+//    fila visible sea borrable)
+const ll = await abrirLista();
+await ll.locator('.cal[data-cat="ministerial"]').click();
+await ll.waitForTimeout(350);
+const lastInfo = await ll.evaluate(() => {
+  const f = [...document.querySelectorAll("#grilla .lev")];
+  const iLast = Number(f[f.length - 1].dataset.i), iPrev = Number(f[f.length - 2].dataset.i);
+  return { iLast, titulo: EVENTS[iLast].title, prev: EVENTS[iPrev].title };
+});
+await ll.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await borrarFila(ll, lastInfo.iLast);
+const trasLast = await ll.evaluate(({ titulo }) => ({
+  existe: EVENTS.some((e) => e.title === titulo),
+  focoFila: !!document.activeElement?.classList?.contains("lev"),
+  focoTitulo: (() => { const i = document.activeElement?.dataset?.i; return i != null ? EVENTS[Number(i)]?.title : null; })(),
+}), lastInfo);
+await ll.close();
+
+// 7) Día que queda vacío: el foco cae en el primer evento del día siguiente
+//    (el jueves 18 tiene dos eventos borrables: se vacía y cae en el viernes 19)
+const le = await abrirLista();
+let finDia = null, guardDia = 0;
+while (guardDia++ < 6) {
+  const objetivo = await le.evaluate(() => {
+    const f = [...document.querySelectorAll("#grilla .lev")].filter((x) => EVENTS[Number(x.dataset.i)].day === 3);
+    return f.length ? Number(f[0].dataset.i) : null;
+  });
+  if (objetivo === null) break;
+  await borrarFila(le, objetivo);
+  finDia = await le.evaluate(() => {
+    const primero4 = [...document.querySelectorAll("#grilla .lev")].find((x) => EVENTS[Number(x.dataset.i)].day === 4);
+    const i = document.activeElement?.dataset?.i;
+    const ev = i != null ? EVENTS[Number(i)] : null;
+    return {
+      day3: EVENTS.filter((e) => e.day === 3).length,
+      focoDia: ev ? ev.day : null,
+      focoTitulo: ev ? ev.title : null,
+      primer4: primero4 ? EVENTS[Number(primero4.dataset.i)]?.title : null,
+      focoGrilla: document.activeElement?.id === "grilla",
+    };
+  });
+}
+await le.close();
+
+// 8) Lista sin filas: el foco cae en el contenedor (setUp: se deja una sola reunión;
+//    el borrado en sí es un viaje real de teclado)
+const lz = await abrirLista();
+await lz.evaluate(() => {
+  const keep = EVENTS.find((e) => !e.busy);
+  EVENTS = EVENTS.filter((e) => e === keep);
+  paint();
+});
+await lz.waitForTimeout(150);
+await borrarFila(lz, 0);
+const trasZ = await lz.evaluate(() => ({
+  n: EVENTS.length,
+  filas: document.querySelectorAll("#grilla .lev").length,
+  focoGrilla: document.activeElement?.id === "grilla",
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+await lz.close();
+
+{
+  const v = [];
+  // compuesto
+  if (!comp.filas) v.push("la Lista no tiene filas .lev");
+  if (comp.tabbables !== 1) v.push(`la Lista no es UN tab stop: ${comp.tabbables} filas tabbables`);
+  if (!comp.conIndice) v.push("hay filas sin data-i");
+  if (comp.conMenu !== comp.noBusy) v.push(`filas accionables sin aria-haspopup=menu: ${comp.noBusy - comp.conMenu}`);
+  if (comp.busyConExpanded) v.push(`${comp.busyConExpanded} filas ocupadas con aria-expanded`);
+  if (comp.region !== "region") v.push(`#grilla no es region: ${comp.region}`);
+  if (comp.alcanzables !== comp.filas) v.push(`filas sin caja visible: ${comp.filas - comp.alcanzables}`);
+  if (comp.inalcanzables) v.push(`${comp.inalcanzables} filas dentro de [inert]/[aria-hidden]`);
+  if (comp.prohibido) v.push("usa role=grid/aria-grabbed/aria-dropeffect");
+  if (kDown === k0) v.push(`ArrowDown no movio de fila (${k0})`);
+  if (kUp !== k0) v.push(`ArrowUp no volvio a la fila previa (${kUp})`);
+  if (kEnd !== comp.filaUltima) v.push(`End no fue a la ultima fila (${kEnd} != ${comp.filaUltima})`);
+  if (kHome !== comp.filaPrimera) v.push(`Home no fue a la primera fila (${kHome} != ${comp.filaPrimera})`);
+  if (!(kRight.day > 0)) v.push(`ArrowRight no salto de dia (dia ${kRight.day})`);
+  if (kLeft !== kHome) v.push(`ArrowLeft no volvio al primer evento del dia anterior (${kLeft})`);
+  if (!tab1.esFila) v.push("Tab tras Nueva reunion no cayo en la fila roving");
+  if (tab1.i !== comp.filaTabbable) v.push(`Tab cayo en la fila ${tab1.i}, no en la tabbable ${comp.filaTabbable}`);
+  if (tab2.esFila) v.push("un segundo Tab siguio dentro de las filas: la Lista no es un solo tab stop");
+  if (!menuAncla.hay) v.push("Enter sobre una fila no abrio el menu");
+  if (menuAncla.indice !== menuAncla.fila) v.push(`el menu se anclo a otra fila (${menuAncla.indice} != ${menuAncla.fila})`);
+  if (!menuAncla.ancla) v.push("el menu no quedo anclado a la fila");
+  if (!menuAncla.dentro) v.push("el menu se sale de la ventana");
+  if (JSON.stringify(menuAncla.items) !== JSON.stringify(["editar", "mover", "duracion", "duplicar", "eliminar"])) v.push(`items ${menuAncla.items.join(",")}`);
+  if (menuAncla.anuncio) v.push(`se anuncio al abrir el menu desde la Lista: "${menuAncla.anuncio}"`);
+  // mover
+  if (!mvAbiertoLista.hay) v.push("Mover a… no abrio desde la Lista");
+  if (mvAbiertoLista.anuncio) v.push(`se anuncio al abrir Mover desde la Lista: "${mvAbiertoLista.anuncio}"`);
+  if (trasMvL.min !== antesMvL.min + 15) v.push(`Mover desde la Lista no movio 15 min: ${antesMvL.min} -> ${trasMvL.min}`);
+  if (trasMvL.day !== diaDestino) v.push(`Mover desde la Lista no cambio al dia ${diaDestino}: ${trasMvL.day}`);
+  if (!trasMvL.focoFila || trasMvL.focoI !== iMv) v.push(`Aplicar Mover no devolvio el foco a la fila ${iMv}: ${trasMvL.focoI}`);
+  if (trasMvL.dialogo) v.push("Mover desde la Lista dejo el dialogo abierto");
+  if (trasMvL.anuncio) v.push(`Mover desde la Lista anuncio ademas de re-enfocar: "${trasMvL.anuncio}"`);
+  // duracion
+  if (!durAbiertoL.hay) v.push("Cambiar duración no abrio desde la Lista");
+  if (durAbiertoL.anuncio) v.push(`se anuncio al abrir duración desde la Lista: "${durAbiertoL.anuncio}"`);
+  if (trasDurL.dur !== 90) v.push(`Cambiar duración desde la Lista no dejo dur 90: ${trasDurL.dur}`);
+  if (trasDurL.min !== antesDurL.min) v.push(`Cambiar duración desde la Lista movio el inicio: ${antesDurL.min} -> ${trasDurL.min}`);
+  if (!trasDurL.focoFila || trasDurL.focoI !== iDur) v.push(`Aplicar duración no devolvio el foco a la fila ${iDur}: ${trasDurL.focoI}`);
+  if (trasDurL.anuncio) v.push(`Cambiar duración desde la Lista anuncio ademas de re-enfocar: "${trasDurL.anuncio}"`);
+  // duplicar
+  if (trasDupL.n !== nDupL + 1) v.push(`Duplicar desde la Lista no sumo 1 (${nDupL} -> ${trasDupL.n})`);
+  if (!trasDupL.copia) v.push("Duplicar desde la Lista no creo la copia");
+  else {
+    if (trasDupL.copia.title !== `${baseDup.title} (copia)`) v.push(`titulo de la copia "${trasDupL.copia.title}"`);
+    if (trasDupL.copia.min !== baseDup.min || trasDupL.copia.day !== baseDup.day) v.push("la copia no quedo en el mismo dia/minuto");
+  }
+  if (!trasDupL.focoFila || trasDupL.focoI !== nDupL) v.push(`Duplicar no dejo el foco en la copia (fila ${nDupL}): ${trasDupL.focoI}`);
+  if (trasDupL.anuncio) v.push(`Duplicar desde la Lista anuncio: "${trasDupL.anuncio}"`);
+  // eliminar: siguiente fila
+  if (trasDelL.n !== delInfo.n - 1) v.push(`Eliminar desde la Lista no quito 1 (${delInfo.n} -> ${trasDelL.n})`);
+  if (trasDelL.existe) v.push("Eliminar desde la Lista no borro el evento");
+  if (!trasDelL.focoFila || trasDelL.focoGrilla) v.push("tras borrar el foco no quedo en una fila");
+  if (trasDelL.focoTitulo !== delInfo.nextTitle) v.push(`el foco no fue a la fila siguiente "${delInfo.nextTitle}": "${trasDelL.focoTitulo}"`);
+  if (trasDelL.anuncio !== trasDelL.esperado) v.push(`anuncio de borrado "${trasDelL.anuncio}" (esperado "${trasDelL.esperado}")`);
+  // eliminar: ultima fila → anterior
+  if (trasLast.existe) v.push("borrar la ultima fila no la elimino");
+  if (!trasLast.focoFila) v.push("tras borrar la ultima fila el foco no quedo en una fila");
+  if (trasLast.focoTitulo !== lastInfo.prev) v.push(`tras borrar la ultima el foco no fue a la anterior "${lastInfo.prev}": "${trasLast.focoTitulo}"`);
+  // eliminar: dia vacio → primer evento del dia siguiente
+  if (!finDia) v.push("no se pudo vaciar el dia 3 para probar el fallback");
+  else {
+    if (finDia.day3 !== 0) v.push(`el dia 3 no quedo vacio: ${finDia.day3} eventos`);
+    if (finDia.focoDia !== 4) v.push(`al vaciar el dia el foco no paso al dia siguiente (dia ${finDia.focoDia})`);
+    if (finDia.focoTitulo !== finDia.primer4) v.push(`al vaciar el dia el foco no fue al primer evento del dia 4: "${finDia.focoTitulo}" vs "${finDia.primer4}"`);
+  }
+  // eliminar: lista sin filas → contenedor
+  if (trasZ.n !== 0 || trasZ.filas !== 0) v.push(`la lista no quedo sin filas (${trasZ.n} eventos, ${trasZ.filas} filas)`);
+  if (!trasZ.focoGrilla) v.push("sin filas el foco no quedo en el contenedor de la Lista");
+  if (!/Eliminada/.test(trasZ.anuncio)) v.push(`el borrado que vacia la Lista no anuncio: "${trasZ.anuncio}"`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A10 Lista operable (compuesto APG) · filas ${comp.filas} con data-i ${comp.conIndice} · tab stops ${comp.tabbables} (roving ${comp.filaTabbable}) · flechas ${k0}→↓${kDown}→↑${kUp}→End ${kEnd}→Home ${kHome}→→dia ${kRight.day}→←${kLeft} · Tab Nueva→fila ${tab1.esFila}(${tab1.i})→fuera ${!tab2.esFila} · menú anclado a fila ${menuAncla.fila}=${menuAncla.indice} dentro ${menuAncla.dentro} sin anuncio ${!menuAncla.anuncio} · Mover ${antesMvL.min}→${trasMvL.min} dia ${trasMvL.day} foco fila ${trasMvL.focoI} · Duración ${antesDurL.dur}→${trasDurL.dur} foco fila ${trasDurL.focoI} · Duplicar ${nDupL}→${trasDupL.n} foco copia ${trasDupL.focoI} sin anuncio ${!trasDupL.anuncio} · Eliminar ${delInfo.n}→${trasDelL.n} foco siguiente "${trasDelL.focoTitulo}" anuncio "${trasDelL.anuncio}" · última→anterior "${trasLast.focoTitulo}" · día vacío→día ${finDia?.focoDia} "${finDia?.focoTitulo}" · lista vacía→contenedor ${trasZ.focoGrilla}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();
