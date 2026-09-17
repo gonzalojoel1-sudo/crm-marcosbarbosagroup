@@ -367,6 +367,36 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 #menu [role="menuitem"]:focus-visible { background: var(--surface); }
 .m-tecla { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
 
+/* ── "Mover a…": superficie de borrador, no un modo ──────────────────────
+   fixed como el menú (no empuja layout) y anclada al bloque que la abre.
+   Nada toca el evento hasta Aplicar; Escape no escribe. */
+#mover-dialog {
+  position: fixed; z-index: 61;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: 12px; padding: 10px; min-width: 250px; max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; gap: 7px;
+}
+#mover-dialog h2 { margin: 0; font-size: 13px; font-weight: 600; }
+#mover-dialog .mv-hora { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+#mover-dialog .mv-lab { display: block; font-size: 11px; color: var(--fg-dim); }
+#mover-dialog .mv-pasos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+#mover-dialog .mv-dias { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+/* pasos y destinos de día son <button>: el mismo control sirve al puntero y al teclado */
+#mover-dialog button[data-paso],
+#mover-dialog button[data-dia] {
+  min-width: 24px; min-height: 24px; padding: 3px 5px; line-height: 1.15;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--fg); font: inherit; font-size: 11.5px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+#mover-dialog button[data-paso]:hover:not(:disabled),
+#mover-dialog button[data-dia]:hover:not(:disabled) { border-color: var(--border-2); }
+#mover-dialog button[data-dia].on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#mover-dialog button:disabled { opacity: .4; cursor: not-allowed; }
+#mover-dialog .mv-acciones { display: flex; gap: 6px; margin-top: 2px; }
+#mover-dialog .mv-acciones .btn { min-height: 24px; }
+
 /* ═══ Selector de variantes (verbatim de PICKER.md: es chrome, no diseño) ═══ */
 .proto-picker {
   position: fixed;
@@ -894,7 +924,7 @@ const ACCIONES = [
   { id: "duplicar", label: "Duplicar",          tecla: "" },
   { id: "eliminar", label: "Eliminar",          tecla: "Supr" },
 ];
-const ACCIONES_HECHAS = new Set(["editar"]);
+const ACCIONES_HECHAS = new Set(["editar", "mover"]);
 
 function abrirMenu(i) {
   const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
@@ -951,6 +981,133 @@ function renderMenu() {
   return `<div id="menu" role="menu" aria-label="Acciones para ${e.title}"
       style="left:${MENU.x}px;top:${MENU.y}px">
     ${acciones.map((a) => `<button type="button" role="menuitem" data-accion="${a.id}" aria-label="${a.label}">${a.label}${a.tecla ? `<span class="m-tecla" aria-hidden="true">${a.tecla}</span>` : ""}</button>`).join("")}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   "Mover a…": mover una reunión sin arrastrar (SC 2.5.7). Es una superficie
+   con BORRADOR: nada toca el evento hasta Aplicar y Escape no escribe. Igual
+   que el menú se inserta directo en #stage; NO se usa mount(), que resetea el
+   scroll de la grilla. Los controles son <button>, así el camino de puntero y
+   el de teclado son el mismo.
+   ══════════════════════════════════════════════════════════════════════ */
+let MOVER = null;                  // { i, dia, min } — borrador, no el evento
+let MOVER_ANCHOR = { x: 0, y: 0 }; // rect del bloque que lo abrió
+
+function abrirMover(i) {
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  if (!el || !EVENTS[i]) return;
+  const e = EVENTS[i];
+  MOVER = { i, dia: e.day, min: e.min };
+  const r = el.getBoundingClientRect();
+  MOVER_ANCHOR = { x: r.left, y: r.bottom + 4 };
+  desmontarMenu();   // el diálogo reemplaza al menú; el foco pasa adentro, por eso abrir nunca anuncia
+  document.getElementById("mover-dialog")?.remove();
+  document.getElementById("stage").insertAdjacentHTML("beforeend", renderMover());
+  requestAnimationFrame(() => {
+    posicionarMover();
+    // Mover el foco ES el anuncio: abrir no anuncia.
+    const primero = document.querySelector("#mover-dialog [data-paso]:not(:disabled)")
+      || document.querySelector("#mover-dialog button");
+    primero?.focus();
+  });
+}
+
+function cerrarMover({ volverFoco = true } = {}) {
+  const i = MOVER?.i;
+  MOVER = null;
+  document.getElementById("mover-dialog")?.remove();
+  // Devolver el foco a la reunión también es el anuncio: cerrar no anuncia.
+  if (volverFoco) requestAnimationFrame(() => {
+    document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus();
+  });
+}
+
+/* Aplicar es el único punto que escribe. El evento no recibió el foco durante
+   la acción, así que el cambio SÍ se anuncia; recién después vuelve el foco. */
+function aplicarMover() {
+  if (!MOVER) return;
+  const m = MOVER;
+  const e = EVENTS[m.i];
+  e.day = m.dia;
+  e.min = m.min;
+  cerrarMover({ volverFoco: false });
+  const wrap = document.querySelector(".gridwrap");
+  const st = wrap ? wrap.scrollTop : 0;
+  paint();
+  const wrap2 = document.querySelector(".gridwrap");
+  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
+  announce(`Movida ${e.title} a las ${fmt(e.min)}`);
+  document.querySelector(`#grilla .ev[data-i="${m.i}"]`)?.focus();
+}
+
+// El borde del rango se corta con disabled: el control que no puede mover no se
+// ofrece, en vez de aceptar y recortar en silencio.
+function pasoPermitido(delta) {
+  const e = EVENTS[MOVER.i];
+  return MOVER.min + delta >= START_H * 60 && MOVER.min + delta + e.dur <= END_H * 60;
+}
+
+function pintarMover() {
+  const d = document.getElementById("mover-dialog");
+  if (!d || !MOVER) return;
+  const e = EVENTS[MOVER.i];
+  d.querySelector("#mover-hora").textContent =
+    `${DIAS_LARGOS[MOVER.dia]} de septiembre, ${fmt(MOVER.min)} – ${fmt(MOVER.min + e.dur)}`;
+  d.querySelectorAll("[data-paso]").forEach((b) => {
+    const ok = pasoPermitido(Number(b.dataset.paso));
+    b.disabled = !ok;
+    b.setAttribute("aria-disabled", String(!ok));
+  });
+  d.querySelectorAll("[data-dia]").forEach((b) => {
+    const dia = Number(b.dataset.dia);
+    const ok = dia >= 0 && dia < DAYS.length;   // solo la ventana Lun-Vie
+    b.disabled = !ok;
+    b.setAttribute("aria-disabled", String(!ok));
+    const on = dia === MOVER.dia;
+    b.setAttribute("aria-pressed", String(on));
+    b.classList.toggle("on", on);
+  });
+}
+
+// Misma estrategia que el menú: fixed, anclada al bloque y clameada a la ventana.
+function posicionarMover() {
+  const d = document.getElementById("mover-dialog");
+  if (!d || !MOVER) return;
+  const b = d.getBoundingClientRect();
+  const x = Math.max(4, Math.min(MOVER_ANCHOR.x, innerWidth - b.width - 4));
+  let y = MOVER_ANCHOR.y;
+  if (y + b.height > innerHeight - 4) y = MOVER_ANCHOR.y - b.height - 8;
+  y = Math.max(4, Math.min(y, innerHeight - b.height - 4));
+  d.style.left = `${x}px`;
+  d.style.top = `${y}px`;
+}
+
+function renderMover() {
+  if (!MOVER) return "";
+  const e = EVENTS[MOVER.i];
+  const pasos = ["-60", "-15", "+15", "+60"].map((p) => {
+    const label = p === "-60" ? "−1 h" : p === "-15" ? "−15 min" : p === "+60" ? "+1 h" : "+15 min";
+    const ok = pasoPermitido(Number(p));
+    return `<button type="button" data-paso="${p}" aria-label="${label}" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${label}</button>`;
+  }).join("");
+  const dias = DAYS.map((d, i) => {
+    const ok = i >= 0 && i < DAYS.length;
+    const on = i === MOVER.dia;
+    return `<button type="button" data-dia="${i}" class="${on ? "on" : ""}" aria-pressed="${on}" aria-disabled="${!ok}" aria-label="${DIAS_LARGOS[i]} de septiembre" ${ok ? "" : "disabled"}>${d}</button>`;
+  }).join("");
+  return `<div id="mover-dialog" role="dialog" aria-modal="false" aria-labelledby="mover-titulo"
+      style="left:${MOVER_ANCHOR.x}px;top:${MOVER_ANCHOR.y}px">
+    <h2 id="mover-titulo">Mover · ${e.title}</h2>
+    <p class="mv-hora" id="mover-hora">${DIAS_LARGOS[MOVER.dia]} de septiembre, ${fmt(MOVER.min)} – ${fmt(MOVER.min + e.dur)}</p>
+    <span class="mv-lab" id="mover-pasos-lab">Ajustar hora</span>
+    <div class="mv-pasos" role="group" aria-labelledby="mover-pasos-lab">${pasos}</div>
+    <span class="mv-lab" id="mover-dia-lab">Mover al día</span>
+    <div class="mv-dias" role="group" aria-labelledby="mover-dia-lab">${dias}</div>
+    <div class="mv-acciones">
+      <button type="button" class="btn primary" id="mover-aplicar">Aplicar</button>
+      <button type="button" class="btn" id="mover-cancelar">Cancelar</button>
+    </div>
   </div>`;
 }
 
@@ -1286,9 +1443,24 @@ stage.addEventListener("click", (ev) => {
       const e2 = EVENTS[MENU.i];
       MENU = null;   // el panel reemplaza al menú en el mismo render y se lleva el foco
       abrirPanel({ dia: e2.day, min: e2.min, dur: e2.dur, evento: e2 });
+    } else if (acc.dataset.accion === "mover" && MENU) {
+      abrirMover(MENU.i);
     }
     return;
   }
+  const paso = ev.target.closest("#mover-dialog [data-paso]");
+  if (paso) {
+    // un paso deshabilitado no llega acá (el navegador no dispara click), pero se revalida
+    if (MOVER && !paso.disabled) { MOVER.min += Number(paso.dataset.paso); pintarMover(); posicionarMover(); }
+    return;
+  }
+  const diaDestino = ev.target.closest("#mover-dialog [data-dia]");
+  if (diaDestino) {
+    if (MOVER && !diaDestino.disabled) { MOVER.dia = Number(diaDestino.dataset.dia); pintarMover(); }
+    return;
+  }
+  if (ev.target.closest("#mover-aplicar")) { aplicarMover(); return; }
+  if (ev.target.closest("#mover-cancelar")) { cerrarMover(); return; }
   if (ev.target.closest("[data-cerrar-panel]")) { cerrarPanel(); return; }
   const dur = ev.target.closest(".p-dur");
   if (dur) {
@@ -1376,6 +1548,8 @@ window.addEventListener("pointerdown", onDown, true);
 // bajo el puntero sobreviva y su click llegue
 document.addEventListener("pointerdown", (ev) => {
   if (MENU && !ev.target.closest("#menu")) desmontarMenu();
+  // cancelar el borrador con un click afuera no escribe: es la misma salida que Escape
+  if (MOVER && !ev.target.closest("#mover-dialog")) cerrarMover({ volverFoco: false });
 }, true);
 window.addEventListener("pointermove", onMove);
 window.addEventListener("pointerup", onUp);
@@ -1395,6 +1569,14 @@ document.addEventListener("keydown", (e) => {
     return;   // con el menú abierto ninguna otra tecla debe llegar al resto
   }
   if (MENU) desmontarMenu();   // foco huérfano: limpiar antes de seguir con la página
+  // El diálogo Mover se maneja antes que el panel: Escape no debe cerrar lo de atrás.
+  const moverEl = document.getElementById("mover-dialog");
+  if (MOVER && moverEl?.contains(document.activeElement)) {
+    // con el diálogo abierto se queda con las teclas mientras el foco esté adentro
+    if (e.key === "Escape" || e.key === "Tab") { cerrarMover(); e.preventDefault(); }
+    return;
+  }
+  if (MOVER) cerrarMover({ volverFoco: false });   // foco huérfano: limpiar
   // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
   if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;

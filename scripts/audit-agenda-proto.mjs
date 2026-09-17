@@ -872,4 +872,151 @@ await flp.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `menu · items ${(porEnter.items || []).join(" | ") || "-"} · foco primer item ${porEnter.focoEnPrimero} · dentro ${porEnter.dentro} · haspopup/expanded ${porEnter.haspopup}/${porEnter.expanded}->${porEscape.expanded} · Escape cierra ${!porEscape.hayMenu} y vuelve el foco ${porEscape.focoVuelve} · Tab cierra ${!porTab.hayMenu} y N sigue ${trasTabN} · click abre ${porClick.hayMenu} · cal togglea ${porCal.off} · ocupado abre menu/panel ${porBusy.menu}/${porBusy.panel} · Editar panel ${porEditar.panel} · arrastre mueve ${despuesDrag.min > antesMin} · flip ${porFlip.dioVuelta} (bloque bottom ${porFlip.evBottom} → menu ${porFlip.mbTop}-${porFlip.mbBottom}, ventana ${porFlip.inner}) dentro ${porFlip.dentro} · anuncios "${porEnter.anuncio}"/"${porEscape.anuncio}"/"${porClick.anuncio}"/"${porEditar.anuncio}"`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── "Mover a…" (S4 · SC 2.5.7): viaje real por el menú que mueve hora y día sin arrastrar ──
+// Abre el menú con un click, elige "Mover a…", ajusta un paso y Aplicar. Verifica que el
+// evento cambie EXACTAMENTE lo pedido, que se anuncie, que Escape no escriba y que abrir no anuncie.
+const fmt2 = (min) => String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
+const mvp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await mvp.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await mvp.waitForTimeout(400);
+
+// siempre la misma reunión (la primera del día lunes), se mueva al día que se mueva
+const abrirMenuReunion0 = async () => {
+  await mvp.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+  await mvp.waitForTimeout(80);
+  await mvp.locator('#grilla .ev[data-i="0"]').click();
+  await mvp.waitForTimeout(250);
+};
+
+// 1) puntero: abrir menú → "Mover a…" → +15 min → Aplicar
+await abrirMenuReunion0();
+const enMenu = await mvp.evaluate(() => ({
+  hayMenu: !!document.querySelector("#menu"),
+  hayMover: !!document.querySelector('[data-accion="mover"]'),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+await mvp.locator('[data-accion="mover"]').click();
+await mvp.waitForTimeout(250);
+const mvAbierto = await mvp.evaluate(() => {
+  const d = document.querySelector("#mover-dialog");
+  if (!d) return { falta: true };
+  const pasos = [...d.querySelectorAll("[data-paso]")];
+  const dias = [...d.querySelectorAll("[data-dia]")];
+  const ctr = [...pasos, ...dias, d.querySelector("#mover-aplicar"), d.querySelector("#mover-cancelar")];
+  return {
+    rol: d.getAttribute("role"), modal: d.getAttribute("aria-modal"),
+    etiquetado: !!d.querySelector("#mover-titulo"),
+    pasos: pasos.map((b) => b.dataset.paso),
+    dias: dias.map((b) => b.textContent.trim()),
+    diaActual: dias.findIndex((b) => b.getAttribute("aria-pressed") === "true"),
+    horaReal: /(lunes|martes|miércoles|jueves|viernes) \d+ de septiembre/.test(d.querySelector("#mover-hora")?.textContent || ""),
+    tamano: ctr.every((b) => { const r = b.getBoundingClientRect(); return r.width >= 24 && r.height >= 24; }),
+    prohibido: !!d.querySelector('[role="grid"], [aria-grabbed], [aria-dropeffect]'),
+    menu: !!document.querySelector("#menu"),
+    focoAdentro: d.contains(document.activeElement),
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+const antesMv = await mvp.evaluate(() => ({ min: EVENTS[0].min, dia: EVENTS[0].day, titulo: EVENTS[0].title }));
+await mvp.locator('#mover-dialog [data-paso="+15"]').click();
+await mvp.waitForTimeout(150);
+await mvp.locator("#mover-aplicar").click();
+await mvp.waitForTimeout(400);
+const trasPaso = await mvp.evaluate(() => ({
+  min: EVENTS[0].min, dia: EVENTS[0].day,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  dialogo: !!document.querySelector("#mover-dialog"),
+  focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
+}));
+
+// 2) día: abrir menú → "Mover a…" → botón de día (jueves) → Aplicar
+await abrirMenuReunion0();
+await mvp.locator('[data-accion="mover"]').click();
+await mvp.waitForTimeout(200);
+await mvp.locator('#mover-dialog [data-dia="3"]').click();
+await mvp.waitForTimeout(150);
+await mvp.locator("#mover-aplicar").click();
+await mvp.waitForTimeout(400);
+const trasDia = await mvp.evaluate(() => ({
+  min: EVENTS[0].min, dia: EVENTS[0].day,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+
+// 3) Escape: el borrador no debe tocar el evento ni anunciar
+await abrirMenuReunion0();
+await mvp.locator('[data-accion="mover"]').click();
+await mvp.waitForTimeout(200);
+await mvp.locator('#mover-dialog [data-paso="+15"]').click();
+await mvp.waitForTimeout(120);
+await mvp.keyboard.press("Escape");
+await mvp.waitForTimeout(300);
+const trasEscape = await mvp.evaluate(() => ({
+  min: EVENTS[0].min, dia: EVENTS[0].day,
+  dialogo: !!document.querySelector("#mover-dialog"),
+  focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+
+// 4) borde: los pasos que saldrían del rango se deshabilitan (no se recortan en silencio)
+await abrirMenuReunion0();
+await mvp.locator('[data-accion="mover"]').click();
+await mvp.waitForTimeout(200);
+const borde = await mvp.evaluate(() => {
+  const d = document.querySelector("#mover-dialog");
+  let guard = 0;
+  while (guard++ < 60) {
+    const b = d.querySelector('[data-paso="-15"]');
+    if (!b || b.disabled) break;
+    b.click();
+  }
+  const m15 = d.querySelector('[data-paso="-15"]');
+  const m60 = d.querySelector('[data-paso="-60"]');
+  const minBorrador = MOVER ? MOVER.min : null;
+  d.querySelector("#mover-cancelar")?.click();
+  return {
+    minBorrador, minEvento: EVENTS[0].min, piso: START_H * 60,
+    m15: m15.disabled, m60: m60.disabled, m15aria: m15.getAttribute("aria-disabled"),
+  };
+});
+await mvp.waitForTimeout(200);
+await mvp.close();
+{
+  const v = [];
+  const minEsperado = antesMv.min + 15;
+  const anuncioEsperado = `Movida ${antesMv.titulo} a las ${fmt2(minEsperado)}`;
+  if (!enMenu.hayMenu) v.push("el click en la reunion no abrio el menu");
+  if (!enMenu.hayMover) v.push('el menu no ofrece "Mover a…"');
+  if (enMenu.anuncio) v.push(`se anuncio al abrir el menu: "${enMenu.anuncio}"`);
+  if (mvAbierto.falta) v.push("no se abre #mover-dialog");
+  else {
+    if (mvAbierto.rol !== "dialog") v.push(`role ${mvAbierto.rol}`);
+    if (mvAbierto.modal !== "false") v.push(`aria-modal ${mvAbierto.modal}`);
+    if (!mvAbierto.etiquetado) v.push("sin titulo que lo nombre");
+    if (JSON.stringify(mvAbierto.pasos) !== JSON.stringify(["-60", "-15", "+15", "+60"])) v.push(`pasos ${mvAbierto.pasos.join(",")}`);
+    if (mvAbierto.dias.length !== 5) v.push(`dias ${mvAbierto.dias.length} (esperado 5)`);
+    if (mvAbierto.diaActual !== antesMv.dia) v.push(`no marca el dia actual (${mvAbierto.diaActual} != ${antesMv.dia})`);
+    if (!mvAbierto.horaReal) v.push("el destino no nombra el dia real de la semana");
+    if (!mvAbierto.tamano) v.push("hay controles menores a 24x24");
+    if (mvAbierto.prohibido) v.push("usa role=grid/aria-grabbed/aria-dropeffect");
+    if (mvAbierto.menu) v.push("el menu quedo abierto detras del dialogo");
+    if (!mvAbierto.focoAdentro) v.push("el foco no entra al dialogo");
+    if (mvAbierto.anuncio) v.push(`se anuncio al abrir el dialogo: "${mvAbierto.anuncio}"`);
+  }
+  if (trasPaso.min !== minEsperado) v.push(`el paso +15 no movio 15 min: ${antesMv.min} -> ${trasPaso.min}`);
+  if (trasPaso.anuncio !== anuncioEsperado) v.push(`anuncio "${trasPaso.anuncio}" (esperado "${anuncioEsperado}")`);
+  if (trasPaso.dialogo) v.push("Aplicar no cerro el dialogo");
+  if (!trasPaso.focoEnEvento) v.push("Aplicar no devolvio el foco a la reunion");
+  if (trasDia.dia !== 3) v.push(`el boton de dia no movio a jueves: ${antesMv.dia} -> ${trasDia.dia}`);
+  if (trasDia.min !== minEsperado) v.push(`el boton de dia cambio la hora: ${minEsperado} -> ${trasDia.min}`);
+  if (!/Movida/.test(trasDia.anuncio)) v.push(`el movimiento de dia no anuncio: "${trasDia.anuncio}"`);
+  if (trasEscape.min !== minEsperado || trasEscape.dia !== 3) v.push(`Escape si escribio: min ${trasEscape.min}, dia ${trasEscape.dia}`);
+  if (trasEscape.dialogo) v.push("Escape no cerro el dialogo");
+  if (trasEscape.anuncio) v.push(`Escape anuncio: "${trasEscape.anuncio}"`);
+  if (!trasEscape.focoEnEvento) v.push("Escape no devolvio el foco");
+  if (borde.minEvento !== minEsperado) v.push(`los pasos del borde escribieron el evento: min ${borde.minEvento}`);
+  if (!borde.m15 || !borde.m60 || borde.m15aria !== "true") v.push(`en el piso del rango los pasos negativos no se deshabilitan (${borde.m15}/${borde.m60}/${borde.m15aria})`);
+  if (borde.minBorrador !== null && borde.minBorrador < borde.piso) v.push(`el borrador paso el piso: ${borde.minBorrador} < ${borde.piso}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A2 "Mover a…" · ${antesMv.min} -> ${trasPaso.min} · dia ${antesMv.dia} -> ${trasDia.dia} · anuncio "${trasPaso.anuncio}" · sin anuncio al abrir ${!enMenu.anuncio && !mvAbierto.anuncio} · Escape no escribe ${trasEscape.min === minEsperado} · borde disabled ${borde.m15}/${borde.m60}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();
