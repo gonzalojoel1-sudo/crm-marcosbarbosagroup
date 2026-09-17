@@ -1,3 +1,9 @@
+# Frappe parsea este archivo como INI y exige la seccion que pide cada fase del
+# migrate: sin `[pre_model_sync]` (aunque este vacia) `bench migrate` muere con
+# "Patch type PatchType.pre_model_sync not found in patches.txt".
+[pre_model_sync]
+# Sin patches: todo lo de abajo corre despues del sync de DocTypes.
+
 # F1: las reuniones pasan de `CRM Lead.custom_meeting_datetime` a `Event` linkeado
 # por `Event.custom_crm_lead`. Va en post_model_sync: primero crea el Custom Field
 # y después backfillea. Idempotente (se puede re-ejecutar sin duplicar).
