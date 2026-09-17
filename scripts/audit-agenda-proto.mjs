@@ -1645,4 +1645,168 @@ await kDel.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A5 "Eliminar" · confirmacion ${pDelConfirm.confirm} sin borrar ${pDelConfirm.vivo} foco ${pDelConfirm.focoEnSi} · Cancelar no escribe ${pDelCancel.objeto === pDelInfo.objeto} foco vuelve ${pDelCancel.focoEnEvento} sin anuncio ${!pDelCancel.anuncio} · confirmar ${pDelInfo.n} -> ${pDelTras.n} vecino dia ${pDelTras.vecinoDia} anuncio "${pDelTras.anuncio}" · teclado confirm ${kDelConfirm.confirm} Escape no escribe ${kDelEscape.objeto === kDelAntes.objeto} foco vuelve ${kDelEscape.focoEnEvento} sin anuncio ${!kDelEscape.anuncio} · segundo Enter ${kDelAntes.n} -> ${kDelTras.n} vecino dia ${kDelTras.vecinoDia} anuncio "${kDelTras.anuncio}" · scroll ${kDelScroll} -> ${kDelTras.scrollTop}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── Nudge por teclado (S7 · A2/A3 por teclado) y atajos acotados al foco (SC 2.1.4) ──
+// Con una reunión enfocada: Alt+flechas mueve 15 min o 1 día, Shift+flechas cambia la
+// duración. Se anuncia (el foco no cambia) y el scroll de la grilla se conserva. Contra
+// el borde no se mueve y se dice por qué. Aparte: con el foco en un campo de texto —o en
+// un control ajeno al producto— una tecla suelta no dispara acciones (2.1.4), y "Supr"
+// llega a la confirmación de borrado (R1), tanto desde el menú como sobre la reunión.
+const nudge = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await nudge.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await nudge.waitForTimeout(500);
+// una reunión baja, para que la grilla tenga scroll real que conservar
+const nudgeIdx = await nudge.evaluate(() => EVENTS.findIndex((e) => e.title === "Block: trabajo profundo"));
+const nudgeAntes = await nudge.evaluate((idx) => {
+  const w = document.querySelector(".gridwrap");
+  const heads = document.querySelector(".heads").getBoundingClientRect().height;
+  const el = document.querySelector(`#grilla .ev[data-i="${idx}"]`);
+  w.scrollTop = Math.max(0, Math.round(heads + parseFloat(el.style.top) + parseFloat(el.style.height) / 2 - w.clientHeight / 2));
+  el.focus();
+  const a = document.querySelector("#announcer"); if (a) a.textContent = "";
+  return { min: EVENTS[idx].min, dur: EVENTS[idx].dur, day: EVENTS[idx].day, titulo: EVENTS[idx].title, scroll: w.scrollTop };
+}, nudgeIdx);
+await nudge.waitForTimeout(120);
+const nudgeKey = async (mod, key) => {
+  await nudge.keyboard.down(mod); await nudge.keyboard.press(key); await nudge.keyboard.up(mod);
+  await nudge.waitForTimeout(250);
+};
+await nudgeKey("Alt", "ArrowDown");
+const nMin = await nudge.evaluate((idx) => ({
+  min: EVENTS[idx].min,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  foco: document.activeElement === document.querySelector(`#grilla .ev[data-i="${idx}"]`),
+  scroll: document.querySelector(".gridwrap").scrollTop,
+}), nudgeIdx);
+await nudgeKey("Alt", "ArrowRight");
+const nDia = await nudge.evaluate((idx) => ({ day: EVENTS[idx].day, min: EVENTS[idx].min, anuncio: (document.querySelector("#announcer")?.textContent || "").trim() }), nudgeIdx);
+await nudgeKey("Shift", "ArrowDown");
+const nDur = await nudge.evaluate((idx) => ({
+  dur: EVENTS[idx].dur,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  foco: document.activeElement === document.querySelector(`#grilla .ev[data-i="${idx}"]`),
+}), nudgeIdx);
+// contra el piso del rango: no se mueve y lo dice
+await nudge.evaluate((idx) => {
+  EVENTS[idx].min = START_H * 60;
+  paint();
+  document.querySelector(`#grilla .ev[data-i="${idx}"]`).focus();
+  const a = document.querySelector("#announcer"); if (a) a.textContent = "";
+}, nudgeIdx);
+await nudgeKey("Alt", "ArrowUp");
+const nPiso = await nudge.evaluate((idx) => ({ min: EVENTS[idx].min, piso: START_H * 60, anuncio: (document.querySelector("#announcer")?.textContent || "").trim() }), nudgeIdx);
+// contra el tope por duración: no se estira y lo dice
+await nudge.evaluate((idx) => {
+  EVENTS[idx].dur = 60;
+  EVENTS[idx].min = END_H * 60 - 60;
+  paint();
+  document.querySelector(`#grilla .ev[data-i="${idx}"]`).focus();
+  const a = document.querySelector("#announcer"); if (a) a.textContent = "";
+}, nudgeIdx);
+await nudgeKey("Shift", "ArrowDown");
+const nTope = await nudge.evaluate((idx) => ({ dur: EVENTS[idx].dur, min: EVENTS[idx].min, tope: END_H * 60, anuncio: (document.querySelector("#announcer")?.textContent || "").trim() }), nudgeIdx);
+await nudge.close();
+
+// 2.1.4: con el foco en un campo de texto, las teclas sueltas son texto, no acciones
+const s214 = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await s214.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await s214.waitForTimeout(400);
+await s214.locator("[data-nueva]").click();
+await s214.waitForTimeout(300);
+await s214.locator("#p-titulo").focus();
+const antes214 = await s214.evaluate(() => {
+  const a = document.querySelector("#announcer"); if (a) a.textContent = "";
+  return { n: EVENTS.length, view: VIEW };
+});
+await s214.keyboard.type("hndmr12");
+await s214.waitForTimeout(400);
+const tras214 = await s214.evaluate(() => ({
+  n: EVENTS.length,
+  valor: document.querySelector("#p-titulo")?.value || "",
+  panel: !!document.querySelector("#panel"),
+  menu: !!document.querySelector("#menu"),
+  view: VIEW,
+}));
+// con el foco en un control AJENO al producto, una tecla suelta tampoco dispara acciones
+await s214.keyboard.press("Escape");
+await s214.waitForTimeout(250);
+await s214.locator('.cal[data-cat="software"]').focus();
+const antesAjeno = await s214.evaluate(() => ({ n: EVENTS.length, panel: !!document.querySelector("#panel") }));
+await s214.keyboard.press("n");
+await s214.waitForTimeout(300);
+const trasAjeno = await s214.evaluate(() => ({ n: EVENTS.length, panel: !!document.querySelector("#panel"), titulo: (document.querySelector("#panel-titulo")?.textContent || "").trim() }));
+await s214.close();
+
+// R1: "Supr" hace lo que el menú promete, desde el menú y sobre la reunión enfocada
+const supr = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await supr.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await supr.waitForTimeout(400);
+const iSupr = await supr.evaluate(() => EVENTS.findIndex((e) => !e.busy));
+const suprInfo = await supr.evaluate((i) => ({ n: EVENTS.length }), iSupr);
+await supr.evaluate((i) => document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus(), iSupr);
+await supr.keyboard.press("Enter");
+await supr.waitForTimeout(250);
+const suprHint = await supr.evaluate(() => {
+  const b = document.querySelector('[data-accion="eliminar"]');
+  return { hayEliminar: !!b, hint: (b?.querySelector(".m-tecla")?.textContent || "").trim() };
+});
+await supr.keyboard.press("Delete");
+await supr.waitForTimeout(300);
+const suprConfirm = await supr.evaluate((i) => ({
+  confirm: !!document.querySelector("#confirmar-eliminar"),
+  foco: document.activeElement?.id || null,
+  n: EVENTS.length,
+  vivo: !!EVENTS[i],
+}), iSupr);
+await supr.keyboard.press("Escape");
+await supr.waitForTimeout(250);
+await supr.evaluate((i) => document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus(), iSupr);
+await supr.keyboard.press("Delete");
+await supr.waitForTimeout(300);
+const suprDirecto = await supr.evaluate((i) => ({
+  confirm: !!document.querySelector("#confirmar-eliminar"),
+  foco: document.activeElement?.id || null,
+  n: EVENTS.length,
+  vivo: !!EVENTS[i],
+}), iSupr);
+await supr.keyboard.press("Escape");
+await supr.waitForTimeout(200);
+await supr.close();
+
+{
+  const v = [];
+  // nudge
+  if (nMin.min !== nudgeAntes.min + 15) v.push(`Alt+ArrowDown no movio 15 min: ${nudgeAntes.min} -> ${nMin.min}`);
+  if (!nMin.anuncio.includes(`a las ${fmt2(nudgeAntes.min + 15)}`)) v.push(`Alt+ArrowDown no anuncio la hora: "${nMin.anuncio}"`);
+  if (!nMin.foco) v.push("tras el nudge el foco no sigue en la reunion");
+  if (!(nudgeAntes.scroll > 0)) v.push(`no se pudo fijar un scroll no nulo para probar (${nudgeAntes.scroll})`);
+  if (nMin.scroll !== nudgeAntes.scroll) v.push(`el nudge reseteo el scroll: ${nudgeAntes.scroll} -> ${nMin.scroll}`);
+  if (nDia.day !== nudgeAntes.day + 1) v.push(`Alt+ArrowRight no movio 1 dia: ${nudgeAntes.day} -> ${nDia.day}`);
+  if (nDia.min !== nMin.min) v.push(`el nudge de dia cambio la hora: ${nMin.min} -> ${nDia.min}`);
+  if (!/Movida .+ a (lunes|martes|miércoles|jueves|viernes)/.test(nDia.anuncio)) v.push(`el nudge de dia no anuncio el dia: "${nDia.anuncio}"`);
+  if (nDur.dur !== nudgeAntes.dur + 15) v.push(`Shift+ArrowDown no cambio 15 min de duracion: ${nudgeAntes.dur} -> ${nDur.dur}`);
+  if (!nDur.anuncio.includes(`ahora ${nudgeAntes.dur + 15} minutos`)) v.push(`Shift+ArrowDown no anuncio la duracion: "${nDur.anuncio}"`);
+  if (!nDur.foco) v.push("tras el nudge de duracion el foco no sigue en la reunion");
+  if (nPiso.min !== nPiso.piso) v.push(`contra el piso el nudge movio la reunion: ${nPiso.min}`);
+  if (!nPiso.anuncio) v.push("contra el piso el nudge no dijo nada");
+  if (nTope.dur !== 60 || nTope.min + nTope.dur !== nTope.tope) v.push(`contra el tope el nudge estiro la reunion: dur ${nTope.dur} (min+tope ${nTope.min + nTope.dur} vs ${nTope.tope})`);
+  if (!nTope.anuncio) v.push("contra el tope el nudge no dijo nada");
+  // 2.1.4
+  if (tras214.valor !== "hndmr12") v.push(`el campo no recibio el texto: "${tras214.valor}"`);
+  if (tras214.n !== antes214.n) v.push(`una tecla suelta disparo una accion con el foco en el campo: ${antes214.n} -> ${tras214.n}`);
+  if (tras214.menu) v.push("se abrio el menu con el foco en el campo");
+  if (tras214.view !== antes214.view) v.push(`se cambio la vista con el foco en el campo: ${antes214.view} -> ${tras214.view}`);
+  if (!tras214.panel) v.push("el panel se cerro con el foco en el campo");
+  if (trasAjeno.panel) v.push(`con el foco en un control ajeno, "n" abrio el panel: "${trasAjeno.titulo}"`);
+  if (trasAjeno.n !== antesAjeno.n) v.push(`con el foco en un control ajeno, "n" cambio EVENTS: ${antesAjeno.n} -> ${trasAjeno.n}`);
+  // R1
+  if (!suprHint.hayEliminar) v.push('el menu no ofrece "Eliminar"');
+  if (suprHint.hint !== "Supr") v.push(`el item Eliminar no muestra la tecla Supr: "${suprHint.hint}"`);
+  if (!suprConfirm.confirm) v.push("Supr en el menu no abrio la confirmacion de borrado");
+  if (suprConfirm.foco !== "eliminar-si") v.push(`tras Supr el foco no quedo en "Sí, eliminar": ${suprConfirm.foco}`);
+  if (!suprConfirm.vivo || suprConfirm.n !== suprInfo.n) v.push("Supr borro antes de confirmar");
+  if (!suprDirecto.confirm) v.push("Supr sobre la reunion enfocada no abrio la confirmacion");
+  if (!suprDirecto.vivo || suprDirecto.n !== suprInfo.n) v.push("Supr directo borro antes de confirmar");
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A6 nudge por teclado · Alt+↓ ${nudgeAntes.min}->${nMin.min} "${nMin.anuncio}" scroll ${nudgeAntes.scroll}->${nMin.scroll} · Alt+→ dia ${nudgeAntes.day}->${nDia.day} · Shift+↓ dur ${nudgeAntes.dur}->${nDur.dur} "${nDur.anuncio}" · piso ${nPiso.min} tope dur ${nTope.dur} · 2.1.4 campo "${tras214.valor}" eventos ${tras214.n} vista ${tras214.view} · ajeno panel ${trasAjeno.panel} · Supr hint "${suprHint.hint}" confirm ${suprConfirm.confirm} foco ${suprConfirm.foco} · directo ${suprDirecto.confirm} foco ${suprDirecto.foco}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();

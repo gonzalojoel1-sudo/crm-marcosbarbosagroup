@@ -575,6 +575,17 @@ function announce(texto) {
   requestAnimationFrame(() => { a.textContent = texto; lastMsg = texto; });
 }
 
+/* SC 2.1.4: los atajos de UNA tecla valen solo con el foco dentro de un componente
+   del producto (grilla, menú o barra de vistas); sin ningún control enfocado también
+   valen (el documento es el foco implícito). Con el foco en un campo u otro control,
+   la tecla es texto. El chrome del prototipo (1/2/3, r) queda global a propósito:
+   no es UI del producto. */
+const EN_GRILLA = () => {
+  const a = document.activeElement;
+  if (!a || a === document.body || a === document.documentElement) return true;
+  return !!a.closest("#grilla, #menu, .hoy-btn, [data-view]");
+};
+
 /* ══════════════════════════════════════════════════════════════════════
    Grilla + interacción (idéntica en las tres; cambia la presentación)
    ══════════════════════════════════════════════════════════════════════ */
@@ -969,6 +980,16 @@ const ACCIONES = [
 ];
 const ACCIONES_HECHAS = new Set(["editar", "mover", "duracion", "duplicar", "eliminar"]);
 
+// La tecla que muestra cada ítem tiene que hacer algo (si no, es una promesa falsa):
+// los atajos de una letra se comparan directo; "Supr" es multitecla y el navegador
+// lo entrega como "Delete" (otros motores, como "Del").
+function teclaDeAccion(a, key) {
+  const t = (a.tecla || "").toLowerCase();
+  if (!t) return false;
+  if (t.length === 1) return t === key.toLowerCase();
+  return t === "supr" && (key === "Delete" || key === "Del");
+}
+
 function abrirMenu(i) {
   const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
   if (!el || el.hasAttribute("data-busy")) return;   // los importados de Google son de solo lectura
@@ -1107,6 +1128,63 @@ function vecinoDe(day, min) {
     if (d < dist) { dist = d; mejor = el; }
   }
   return mejor;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Nudge por teclado: mover y redimensionar la reunión ENFOCADA sin puntero
+   (SC 2.1.1: todo es operable por teclado). No usa mount() —que reinicia el
+   scroll de la grilla—: repinta conservando el scroll, se asegura de que el
+   bloque siga a la vista y anuncia. Como el foco NO cambia (sigue en la misma
+   reunión), por la alternancia foco/anuncio acá siempre se anuncia.
+   ══════════════════════════════════════════════════════════════════════ */
+function nudgeEvento(i, texto) {
+  const wrap = document.querySelector(".gridwrap");
+  const st = wrap ? wrap.scrollTop : 0;
+  paint();
+  const wrap2 = document.querySelector(".gridwrap");
+  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  if (el) { el.focus(); el.scrollIntoView({ block: "nearest" }); }
+  announce(texto);
+}
+
+// Alt+↑/↓: ±15 min. Contra el borde visible no se mueve y se dice por qué.
+function moverEvento(i, deltaMin) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const nuevo = e.min + deltaMin;
+  if (nuevo < START_H * 60 || nuevo + e.dur > END_H * 60) {
+    announce(`${e.title} no entra en el horario visible`);
+    return;
+  }
+  e.min = nuevo;
+  nudgeEvento(i, `Movida ${e.title} a las ${fmt(e.min)}`);
+}
+
+// Alt+←/→: ±1 día, acotado a la ventana Lun–Vie.
+function moverEventoDia(i, deltaDias) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const dia = e.day + deltaDias;
+  if (dia < 0 || dia >= DAYS.length) {
+    announce(`${e.title} ya está en el borde de la semana`);
+    return;
+  }
+  e.day = dia;
+  nudgeEvento(i, `Movida ${e.title} a ${DIAS_LARGOS[dia]}`);
+}
+
+// Shift+↑/↓: ±15 min de duración, sin pasar el fin del rango ni bajar de 15.
+function cambiarDuracion(i, deltaMin) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const dur = e.dur + deltaMin;
+  if (dur < DUR_MIN || e.min + dur > END_H * 60) {
+    announce(`${e.title} no puede tener esa duración en el horario visible`);
+    return;
+  }
+  e.dur = dur;
+  nudgeEvento(i, `Duración de ${e.title} ahora ${e.dur} minutos`);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1850,7 +1928,7 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" || e.key === "Tab") { cerrarMenu(); e.preventDefault(); return; }
     if (e.key === "Enter" || e.key === " ") { document.activeElement?.click(); e.preventDefault(); return; }
     // La tecla que muestra cada ítem tiene que hacer algo: si no, es una promesa falsa.
-    const atajo = ACCIONES.find((a) => ACCIONES_HECHAS.has(a.id) && a.tecla.length === 1 && a.tecla.toLowerCase() === e.key.toLowerCase());
+    const atajo = ACCIONES.find((a) => ACCIONES_HECHAS.has(a.id) && teclaDeAccion(a, e.key));
     if (atajo) { menu.querySelector(`[data-accion="${atajo.id}"]`)?.click(); e.preventDefault(); return; }
     return;   // con el menú abierto ninguna otra tecla debe llegar al resto
   }
@@ -1891,7 +1969,25 @@ document.addEventListener("keydown", (e) => {
   // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
   if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  // Nudge: con una reunión enfocada, Alt+flechas mueve (15 min o 1 día) y
+  // Shift+flechas cambia la duración. El foco no cambia, así que se anuncia.
+  const elFoco = document.activeElement;
+  const iFoco = elFoco?.classList?.contains("ev") && !elFoco.hasAttribute("data-busy")
+    ? Number(elFoco.dataset.i) : -1;
+  if (iFoco >= 0) {
+    if (e.altKey && e.key === "ArrowDown") { moverEvento(iFoco, 15); e.preventDefault(); return; }
+    if (e.altKey && e.key === "ArrowUp") { moverEvento(iFoco, -15); e.preventDefault(); return; }
+    if (e.altKey && e.key === "ArrowRight") { moverEventoDia(iFoco, 1); e.preventDefault(); return; }
+    if (e.altKey && e.key === "ArrowLeft") { moverEventoDia(iFoco, -1); e.preventDefault(); return; }
+    if (e.shiftKey && !e.altKey && e.key === "ArrowDown") { cambiarDuracion(iFoco, 15); e.preventDefault(); return; }
+    if (e.shiftKey && !e.altKey && e.key === "ArrowUp") { cambiarDuracion(iFoco, -15); e.preventDefault(); return; }
+    // Supr sobre la reunión enfocada: abre su menú y entra directo a la confirmación.
+    if (e.key === "Delete" || e.key === "Del") {
+      abrirMenu(iFoco); abrirConfirmarEliminar(); e.preventDefault(); return;
+    }
+  }
   if ((e.key === "n" || e.key === "N") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (!EN_GRILLA()) return;   // SC 2.1.4: fuera del producto, "n" es texto
     abrirPanel({ dia: 1, min: NOW_MIN - (NOW_MIN % 30), dur: 45 });   // el atajo no consume las flechas que scrollean
     e.preventDefault();
     return;
