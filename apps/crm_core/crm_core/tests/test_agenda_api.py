@@ -3,6 +3,10 @@
 Requiere sitio Frappe (crm-test, NUNCA producción), con el runner de `bench`:
 
     bench --site crm-test run-tests --module crm_core.tests.test_agenda_api
+
+El sitio debe tener ya el Custom Field `CRM Lead.custom_meeting_end`; se crea con
+`scripts/setup_custom_fields.py` (idempotente). Sin él, `get_agenda` no puede
+traer la columna y estos tests no corren.
 """
 
 import frappe
@@ -13,7 +17,7 @@ from crm_core import api
 
 
 class TestAgendaApi(FrappeTestCase):
-    def _lead(self, dt, suffix="A", subject=None):
+    def _lead(self, dt, suffix="A", subject=None, end=None):
         # Una reunión en este CRM es un CRM Lead con custom_meeting_datetime.
         # El título real vive en notes ("Reunión agendada: <título>").
         subject = subject or f"Reunión {suffix}"
@@ -27,6 +31,10 @@ class TestAgendaApi(FrappeTestCase):
             "notes": f"Reunión agendada: {subject}\nCuando: {dt}",
             "custom_meeting_datetime": dt,
         }
+        # `end` opcional: sin él el lead queda como los viejos (fin vacío) y el
+        # DTO tiene que caer a inicio + 1 h.
+        if end:
+            campos["custom_meeting_end"] = end
         # `source` es un Link: su valor puede existir en producción y no en crm-test,
         # y el insert falla con LinkValidationError antes de llegar al endpoint.
         # Se usa un valor que exista de verdad en este sitio, o se omite el campo.
@@ -37,8 +45,31 @@ class TestAgendaApi(FrappeTestCase):
                 campos["source"] = existente
         return frappe.get_doc(campos).insert(ignore_permissions=True).name
 
+    def _ensure_source(self, nombre="Agenda Reunión"):
+        # `create_event` usa un Link a `CRM Lead Source`; en crm-test puede faltar.
+        doctype = frappe.get_meta("CRM Lead").get_field("source").options
+        if frappe.db.exists(doctype, nombre):
+            return
+        frappe.get_doc({"doctype": doctype, "source_name": nombre}).insert(ignore_permissions=True)
+
     def _events(self, day):
         return {e["name"]: e for e in api.get_agenda(start=day, end=add_days(day, 1))["events"]}
+
+    # ── Crear ──────────────────────────────────────────────────────────
+    def test_create_con_fin_explicito_lo_persiste(self):
+        self._ensure_source()
+        res = api.create_event("Reunión CreaFin", "2026-11-01 09:00:00", "2026-11-01 10:15:00")
+
+        ev = self._events("2026-11-01")[res["name"]]
+        self.assertEqual(ev["starts_on"], "2026-11-01 09:00:00")
+        self.assertEqual(ev["ends_on"], "2026-11-01 10:15:00")
+
+    def test_create_sin_fin_usa_una_hora(self):
+        self._ensure_source()
+        res = api.create_event("Reunión CreaDefault", "2026-11-02 09:00:00")
+
+        ev = self._events("2026-11-02")[res["name"]]
+        self.assertEqual(ev["ends_on"], "2026-11-02 10:00:00")
 
     # ── Mover ──────────────────────────────────────────────────────────
     def test_update_mueve_la_reunion(self):
@@ -68,6 +99,26 @@ class TestAgendaApi(FrappeTestCase):
         dto = api.update_meeting(name, "2026-10-07 14:00:00")
         self.assertEqual(dto["starts_on"], "2026-10-07 14:00:00")
         self.assertEqual(dto["ends_on"], "2026-10-07 16:00:00")
+
+    def test_update_solo_mueve_conserva_la_duracion_real(self):
+        name = self._lead("2026-10-16 10:00:00", "SoloMueve", end="2026-10-16 11:45:00")
+
+        dto = api.update_meeting(name, "2026-10-16 16:00:00")
+        self.assertEqual(dto["starts_on"], "2026-10-16 16:00:00")
+        self.assertEqual(dto["ends_on"], "2026-10-16 17:45:00")
+
+    def test_update_cambia_solo_la_duracion_conserva_el_inicio(self):
+        name = self._lead("2026-10-17 09:00:00", "SoloDur", end="2026-10-17 10:00:00")
+
+        dto = api.update_meeting(name, "2026-10-17 09:00:00", "2026-10-17 12:30:00")
+        self.assertEqual(dto["starts_on"], "2026-10-17 09:00:00")
+        self.assertEqual(dto["ends_on"], "2026-10-17 12:30:00")
+
+    def test_lead_legacy_sin_fin_cae_a_una_hora(self):
+        name = self._lead("2026-10-18 08:30:00", "Legacy")  # sin custom_meeting_end
+
+        ev = self._events("2026-10-18")[name]
+        self.assertEqual(ev["ends_on"], "2026-10-18 09:30:00")
 
     def test_update_fin_antes_o_igual_que_inicio_falla(self):
         name = self._lead("2026-10-08 10:00:00", "Invalido")
@@ -113,6 +164,13 @@ class TestAgendaApi(FrappeTestCase):
 
         self.assertEqual(copia["starts_on"], "2026-10-12 16:00:00")
         self.assertEqual(copia["ends_on"], "2026-10-12 17:00:00")
+
+    def test_duplicate_copia_el_fin_real(self):
+        name = self._lead("2026-10-19 10:00:00", "DupFin", end="2026-10-19 12:30:00")
+
+        copia = api.duplicate_meeting(name)
+        self.assertEqual(copia["starts_on"], "2026-10-19 10:00:00")
+        self.assertEqual(copia["ends_on"], "2026-10-19 12:30:00")
 
     # ── Permisos ───────────────────────────────────────────────────────
     def _sin_permiso(self, fn, *args):
