@@ -1,0 +1,5 @@
+# F1: las reuniones pasan de `CRM Lead.custom_meeting_datetime` a `Event` linkeado
+# por `Event.custom_crm_lead`. Va en post_model_sync: primero crea el Custom Field
+# y después backfillea. Idempotente (se puede re-ejecutar sin duplicar).
+[post_model_sync]
+crm_core.patches

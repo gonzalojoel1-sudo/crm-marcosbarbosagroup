@@ -803,6 +803,32 @@ def create_event(subject, starts_on, ends_on=None):
     return {"name": doc.name, "subject": subject}
 
 
+def insertar_evento_sin_sync(campos):
+    """Inserta un `Event` con el sync nativo de Google APAGADO.
+
+    Los tres defectos documentados del sync nativo (research 2026-09-17,
+    §4.3) sólo se disparan con `sync_with_google_calendar=1`:
+
+    - el push de alta (`insert_event_in_google_calendar`) hace `frappe.throw`
+      dentro de `Event.insert()`: si Google falla, la reunión NO se guarda;
+    - el push de baja (`delete_event_from_google_calendar`) atrapa el `HttpError`
+      con un `msgprint`: el CRM borra y Google se queda con el evento;
+    - el guard del update no mira `pulled_from_google_calendar` y usa
+      `doc.get_doc_before_save()` (puede venir `None` y romper).
+
+    Nuestros eventos se guardan con `sync_with_google_calendar=0`, sin
+    `google_calendar` y sin `google_calendar_event_id`: los tres hooks nativos
+    salen por su guard, así guardar no puede tirar ni la reunión se pierde en
+    silencio. El push propio (con reintentos y estado visible) es otra fase.
+    """
+    campos = dict(campos)
+    campos["sync_with_google_calendar"] = 0
+    campos["pulled_from_google_calendar"] = 0
+    campos.pop("google_calendar", None)
+    campos.pop("google_calendar_event_id", None)
+    return frappe.get_doc({"doctype": "Event", **campos}).insert(ignore_permissions=True)
+
+
 def _summary_from_notes(notes):
     notes = (notes or "").strip()
     if not notes:
