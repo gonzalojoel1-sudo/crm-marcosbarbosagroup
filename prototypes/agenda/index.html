@@ -687,8 +687,10 @@ function renderEvent(e, g) {
     : "";
   const range = `${fmt(e.min)} – ${fmt(e.min + e.dur)}${e.origin === "Reserva" ? " · web" : ""}`;
   const lane = e.lane == null ? 1 : e.lane;
+  const abierto = MENU && MENU.i === EVENTS.indexOf(e);
   return `<button class="ev" data-i="${EVENTS.indexOf(e)}" ${compact ? "data-compact" : ""} ${tiny ? "data-tiny" : ""} ${narrow ? "data-narrow" : ""}
     style="top:${top}px;height:${h}px;--c:${c.color};--lane:${e.lane};--lanes:${e.laneCount}" ${e.busy ? "data-busy" : ""}
+    ${e.busy ? "" : `aria-haspopup="menu" aria-expanded="${abierto ? "true" : "false"}"`}
     title="${e.title} · ${range}"
     aria-label="${DIAS_LARGOS[e.day]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", ocupado, importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
     <span class="k"></span>
@@ -896,22 +898,33 @@ const ACCIONES_HECHAS = new Set(["editar"]);
 
 function abrirMenu(i) {
   const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
-  if (!el) return;
+  if (!el || el.hasAttribute("data-busy")) return;   // los importados de Google son de solo lectura
   const r = el.getBoundingClientRect();
   MENU = { i, x: r.left, y: r.bottom + 4 };
-  mount(current);
-  // El menú existe recién tras el re-render: posicionar y enfocar en el frame
-  // siguiente. Mover el foco ES el anuncio: abrir nunca anuncia.
+  // Se inserta el menú directo en el DOM, sin re-renderizar la grilla: así no se
+  // pierde el scroll ni el control bajo el puntero, y el ancla no se corre.
+  document.getElementById("menu")?.remove();
+  document.querySelectorAll('#grilla .ev[aria-expanded="true"]').forEach((x) => x.setAttribute("aria-expanded", "false"));
+  document.getElementById("stage").insertAdjacentHTML("beforeend", renderMenu());
+  el.setAttribute("aria-expanded", "true");
+  // Mover el foco ES el anuncio: abrir nunca anuncia.
   requestAnimationFrame(() => {
     posicionarMenu();
     document.querySelector('#menu [role="menuitem"]')?.focus();
   });
 }
 
+// Cierra el menú sin re-renderizar ni mover el foco: el control que recibió el
+// pointerdown tiene que sobrevivir para que su click llegue.
+function desmontarMenu() {
+  MENU = null;
+  document.getElementById("menu")?.remove();
+  document.querySelectorAll('#grilla .ev[aria-expanded="true"]').forEach((x) => x.setAttribute("aria-expanded", "false"));
+}
+
 function cerrarMenu({ volverFoco = true } = {}) {
   const i = MENU?.i;
-  MENU = null;
-  mount(current);
+  desmontarMenu();
   // Devolver el foco a la reunión también es el anuncio: cerrar nunca anuncia.
   if (volverFoco) requestAnimationFrame(() => {
     document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus();
@@ -1359,24 +1372,29 @@ stage.addEventListener("submit", (ev) => {
 });
 window.addEventListener("resize", moveHighlight);
 window.addEventListener("pointerdown", onDown, true);
-// un pointerdown fuera del menú lo cierra (sin mover el foco: el click decide adónde va)
+// un pointerdown fuera del menú lo cierra sin re-renderizar, para que el control
+// bajo el puntero sobreviva y su click llegue
 document.addEventListener("pointerdown", (ev) => {
-  if (MENU && !ev.target.closest("#menu")) { MENU = null; mount(current); }
+  if (MENU && !ev.target.closest("#menu")) desmontarMenu();
 }, true);
 window.addEventListener("pointermove", onMove);
 window.addEventListener("pointerup", onUp);
 
 document.addEventListener("keydown", (e) => {
   // El menú abierto se maneja ANTES que el panel: Escape no debe cerrar lo de atrás.
-  if (MENU) {
-    const items = [...document.querySelectorAll('#menu [role="menuitem"]')];
+  // Y solo mientras el foco esté ADENTRO: si se fue, el menú es un huérfano que se limpia.
+  const menu = document.getElementById("menu");
+  if (MENU && menu?.contains(document.activeElement)) {
+    const items = [...menu.querySelectorAll('[role="menuitem"]')];
     const idx = items.indexOf(document.activeElement);
     if (e.key === "ArrowDown") { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); return; }
     if (e.key === "ArrowUp") { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); return; }
-    if (e.key === "Escape") { cerrarMenu(); e.preventDefault(); return; }
+    // Tab también cierra: si no, el foco saldría y el menú se quedaría comiéndose las teclas
+    if (e.key === "Escape" || e.key === "Tab") { cerrarMenu(); e.preventDefault(); return; }
     if (e.key === "Enter" || e.key === " ") { document.activeElement?.click(); e.preventDefault(); return; }
     return;   // con el menú abierto ninguna otra tecla debe llegar al resto
   }
+  if (MENU) desmontarMenu();   // foco huérfano: limpiar antes de seguir con la página
   // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
   if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
@@ -1387,8 +1405,9 @@ document.addEventListener("keydown", (e) => {
   }
   // Enter/Space sobre una reunión enfocada abre el menú (no el panel: editar es un ítem)
   if ((e.key === "Enter" || e.key === " ") && e.target.closest(".gridwrap") && e.target.classList.contains("ev")) {
-    abrirMenu(Number(e.target.dataset.i));
     e.preventDefault();
+    // los bloques ocupados de Google se importan de solo lectura: no se editan
+    if (!e.target.hasAttribute("data-busy")) abrirMenu(Number(e.target.dataset.i));
     return;
   }
   if (e.target.closest(".gridwrap")) { scrollKeys(e); return; }

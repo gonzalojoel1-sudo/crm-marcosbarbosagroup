@@ -667,6 +667,20 @@ await sp.close();
 const mu = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await mu.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
 await mu.waitForTimeout(400);
+// los bloques ocupados de Google (ingesta solo lectura) no abren menú ni panel
+await mu.evaluate(() => {
+  document.querySelector('#grilla .ev[data-busy]').focus();
+  document.querySelector("#announcer").textContent = "";
+});
+await mu.keyboard.press("Enter");
+await mu.waitForTimeout(250);
+const porBusy = await mu.evaluate(() => ({
+  menu: !!document.querySelector("#menu"),
+  panel: !!document.querySelector("#panel"),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+// la lista esperada se deriva del marcador de lo implementado, no se hardcodea
+const esperados = await mu.evaluate(() => ACCIONES.filter((a) => ACCIONES_HECHAS.has(a.id)).map((a) => a.label));
 const iEv = await mu.evaluate(() => {
   const e = document.querySelector("#grilla .ev");
   e.focus();
@@ -675,8 +689,9 @@ const iEv = await mu.evaluate(() => {
 });
 await mu.keyboard.press("Enter");
 await mu.waitForTimeout(300);
-const porEnter = await mu.evaluate(() => {
+const porEnter = await mu.evaluate((i) => {
   const m = document.querySelector("#menu");
+  const trg = document.querySelector(`#grilla .ev[data-i="${i}"]`);
   if (!m) return { falta: true };
   const items = [...m.querySelectorAll('[role="menuitem"]')];
   const b = m.getBoundingClientRect();
@@ -688,9 +703,11 @@ const porEnter = await mu.evaluate(() => {
     tamano: items.every((i) => { const r = i.getBoundingClientRect(); return r.width >= 24 && r.height >= 24; }),
     dentro: b.left >= -1 && b.top >= -1 && b.right <= innerWidth + 1 && b.bottom <= innerHeight + 1,
     contTabStop: m.tabIndex >= 0,
+    haspopup: trg?.getAttribute("aria-haspopup"),
+    expanded: trg?.getAttribute("aria-expanded"),
     anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   };
-});
+}, iEv);
 await mu.keyboard.press("ArrowDown");
 await mu.waitForTimeout(80);
 const focoCicla = await mu.evaluate(() => document.activeElement?.getAttribute("role") === "menuitem");
@@ -701,9 +718,60 @@ const porEscape = await mu.evaluate((i) => {
   return {
     hayMenu: !!document.querySelector("#menu"),
     focoVuelve: el ? document.activeElement === el : false,
+    expanded: el?.getAttribute("aria-expanded"),
     anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   };
 }, iEv);
+// Tab cierra el menú y NO deja un huérfano que se coma el atajo N (hallazgo 1)
+await mu.evaluate(() => document.querySelector("#grilla .ev").focus());
+await mu.keyboard.press("Enter");
+await mu.waitForTimeout(200);
+await mu.keyboard.press("Tab");
+await mu.waitForTimeout(250);
+const porTab = await mu.evaluate(() => ({
+  hayMenu: !!document.querySelector("#menu"),
+  focoFueraDelMenu: !document.querySelector("#menu")?.contains(document.activeElement),
+}));
+await mu.keyboard.press("n");
+await mu.waitForTimeout(300);
+const trasTabN = await mu.evaluate(() => /Nueva reunión/.test(document.querySelector("#panel-titulo")?.textContent || ""));
+await mu.keyboard.press("Escape");
+await mu.waitForTimeout(250);
+// con el menú abierto, un click en un calendario lo cierra Y activa el toggle (hallazgo 2)
+await mu.evaluate(() => document.querySelector("#grilla .ev").focus());
+await mu.keyboard.press("Enter");
+await mu.waitForTimeout(200);
+await mu.locator('.cal[data-cat="software"]').click();
+await mu.waitForTimeout(300);
+const porCal = await mu.evaluate(() => ({
+  menu: !!document.querySelector("#menu"),
+  off: document.querySelector('.cal[data-cat="software"]').hasAttribute("data-off"),
+}));
+await mu.locator('.cal[data-cat="software"]').click();   // restaurar
+await mu.waitForTimeout(200);
+// "Editar" del menú abre el panel de ESA reunión, sin anunciar
+const iEdit = await mu.evaluate(() => {
+  const e = document.querySelector("#grilla .ev");
+  e.focus();
+  document.querySelector("#announcer").textContent = "";
+  return Number(e.dataset.i);
+});
+await mu.keyboard.press("Enter");
+await mu.waitForTimeout(200);
+await mu.keyboard.press("Enter");
+await mu.waitForTimeout(350);
+const porEditar = await mu.evaluate((i) => {
+  const t = (document.querySelector("#panel-titulo")?.textContent || "").trim();
+  return {
+    panel: !!document.querySelector("#panel"),
+    diceReunion: t.includes(EVENTS[i].title),
+    focoEnInput: /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || ""),
+    menu: !!document.querySelector("#menu"),
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+}, iEdit);
+await mu.keyboard.press("Escape");
+await mu.waitForTimeout(250);
 // click sin movimiento sobre una reunión: también abre el menú, sin anunciar
 const cajaMenu = await mu.locator("#grilla .ev").first().boundingBox();
 await mu.mouse.click(cajaMenu.x + cajaMenu.width / 2, cajaMenu.y + cajaMenu.height / 2);
@@ -729,9 +797,38 @@ await mu.mouse.up();
 await mu.waitForTimeout(300);
 const despuesDrag = await mu.evaluate((i) => ({ min: EVENTS[i].min, menu: !!document.querySelector("#menu") }), iDrag);
 await mu.close();
+// ── El menú se da vuelta si el bloque está pegado al borde inferior (hallazgo 4) ──
+const flp = await browser.newPage({ viewport: { width: 1440, height: 600 } });
+await flp.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await flp.waitForTimeout(500);
+const iFlip = await flp.evaluate(() => {
+  const w = document.querySelector(".gridwrap");
+  const heads = document.querySelector(".heads").getBoundingClientRect().height;
+  const evs = [...document.querySelectorAll("#grilla .ev:not([data-busy])")];
+  // el más bajo de la grilla, para poder llevarlo contra el borde inferior
+  const e = evs.reduce((a, b) =>
+    (parseFloat(b.style.top) + parseFloat(b.style.height)) > (parseFloat(a.style.top) + parseFloat(a.style.height)) ? b : a);
+  // dejar el borde inferior del bloque a ras del fondo de la grilla
+  w.scrollTop = heads + parseFloat(e.style.top) + parseFloat(e.style.height) - w.clientHeight;
+  e.focus();
+  return Number(e.dataset.i);
+});
+await flp.keyboard.press("Enter");
+await flp.waitForTimeout(300);
+const porFlip = await flp.evaluate((i) => {
+  const m = document.querySelector("#menu");
+  if (!m) return { falta: true };
+  const eb = document.querySelector(`#grilla .ev[data-i="${i}"]`).getBoundingClientRect();
+  const mb = m.getBoundingClientRect();
+  return {
+    dioVuelta: mb.top < eb.top,   // pasó de estar debajo del bloque a estar arriba
+    dentro: mb.top >= -1 && mb.bottom <= innerHeight + 1,
+    evBottom: Math.round(eb.bottom), mbTop: Math.round(mb.top), mbBottom: Math.round(mb.bottom), inner: innerHeight,
+  };
+}, iFlip);
+await flp.close();
 {
   const v = [];
-  const esperados = ["Editar"];   // hoy solo se renderizan las acciones implementadas
   if (porEnter.falta) v.push("Enter no abre el menu");
   else {
     if (porEnter.rol !== "menu") v.push(`role ${porEnter.rol}`);
@@ -741,18 +838,38 @@ await mu.close();
     if (!porEnter.tamano) v.push("hay items menores a 24x24");
     if (!porEnter.dentro) v.push("el menu se sale de la ventana");
     if (porEnter.contTabStop) v.push("el contenedor del menu es tab stop");
+    if (porEnter.haspopup !== "menu") v.push(`aria-haspopup ${porEnter.haspopup}`);
+    if (porEnter.expanded !== "true") v.push(`aria-expanded al abrir: ${porEnter.expanded}`);
     if (porEnter.anuncio) v.push(`se anuncio al abrir: "${porEnter.anuncio}"`);
   }
   if (!focoCicla) v.push("ArrowDown no cicla el foco");
   if (porEscape.hayMenu) v.push("Escape no cierra el menu");
   if (!porEscape.focoVuelve) v.push("Escape no devuelve el foco a la reunion");
+  if (porEscape.expanded !== "false") v.push(`aria-expanded al cerrar: ${porEscape.expanded}`);
   if (porEscape.anuncio) v.push(`se anuncio al cerrar: "${porEscape.anuncio}"`);
+  if (porTab.hayMenu) v.push("Tab no cierra el menu");
+  if (!trasTabN) v.push("tras Tab, la tecla N quedo tragada por un menu huerfano");
+  if (porCal.menu) v.push("el click en un calendario no cerro el menu");
+  if (!porCal.off) v.push("el click en un calendario no activo el toggle (el cierre se comio el click)");
+  if (porBusy.menu) v.push("un bloque ocupado abrio el menu");
+  if (porBusy.panel) v.push("un bloque ocupado abrio el panel");
+  if (porBusy.anuncio) v.push(`un bloque ocupado anuncio: "${porBusy.anuncio}"`);
+  if (!porEditar.panel) v.push("Editar no abre el panel");
+  if (!porEditar.diceReunion) v.push("el panel de Editar no es el de la reunion");
+  if (!porEditar.focoEnInput) v.push("Editar no mueve el foco al panel");
+  if (porEditar.menu) v.push("Editar dejo el menu abierto");
+  if (porEditar.anuncio) v.push(`Editar anuncio: "${porEditar.anuncio}"`);
   if (!porClick.hayMenu) v.push("el click sobre la reunion no abre el menu");
   if (!porClick.focoEnPrimero) v.push("el click no enfoca el primer item");
   if (porClick.anuncio) v.push(`el click anuncio: "${porClick.anuncio}"`);
   if (!(despuesDrag.min > antesMin)) v.push(`el arrastre no movio la reunion (${antesMin}->${despuesDrag.min})`);
   if (despuesDrag.menu) v.push("el arrastre (>4 px) abrio el menu");
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `menu · items ${(porEnter.items || []).join(" | ") || "-"} · foco primer item ${porEnter.focoEnPrimero} · dentro de ventana ${porEnter.dentro} · Escape cierra ${!porEscape.hayMenu} y vuelve el foco ${porEscape.focoVuelve} · click abre ${porClick.hayMenu} · arrastre mueve ${despuesDrag.min > antesMin} · anuncios "${porEnter.anuncio}"/"${porEscape.anuncio}"/"${porClick.anuncio}"`);
+  if (porFlip.falta) v.push("no se pudo abrir el menu para el flip");
+  else {
+    if (!porFlip.dioVuelta) v.push(`el menu no se dio vuelta (top ${porFlip.mbTop}, bloque bottom ${porFlip.evBottom}, ventana ${porFlip.inner})`);
+    if (!porFlip.dentro) v.push("el menu se sale de la ventana al dar vuelta");
+  }
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `menu · items ${(porEnter.items || []).join(" | ") || "-"} · foco primer item ${porEnter.focoEnPrimero} · dentro ${porEnter.dentro} · haspopup/expanded ${porEnter.haspopup}/${porEnter.expanded}->${porEscape.expanded} · Escape cierra ${!porEscape.hayMenu} y vuelve el foco ${porEscape.focoVuelve} · Tab cierra ${!porTab.hayMenu} y N sigue ${trasTabN} · click abre ${porClick.hayMenu} · cal togglea ${porCal.off} · ocupado abre menu/panel ${porBusy.menu}/${porBusy.panel} · Editar panel ${porEditar.panel} · arrastre mueve ${despuesDrag.min > antesMin} · flip ${porFlip.dioVuelta} (bloque bottom ${porFlip.evBottom} → menu ${porFlip.mbTop}-${porFlip.mbBottom}, ventana ${porFlip.inner}) dentro ${porFlip.dentro} · anuncios "${porEnter.anuncio}"/"${porEscape.anuncio}"/"${porClick.anuncio}"/"${porEditar.anuncio}"`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 await browser.close();
