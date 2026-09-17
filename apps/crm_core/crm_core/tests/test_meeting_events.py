@@ -57,6 +57,7 @@ class TestMeetingEventsBackfill(FrappeTestCase):
                 "all_day",
                 "sync_with_google_calendar",
                 "pulled_from_google_calendar",
+                "google_calendar_event_id",
                 "custom_crm_lead",
             ],
             order_by="starts_on asc",
@@ -178,3 +179,33 @@ class TestMeetingEventsBackfill(FrappeTestCase):
             str(frappe.db.get_value("CRM Lead", lead, "custom_meeting_datetime")),
             "2026-12-06 10:00:00",
         )
+
+    # ── Reconciliación del id de Google del lead (F2) ──────────────────
+    def test_reconciliacion_copia_el_id_de_google_del_lead_al_event(self):
+        if not frappe.get_meta("CRM Lead").get_field("custom_event_id"):
+            self.skipTest("Este sitio no tiene el campo legacy custom_event_id")
+        from crm_core.patches_f2 import reconcile_google_event_ids
+
+        lead = self._lead("2026-12-07 09:00:00", "GoogleId")
+        frappe.db.set_value("CRM Lead", lead, "custom_event_id", "gcal-abc123")
+        patches.backfill_events_from_meetings()
+
+        reconcile_google_event_ids()
+        self.assertEqual(self._eventos(lead)[0]["google_calendar_event_id"], "gcal-abc123")
+        # Idempotente: una segunda corrida no cambia el valor.
+        reconcile_google_event_ids()
+        self.assertEqual(self._eventos(lead)[0]["google_calendar_event_id"], "gcal-abc123")
+
+    def test_reconciliacion_no_pisa_un_id_ya_existente(self):
+        if not frappe.get_meta("CRM Lead").get_field("custom_event_id"):
+            self.skipTest("Este sitio no tiene el campo legacy custom_event_id")
+        from crm_core.patches_f2 import reconcile_google_event_ids
+
+        lead = self._lead("2026-12-08 09:00:00", "GoogleIdPisado")
+        frappe.db.set_value("CRM Lead", lead, "custom_event_id", "gcal-legacy")
+        patches.backfill_events_from_meetings()
+        ev = self._eventos(lead)[0]
+        frappe.db.set_value("Event", ev["name"], "google_calendar_event_id", "gcal-propio")
+
+        reconcile_google_event_ids()
+        self.assertEqual(self._eventos(lead)[0]["google_calendar_event_id"], "gcal-propio")

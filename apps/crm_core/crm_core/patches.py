@@ -57,7 +57,7 @@ def _fin_desde_notes(starts_on, notes):
 
 def _subject_del_lead(lead):
     # Reusa el mismo parseo que la API: el título real está en notes, no se
-    # re-implementa. Sin título se cae al nombre del contacto, como `_meeting_dto`.
+    # re-implementa. Sin título se cae al nombre del contacto, como la API.
     from crm_core.api import _summary_from_notes
 
     who = f"{lead.get('first_name') or ''} {lead.get('last_name') or ''}".strip().strip("-").strip()
@@ -96,8 +96,9 @@ def backfill_events_from_meetings():
         if frappe.db.exists("Event", {"custom_crm_lead": lead["name"]}):
             continue
         ends_on = _fin_desde_notes(starts_on, lead.get("notes"))
-        # No se copia `custom_event_id` a `Event.google_calendar_event_id`: el push
-        # propio de F2 debe reconciliar por lead para no duplicar el evento en Google.
+        # No se copia `custom_event_id` a `Event.google_calendar_event_id` acá: la
+        # reconciliación vive en `crm_core.patches_f2` (entrada propia del patch,
+        # porque este patch ya quedó en `Patch Log` y no se re-ejecuta).
         insertar_evento_sin_sync(
             {
                 "subject": _subject_del_lead(lead),

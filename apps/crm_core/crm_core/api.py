@@ -1,34 +1,28 @@
 """API de "Hoy" y "Agenda" — sobre los datos REALES del app `crm`.
 
-El CRM ya en uso guarda:
-- Reuniones/reservas en `CRM Lead.custom_meeting_datetime` (las carga el cron
-  `sync-gcal-crm.py` que lee Google Calendar cada minuto).
-- Tareas en `CRM Task` (title, status, priority, due_date).
-
-Estos métodos leen/escriben esas DocTypes para que la agenda muestre el día real.
-Todos requieren login.
+Desde F1 la reunión es un `Event` de Frappe linkeado a su contacto por el Custom
+Field `Event.custom_crm_lead`. Desde F2 la agenda lee y escribe `Event`: la
+duración es `Event.ends_on` (no se fabrica) y el título es `Event.subject` (no se
+parsea de `notes`). `CRM Lead.custom_meeting_datetime` queda congelado.
+Las tareas siguen en `CRM Task` (title, status, priority, due_date).
+Todos los métodos requieren login.
 """
 
 import re
 
 import frappe
-from frappe.utils import add_days, add_to_date, get_datetime, getdate, nowdate
+from frappe.utils import add_days, add_to_date, cint, get_datetime, getdate, nowdate
 
 from crm_core import billing
 
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
-MEETING_FIELDS = [
-    "name",
-    "first_name",
-    "last_name",
-    "email",
-    "notes",
-    "custom_meeting_datetime",
-]
+# La reunión vive en `Event`; `custom_crm_lead` es el vínculo con el contacto.
+EVENT_FIELDS = ["name", "subject", "starts_on", "ends_on", "all_day", "custom_crm_lead"]
+LEAD_FIELDS = ["name", "first_name", "last_name", "email"]
 
-# El fin histórico de la reunión vivía en `notes` como "Fin: <datetime>". Es la
-# única fuente legacy de duración y no depende de ninguna columna (la verdad
-# nueva es `Event.ends_on`, F2). Sin la línea se cae a inicio + 1 h.
+# La línea "Fin: <datetime>" que el sync legacy escribía en `CRM Lead.notes` ya no
+# es fuente de duración (esa es `Event.ends_on`); sólo se oculta al mostrar el
+# detalle de un lead sin `Event`.
 FIN_RE = re.compile(r"(?:^|\n)Fin:[^\n]*")
 
 
@@ -37,56 +31,75 @@ def _day_bounds(day=None):
     return f"{day} 00:00:00", f"{add_days(day, 1)} 00:00:00"
 
 
-def _end_or_default(when, notes=None):
-    """Fin real de la reunión: la línea `Fin:` de `notes` o inicio + 1 h.
-
-    Nunca lee una columna: el fin puede venir de datos viejos o no existir, y la
-    duración nueva la da `Event.ends_on`."""
-    m = FIN_RE.search(notes or "")
-    if m:
-        try:
-            fin = get_datetime(m.group(0).replace("Fin:", "").strip())
-            if fin > get_datetime(when):
-                return fin
-        except Exception:
-            pass
-    return add_to_date(when, hours=1)
+def _who_de(lead):
+    if not lead:
+        return ""
+    return f"{lead.get('first_name') or ''} {lead.get('last_name') or ''}".strip().strip("-").strip()
 
 
-def _notes_with_end(notes, end):
-    """Reescribe la línea `Fin:` de `notes` (o la saca si `end` es None)."""
-    clean = FIN_RE.sub("", notes or "").strip()
-    if not end:
-        return clean
-    return f"{clean}\nFin: {end}".strip()
+def _lead_de(doc):
+    """El `CRM Lead` linkeado a un `Event` (o None si no tiene contacto)."""
+    lead = doc.get("custom_crm_lead")
+    if not lead:
+        return None
+    return frappe.db.get_value("CRM Lead", lead, LEAD_FIELDS, as_dict=True)
 
 
-def _notes_with_subject(notes, subject):
-    lines = (notes or "").split("\n") or [""]
-    lines[0] = f"Reunión agendada: {subject}"
-    return "\n".join(lines)
-
-
-def _meeting_dto(r):
-    when = r["custom_meeting_datetime"]
-    # El sync guarda el título real del evento en notes:
-    #   "Reunión agendada: <summary>\nCuando: ...\nEventId: ..."
-    subject = ""
-    notes = (r.get("notes") or "").strip()
-    if notes.startswith("Reunión agendada:"):
-        subject = notes.split("\n", 1)[0].replace("Reunión agendada:", "").strip()
-    who = f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip().strip("-").strip()
-    subject = subject or who or r.get("email") or "Reunión"
-    end = _end_or_default(when, r.get("notes"))
+def _leads_por_nombre(rows):
+    """Trae en una sola consulta los leads linkeados a los `Event` de la ventana."""
+    nombres = {r.get("custom_crm_lead") for r in rows if r.get("custom_crm_lead")}
+    if not nombres:
+        return {}
     return {
-        "name": r["name"],
-        "subject": subject,
-        "who": who,
-        "email": r.get("email") or "",
-        "starts_on": str(when),
-        "ends_on": str(end),
+        l["name"]: l
+        for l in frappe.get_all(
+            "CRM Lead",
+            filters={"name": ["in", list(nombres)]},
+            fields=LEAD_FIELDS,
+            limit_page_length=0,
+        )
     }
 
+
+def _event_dto(r, lead=None):
+    """DTO de una reunión sobre `Event`.
+
+    La duración sale de `ends_on`; sólo si un `Event` legacy lo tiene vacío se cae
+    a inicio + 1 h (el fallback que el modelo viejo fabricaba siempre). `all_day`
+    viaja en el DTO para que un evento de todo el día (los importa Google) no se
+    dibuje como una reunión de 00:00.
+    """
+    starts = get_datetime(r.get("starts_on"))
+    ends = get_datetime(r.get("ends_on")) if r.get("ends_on") else add_to_date(starts, hours=1)
+    who = _who_de(lead)
+    subject = (r.get("subject") or "").strip() or who or (lead or {}).get("email") or "Reunión"
+    return {
+        "name": r.get("name"),
+        "subject": subject,
+        "who": who,
+        "email": (lead or {}).get("email") or "",
+        "all_day": bool(cint(r.get("all_day"))),
+        "starts_on": str(starts),
+        "ends_on": str(ends),
+    }
+
+
+def _eventos_en_ventana(filters):
+    """Lee los `Event` de la ventana y los convierte a DTO con su lead linkeado."""
+    # Defensivo: si el Custom Field todavía no existe (deploy antes del `migrate`),
+    # la agenda igual responde; sin el link no puede haber `who`/`email`.
+    fields = list(EVENT_FIELDS)
+    if not frappe.get_meta("Event").get_field("custom_crm_lead"):
+        fields.remove("custom_crm_lead")
+    rows = frappe.get_all(
+        "Event",
+        filters=filters,
+        fields=fields,
+        order_by="starts_on asc",
+        limit_page_length=0,
+    )
+    leads = _leads_por_nombre(rows)
+    return [_event_dto(r, leads.get(r.get("custom_crm_lead"))) for r in rows]
 
 
 def _task_dto(r):
@@ -125,20 +138,14 @@ def get_hoy():
         order_by="due_date asc",
         limit_page_length=0,
     )
-    meetings = frappe.get_all(
-        "CRM Lead",
-        filters=[["custom_meeting_datetime", "between", [start, end]]],
-        fields=MEETING_FIELDS,
-        order_by="custom_meeting_datetime asc",
-        limit_page_length=0,
-    )
+    events_today = _eventos_en_ventana([["starts_on", ">=", start], ["starts_on", "<", end]])
 
     return {
         "today": str(getdate()),
         "overdue": [_task_dto(r) for r in overdue],
         "tasks_today": [_task_dto(r) for r in tasks_today],
-        "events_today": [_meeting_dto(r) for r in meetings],
-        "count": len(overdue) + len(tasks_today) + len(meetings),
+        "events_today": events_today,
+        "count": len(overdue) + len(tasks_today) + len(events_today),
     }
 
 
@@ -149,13 +156,7 @@ def get_agenda(start=None, end=None):
     s = f"{d0} 00:00:00"
     e = f"{d1} 00:00:00"
 
-    meetings = frappe.get_all(
-        "CRM Lead",
-        filters=[["custom_meeting_datetime", ">=", s], ["custom_meeting_datetime", "<", e]],
-        fields=MEETING_FIELDS,
-        order_by="custom_meeting_datetime asc",
-        limit_page_length=0,
-    )
+    events = _eventos_en_ventana([["starts_on", ">=", s], ["starts_on", "<", e]])
     tasks = frappe.get_all(
         "CRM Task",
         filters=[
@@ -171,7 +172,7 @@ def get_agenda(start=None, end=None):
     return {
         "start": str(d0),
         "end": str(d1),
-        "events": [_meeting_dto(r) for r in meetings],
+        "events": events,
         "tasks": [_task_dto(r) for r in tasks],
     }
 
@@ -318,13 +319,7 @@ def get_reminders():
 
     now = now_datetime()
     horizon = add_to_date(now, minutes=180)
-    rows = frappe.get_all(
-        "CRM Lead",
-        filters=[["custom_meeting_datetime", ">=", now], ["custom_meeting_datetime", "<=", horizon]],
-        fields=MEETING_FIELDS,
-        order_by="custom_meeting_datetime asc",
-        limit_page_length=0,
-    )
+    meetings = _eventos_en_ventana([["starts_on", ">=", now], ["starts_on", "<=", horizon]])
     overdue = frappe.get_all(
         "CRM Task",
         filters=[["status", "!=", "Done"], ["due_date", "is", "set"], ["due_date", "<", now]],
@@ -332,7 +327,7 @@ def get_reminders():
         limit_page_length=0,
     )
     return {
-        "meetings": [_meeting_dto(r) for r in rows],
+        "meetings": meetings,
         "overdue": len(overdue),
         "now": str(now),
     }
@@ -599,6 +594,12 @@ def save_quote(
 @frappe.whitelist()
 def convert_lead_to_deal(lead, status=None, deal_value=None):
     """Mete un lead al embudo creando un negocio con sus datos."""
+    # La agenda abre el panel con el nombre del `Event`; el negocio se crea desde
+    # el contacto, así que se resuelve el lead linkeado.
+    if frappe.db.exists("Event", lead):
+        lead = frappe.db.get_value("Event", lead, "custom_crm_lead")
+        if not lead:
+            frappe.throw("La reunión no está vinculada a un contacto")
     l = frappe.get_doc("CRM Lead", lead)
     who = f"{l.first_name or ''} {l.last_name or ''}".strip().strip("-").strip()
     who = who or l.get("email") or "Contacto"
@@ -797,7 +798,11 @@ def update_lead(name, email=None, mobile_no=None, organization=None, status=None
 
 
 @frappe.whitelist()
-def create_event(subject, starts_on, ends_on=None):
+def create_event(subject, starts_on, ends_on=None, lead=None):
+    """Crea la reunión como `Event` (ya no como `CRM Lead`).
+
+    Si se pasa `lead`, el `Event` queda linkeado por `custom_crm_lead`; el contacto
+    no se toca."""
     subject = (subject or "").strip()
     if not subject:
         frappe.throw("El título no puede estar vacío")
@@ -806,22 +811,19 @@ def create_event(subject, starts_on, ends_on=None):
     ends_on = get_datetime(ends_on) if ends_on else add_to_date(starts_on, hours=1)
     if ends_on <= starts_on:
         frappe.throw("La hora de fin tiene que ser posterior a la de inicio")
-    # Una reunión en este CRM es un CRM Lead con custom_meeting_datetime; el fin
-    # legacy va en `notes` ("Fin: ..."), no en una columna.
-    parts = subject.split(" ", 1)
-    doc = frappe.get_doc(
-        {
-            "doctype": "CRM Lead",
-            "first_name": parts[0],
-            "last_name": parts[1] if len(parts) > 1 else "-",
-            "status": "New",
-            "source": "Agenda Reunión",
-            "custom_meeting_datetime": starts_on,
-            "notes": _notes_with_end(None, ends_on),
-        }
-    )
-    doc.insert(ignore_permissions=True)
-    return {"name": doc.name, "subject": subject}
+    campos = {
+        "subject": subject,
+        "starts_on": starts_on,
+        "ends_on": ends_on,
+        "all_day": 0,
+        "event_type": "Private",
+        "event_category": "Meeting",
+        "status": "Open",
+    }
+    if lead and frappe.db.exists("CRM Lead", lead):
+        campos["custom_crm_lead"] = lead
+    ev = insertar_evento_sin_sync(campos)
+    return {"name": ev.name, "subject": ev.subject}
 
 
 def insertar_evento_sin_sync(campos):
@@ -837,10 +839,11 @@ def insertar_evento_sin_sync(campos):
     - el guard del update no mira `pulled_from_google_calendar` y usa
       `doc.get_doc_before_save()` (puede venir `None` y romper).
 
-    Nuestros eventos se guardan con `sync_with_google_calendar=0`, sin
-    `google_calendar` y sin `google_calendar_event_id`: los tres hooks nativos
-    salen por su guard, así guardar no puede tirar ni la reunión se pierde en
-    silencio. El push propio (con reintentos y estado visible) es otra fase.
+    Nuestros eventos se guardan con `sync_with_google_calendar=0` y sin
+    `google_calendar`: los tres hooks nativos salen por su guard, así guardar no
+    puede tirar ni la reunión se pierde en silencio. El push propio (con
+    reintentos y estado visible) es otra fase. El update y el delete pasan por
+    `_neutralizar_sync_evento` / `_sacar_del_sync_antes_de_borrar`.
     """
     campos = dict(campos)
     campos["sync_with_google_calendar"] = 0
@@ -848,6 +851,46 @@ def insertar_evento_sin_sync(campos):
     campos.pop("google_calendar", None)
     campos.pop("google_calendar_event_id", None)
     return frappe.get_doc({"doctype": "Event", **campos}).insert(ignore_permissions=True)
+
+
+def _neutralizar_sync_evento(doc):
+    """Deja un `Event` fuera del alcance de los hooks nativos de Google al guardar.
+
+    Leído de `frappe/integrations/doctype/google_calendar/google_calendar.py` (v15),
+    que engancha `Event` por `doc_events`:
+
+    - `insert_event_in_google_calendar` sale si `not doc.sync_with_google_calendar`
+      o `doc.pulled_from_google_calendar` o no existe el `Google Calendar` del doc;
+    - `update_event_in_google_calendar` sale por el mismo `sync_with_google_calendar`,
+      pero más adentro usa `doc.get_doc_before_save()` (puede venir `None`) y hace
+      `frappe.throw` si Google falla: si el guard no lo frena, la edición no se guarda;
+    - `delete_event_from_google_calendar` NO mira `sync_with_google_calendar`: sólo
+      `exists("Google Calendar", {"name": doc.google_calendar, "push_to_google_calendar": 1})`,
+      y ante un `HttpError` sólo hace `msgprint` (borra el CRM y Google conserva el evento).
+
+    Por eso la invariante es que en NUESTRAS escrituras `google_calendar` nunca
+    quede seteado: se apaga `sync_with_google_calendar` y se limpia el link al
+    calendario. No se toca `pulled_from_google_calendar` (mentiría sobre el origen
+    del evento) ni `google_calendar_event_id` (es el id que reconcilia el sync).
+    """
+    doc.sync_with_google_calendar = 0
+    doc.google_calendar = None
+
+
+def _sacar_del_sync_antes_de_borrar(name):
+    """Garantiza que el `on_trash` nativo no dispare el delete de Google.
+
+    `delete_event_from_google_calendar` mira `doc.google_calendar` (el Link), no
+    `sync_with_google_calendar`. `frappe.delete_doc` recarga el documento, así que
+    la limpieza tiene que estar en la base ANTES de borrar. `frappe.db.set_value`
+    no corre hooks, así que no dispara el update nativo.
+    """
+    frappe.db.set_value(
+        "Event",
+        name,
+        {"sync_with_google_calendar": 0, "google_calendar": None},
+        update_modified=False,
+    )
 
 
 def _summary_from_notes(notes):
@@ -862,36 +905,69 @@ def _summary_from_notes(notes):
 
 @frappe.whitelist()
 def get_meeting(name):
-    lead = frappe.get_doc("CRM Lead", name)
-    comments = frappe.get_all(
-        "Comment",
-        filters={"reference_doctype": "CRM Lead", "reference_name": name, "comment_type": "Comment"},
-        fields=["name", "content", "creation", "owner", "comment_by"],
-        order_by="creation desc",
-        limit_page_length=0,
+    """Detalle de la reunión para el panel.
+
+    Desde F2 `name` es el `Event` (así lo devuelve la agenda); si llega el nombre
+    de un `CRM Lead` (vista Contactos) se resuelve a su `Event`. Los campos de
+    contacto siguen saliendo del lead porque el panel actual opera sobre él.
+    """
+    evento = frappe.get_doc("Event", name) if frappe.db.exists("Event", name) else None
+    lead_name = (evento.get("custom_crm_lead") if evento else None) or (name if not evento else None)
+    lead = (
+        frappe.get_doc("CRM Lead", lead_name)
+        if lead_name and frappe.db.exists("CRM Lead", lead_name)
+        else None
     )
-    tasks = frappe.get_all(
-        "CRM Task",
-        filters={"reference_doctype": "CRM Lead", "reference_docname": name},
-        fields=["name", "title", "status", "priority", "due_date"],
-        order_by="creation asc",
-        limit_page_length=0,
+    comments = (
+        frappe.get_all(
+            "Comment",
+            filters={"reference_doctype": "CRM Lead", "reference_name": lead.name, "comment_type": "Comment"},
+            fields=["name", "content", "creation", "owner", "comment_by"],
+            order_by="creation desc",
+            limit_page_length=0,
+        )
+        if lead
+        else []
     )
-    who = f"{lead.first_name or ''} {lead.last_name or ''}".strip().strip("-").strip()
+    tasks = (
+        frappe.get_all(
+            "CRM Task",
+            filters={"reference_doctype": "CRM Lead", "reference_docname": lead.name},
+            fields=["name", "title", "status", "priority", "due_date"],
+            order_by="creation asc",
+            limit_page_length=0,
+        )
+        if lead
+        else []
+    )
+    who = _who_de(lead)
+    if evento:
+        meeting = str(evento.starts_on)
+        ends_on = str(evento.ends_on) if evento.ends_on else None
+        all_day = bool(cint(evento.all_day))
+        subject = (evento.subject or "").strip() or who or (lead.get("email") if lead else "") or "Reunión"
+    else:
+        meeting = str(lead.custom_meeting_datetime) if (lead and lead.get("custom_meeting_datetime")) else None
+        ends_on = None
+        all_day = False
+        subject = _summary_from_notes(lead.get("notes") if lead else "") or who or "Reunión"
     return {
-        "name": lead.name,
-        "subject": _summary_from_notes(lead.get("notes")) or who or lead.email or "Reunión",
+        "name": lead.name if lead else (evento.name if evento else name),
+        "event": evento.name if evento else None,
+        "subject": subject,
         "who": who,
-        "first_name": lead.first_name,
-        "last_name": lead.last_name,
-        "email": lead.get("email") or "",
-        "mobile_no": lead.get("mobile_no") or "",
-        "organization": lead.get("organization") or "",
-        "status": lead.get("status") or "",
-        "source": lead.get("source") or "",
-        "meeting": str(lead.custom_meeting_datetime) if lead.get("custom_meeting_datetime") else None,
-        "notes": FIN_RE.sub("", lead.get("notes") or "").strip(),
-        "description": lead.get("descripcion") or "",
+        "first_name": lead.get("first_name") if lead else None,
+        "last_name": lead.get("last_name") if lead else None,
+        "email": lead.get("email") if lead else "",
+        "mobile_no": lead.get("mobile_no") if lead else "",
+        "organization": lead.get("organization") if lead else "",
+        "status": lead.get("status") if lead else "",
+        "source": lead.get("source") if lead else "",
+        "meeting": meeting,
+        "ends_on": ends_on,
+        "all_day": all_day,
+        "notes": FIN_RE.sub("", lead.get("notes") or "").strip() if lead else "",
+        "description": (lead.get("descripcion") if lead else "") or (evento.get("description") if evento else "") or "",
         "comments": [
             {"name": c.name, "content": c.content, "when": str(c.creation), "by": c.comment_by or c.owner}
             for c in comments
@@ -909,21 +985,13 @@ def get_meeting(name):
     }
 
 
-def _meeting_fields(doc):
-    return {
-        "name": doc.name,
-        "first_name": doc.get("first_name"),
-        "last_name": doc.get("last_name"),
-        "email": doc.get("email"),
-        "notes": doc.get("notes"),
-        "custom_meeting_datetime": doc.get("custom_meeting_datetime"),
-    }
-
-
 @frappe.whitelist()
 def update_meeting(name, starts_on, ends_on=None):
-    """Mueve una reunión y/o le cambia la duración (fin opcional)."""
-    if not frappe.has_permission("CRM Lead", "write", doc=name):
+    """Mueve la reunión y/o le cambia la duración. `name` es el `Event`.
+
+    Sin fin explícito se **conserva la duración real** (`Event.ends_on`); si el
+    `Event` no tiene fin (legacy), se cae a una hora."""
+    if not frappe.has_permission("Event", "write", doc=name):
         frappe.throw("Sin permiso para modificar esta reunión", frappe.PermissionError)
 
     starts_on = get_datetime(starts_on)
@@ -932,72 +1000,63 @@ def update_meeting(name, starts_on, ends_on=None):
         if ends_on <= starts_on:
             frappe.throw("La hora de fin tiene que ser posterior a la de inicio")
 
-    doc = frappe.get_doc("CRM Lead", name)
+    doc = frappe.get_doc("Event", name)
     if not ends_on:
-        # Sin fin explícito se conserva la duración real que ya tenía la reunión.
-        actual = (
-            get_datetime(doc.custom_meeting_datetime)
-            if doc.get("custom_meeting_datetime")
-            else None
-        )
-        ends_on = (
-            add_to_date(
-                starts_on,
-                seconds=(_end_or_default(actual, doc.get("notes")) - actual).total_seconds(),
-            )
-            if actual
-            else add_to_date(starts_on, hours=1)
-        )
+        actual_ini = get_datetime(doc.starts_on)
+        actual_fin = get_datetime(doc.ends_on) if doc.ends_on else add_to_date(actual_ini, hours=1)
+        ends_on = add_to_date(starts_on, seconds=(actual_fin - actual_ini).total_seconds())
 
-    doc.custom_meeting_datetime = starts_on
-    doc.notes = _notes_with_end(doc.get("notes"), ends_on)
+    doc.starts_on = starts_on
+    doc.ends_on = ends_on
+    _neutralizar_sync_evento(doc)
     doc.save(ignore_permissions=True)
-    return _meeting_dto(_meeting_fields(doc))
+    return _event_dto(doc, _lead_de(doc))
 
 
 @frappe.whitelist()
 def delete_meeting(name):
-    """Saca la reunión de la agenda sin borrar el lead (contacto/historial).
+    """Borra la reunión (`Event`). El lead (contacto/historial) NO se toca.
 
-    Un CRM Lead es un contacto: borrarlo se lleva su historial y sus negocios.
-    Se limpian los campos de reunión para que desaparezca de la agenda.
-    """
-    if not frappe.has_permission("CRM Lead", "delete", doc=name):
+    Un `CRM Lead` es un contacto: borrarlo se lleva su historial y sus negocios.
+    La reunión es un `Event` separado, así que borrarla no lo roza."""
+    if not frappe.has_permission("Event", "delete", doc=name):
         frappe.throw("Sin permiso para eliminar esta reunión", frappe.PermissionError)
 
-    doc = frappe.get_doc("CRM Lead", name)
-    doc.custom_meeting_datetime = None
-    doc.notes = _notes_with_end(doc.get("notes"), None)
-    doc.save(ignore_permissions=True)
+    _sacar_del_sync_antes_de_borrar(name)
+    frappe.delete_doc("Event", name, ignore_permissions=True)
     return {"ok": True}
 
 
 @frappe.whitelist()
 def duplicate_meeting(name, starts_on=None):
-    """Copia la reunión con el título "(copia)" y el mismo horario o el indicado."""
-    if not frappe.has_permission("CRM Lead", "read", doc=name):
+    """Copia la reunión (`Event`) con el título "(copia)" y la misma duración.
+
+    No crea ni toca el `CRM Lead`: las N reuniones de un contacto son N `Event`
+    linkeados. La copia no comparte el id de Google (sería otro evento)."""
+    if not frappe.has_permission("Event", "read", doc=name):
         frappe.throw("Sin permiso para duplicar esta reunión", frappe.PermissionError)
-    if not frappe.has_permission("CRM Lead", "create"):
+    if not frappe.has_permission("Event", "create"):
         frappe.throw("Sin permiso para crear reuniones", frappe.PermissionError)
 
-    src = frappe.get_doc("CRM Lead", name)
-    origen = get_datetime(src.custom_meeting_datetime)
-    duracion = (_end_or_default(origen, src.get("notes")) - origen).total_seconds()
-    nuevo_inicio = get_datetime(starts_on) if starts_on else origen
+    src = frappe.get_doc("Event", name)
+    ini = get_datetime(src.starts_on)
+    fin = get_datetime(src.ends_on) if src.ends_on else add_to_date(ini, hours=1)
+    nuevo_ini = get_datetime(starts_on) if starts_on else ini
+    titulo = (src.subject or "").strip() or "Reunión"
 
-    who = f"{src.first_name or ''} {src.last_name or ''}".strip().strip("-").strip()
-    titulo = _summary_from_notes(src.get("notes")) or who or src.email or "Reunión"
-
-    copia = frappe.copy_doc(src)
-    # Es otra reunión: no comparte el EventId de Google (rompería el dedupe del sync).
-    copia.custom_event_id = None
-    copia.custom_meeting_datetime = nuevo_inicio
-    copia.notes = _notes_with_end(
-        _notes_with_subject(src.get("notes"), f"{titulo} (copia)"),
-        add_to_date(nuevo_inicio, seconds=duracion),
-    )
-    copia.insert(ignore_permissions=True)
-    return _meeting_dto(_meeting_fields(copia))
+    campos = {
+        "subject": f"{titulo} (copia)",
+        "starts_on": nuevo_ini,
+        "ends_on": add_to_date(nuevo_ini, seconds=(fin - ini).total_seconds()),
+        "all_day": cint(src.all_day),
+        "event_type": src.event_type or "Private",
+        "event_category": src.event_category or "Meeting",
+        "status": src.status or "Open",
+    }
+    if src.get("custom_crm_lead"):
+        campos["custom_crm_lead"] = src.custom_crm_lead
+    copia = insertar_evento_sin_sync(campos)
+    return _event_dto(copia, _lead_de(copia))
 
 
 @frappe.whitelist()
@@ -1005,6 +1064,12 @@ def add_note(name, text):
     text = (text or "").strip()
     if not text:
         frappe.throw("El comentario no puede estar vacío")
+    # La agenda abre el panel con el nombre del `Event`; el comentario vive en el
+    # contacto, así que se resuelve el lead linkeado.
+    if frappe.db.exists("Event", name):
+        name = frappe.db.get_value("Event", name, "custom_crm_lead")
+        if not name:
+            frappe.throw("La reunión no está vinculada a un contacto")
     if not frappe.has_permission("CRM Lead", "read", doc=name):
         frappe.throw("Sin permiso", frappe.PermissionError)
     c = frappe.get_doc(
