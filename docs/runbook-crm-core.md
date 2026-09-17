@@ -83,18 +83,30 @@ KEY=... SEC=... node scripts/e2e_hoy.mjs      # screenshot -> hoy.png
 ```
 
 
-### Por qué el bundle va embebido en base64 (leer antes de tocar)
+### Por qué el bundle va inline en el shell (leer antes de tocar)
 
 1. Los contenedores `crm_backend` y `crm_frontend` **no comparten `sites/assets`**
    de forma confiable (verificado con un archivo marcador), así que `/assets/...`
-   no sirve para los assets del frontend.
-2. Frappe **rechaza cualquier template que contenga `.__`** (`Illegal template`).
-   El bundle minificado de React lo tiene. Base64 no tiene `.` → pasa.
-3. `window.CSRF` (no `__CSRF__`) por el mismo motivo.
+   **no sirve** para los assets del frontend. Por eso el build (`gen-shell.mjs`)
+   genera **un único `www/hoy.html` autocontenido**: el JS se inyecta crudo en
+   `<script type="module">` y el CSS en `<style>`. Nada de `atob`/`Uint8Array`/
+   `Blob`/`import(blob:)` y nada de pedir assets por red.
+2. Frappe **rechaza cualquier template que contenga `.__`** (`Illegal template`)
+   y el bundle minificado de React lo tiene. Se apaga con `safe_render = False`,
+   que **debe ir en el objeto `context` dentro de `get_context` de `www/hoy.py`**,
+   no a nivel módulo: `WEBPAGE_PY_MODULE_PROPERTIES`
+   (`frappe/website/page_renderers/template_page.py`) no incluye `safe_render`, así
+   que una asignación a nivel módulo nunca llega al context (es código muerto).
+   Frappe lee `context.safe_render` en `TemplatePage.render_template()` del mismo
+   archivo, y recién ahí decide si valida o no.
+3. `window.CSRF` (no `__CSRF__`) por el mismo motivo histórico.
 
-El shell hace: `atob` → `Uint8Array` (¡clave para UTF-8!) → `Blob` → `import()`.
-**Ojo:** usar `Uint8Array`; si se usa el string de `atob` directo, los acentos
-se rompen (día → dÃa).
+**Con `safe_render = False`, la única barrera que evita que el Jinja de Frappe
+interprete el bundle inline (o que el parser HTML cierre el bloque antes) es el
+chequeo de `apps/web/gen-shell.mjs`.** Ese script falla el build si el bundle trae
+`{{`, `{%`, `{#`, `<!--` o `-->`, o si trae un cierre `</script` / `</style`. Si
+se debilita ese chequeo, `/hoy` puede romperse en silencio: no lo toques sin
+entender esta sección.
 
 ### Tests
 

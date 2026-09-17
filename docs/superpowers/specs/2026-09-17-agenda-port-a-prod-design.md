@@ -22,6 +22,17 @@
 | **D4** | **Se abandona el base64 en el shell de `www`** | El base64 existe por un problema **documentado y desactivable**: Frappe rechaza templates con `.__` ("Illegal template") y el bundle minificado lo contiene. Se apaga con `safe_render = False` en `www/hoy.py`, y ahí el bundle se sirve normal. El mecanismo sancionado por Frappe es `frappe-ui/vite` con `buildConfig.indexHtmlPath` → `www/*.html` y los assets en `/assets` | Si `safe_render` no alcanza, se vuelve al base64 (funciona, solo es incómodo para depurar y testear) |
 | **D5** | **Se guarda el `fin` como fecha-hora, no una duración en minutos** | Google, Microsoft, Cal.com y HubSpot usan `end`; solo Salesforce y Pipedrive usan minutos. RFC 5545 §3.8.5.3 documenta que una DURACIÓN nominal **varía ±1 h con el cambio de horario** | Si se elige duración, cada evento recurrente queda mal en los cambios de horario |
 
+> **Desvío registrado de D4 (lo que se construyó, y por qué):** la implementación **no** usa
+> `frappe-ui/vite` ni sirve los assets desde `/assets`. El build (`apps/web/gen-shell.mjs`)
+> genera un `www/hoy.html` **autocontenido**, con el JS inline en `<script type="module">` y el
+> CSS inline en `<style>`, más `safe_render = False` en el `context` de `www/hoy.py`. El motivo
+> es una restricción **verificada**, no una preferencia: los contenedores `crm_backend` y
+> `crm_frontend` **no comparten `sites/assets`** de forma confiable, así que `/assets/...` no
+> sirve para los assets del frontend. La **intención original de D4 se conserva** (eliminar el
+> base64 apagando `safe_render`); lo que cambia es el mecanismo de entrega: inline autocontenido
+> en vez de `/assets`. Consecuencia: la seguridad Jinja/HTML pasa a depender del guard de
+> `apps/web/gen-shell.mjs` (ver `docs/runbook-crm-core.md`, sección del shell).
+
 ## 2. El modelo de datos mínimo honesto
 
 **De la investigación, lo mínimo que no miente al usuario:**

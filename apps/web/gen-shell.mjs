@@ -20,11 +20,21 @@ const outFile = resolve(here, "../crm_core/crm_core/www/hoy.html");
 const js = readFileSync(resolve(dist, "index.js"), "utf8");
 const css = readFileSync(resolve(dist, "index.css"), "utf8");
 
+// La seguridad Jinja/HTML de la página depende de este chequeo: con
+// `safe_render = False` en www/hoy.py (que apaga el guard de `.__`), esta es la
+// ÚNICA barrera que evita que Jinja interprete el bundle inline y que el parser
+// HTML cierre el bloque antes de tiempo.
 // Fallar en el build es mejor que romper la página en runtime: Jinja
 // interpretaría {{ / {% / {# y un cierre de tag terminaría el bloque antes.
-for (const seq of ["{{", "{%", "{#"]) {
+// `<!--`/`-->` dentro de <script type="module"> es un error de sintaxis que
+// rompe la página en silencio, por eso también se rechazan.
+for (const seq of ["{{", "{%", "{#", "<!--", "-->"]) {
   if (js.includes(seq) || css.includes(seq)) {
-    throw new Error(`el bundle contiene sintaxis Jinja (${seq})`);
+    throw new Error(
+      `el bundle contiene "${seq}", que Jinja o el parser HTML interpretarían ` +
+        `y rompería /hoy. Escapá la secuencia en el bundle (por ejemplo, partiendo ` +
+        `el literal) y volvé a construir; no lo desactives en producción.`,
+    );
   }
 }
 if (js.includes("</script")) {
