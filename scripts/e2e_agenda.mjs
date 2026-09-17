@@ -195,8 +195,13 @@ try {
     await page.keyboard.press("Escape");
     await page.waitForSelector(".agx-modal", { state: "detached", timeout: 8000 });
     assert("Escape cierra el diálogo", (await page.locator(".agx-modal").count()) === 0);
+    // El foco vuelve en el próximo frame (rAF): esperar y después mirar, no al revés.
+    const volvio = await page
+      .waitForFunction((n) => document.activeElement?.dataset?.ev === n, actual, { timeout: 3000 })
+      .then(() => true)
+      .catch(() => false);
     const foco = await page.evaluate(() => document.activeElement?.dataset?.ev ?? null);
-    assert("Escape devuelve el foco a la reunión", foco !== null && foco === actual, `${actual} -> ${foco}`);
+    assert("Escape devuelve el foco a la reunión", volvio, `${actual} -> ${foco}`);
   }
 
   // ── 5. Alta por la UI + borrado (no deja datos de prueba) ────────────
@@ -240,7 +245,30 @@ try {
   assert("la reunión de prueba se borró", (await page.locator(`button.agx-ev[data-ev="${creada.name}"]`).count()) === 0);
   assert("el borrado deja el conteo original", (await page.locator("button.agx-ev[data-ev]").count()) === evAntes);
 
-  // ── 6. I2: sin `pageerror` ───────────────────────────────────────────
+  // ── 6. Tareas reales en su semana (las de la ventana de hoy pueden ser 0) ──
+  await page.locator('.agx-pager-btn[aria-label="Período anterior"]').click();
+  await page.waitForTimeout(500);
+  const semPrev = await page.evaluate(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    const lunes = new Date(d);
+    lunes.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const sabado = new Date(lunes);
+    sabado.setDate(lunes.getDate() + 5);
+    const ymd = (x) =>
+      `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+    return { start: ymd(lunes), end: ymd(sabado) };
+  });
+  const srvPrev = await api("crm_core.api.get_agenda", { start: semPrev.start, end: semPrev.end });
+  const apiTasksPrev = srvPrev.json?.message?.tasks ?? [];
+  const domTasksPrev = await page.locator("button.agx-task").count();
+  assert(
+    "las tareas reales se ven en su semana y en su día",
+    apiTasksPrev.length > 0 && domTasksPrev === apiTasksPrev.length,
+    `dom=${domTasksPrev} api=${apiTasksPrev.length}`,
+  );
+
+  // ── 7. I2: sin `pageerror` ───────────────────────────────────────────
   assert("sin pageerror", pageErrors.length === 0, pageErrors.length ? pageErrors[0] : "0");
   console.log("console errors:", consoleErrors.length ? consoleErrors : "(none)");
 
