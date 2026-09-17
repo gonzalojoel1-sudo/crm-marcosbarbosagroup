@@ -13,6 +13,8 @@ interface EventMenuProps {
   onDuplicar: () => void;
   onEliminar: () => void;
   onClose: (returnFocus: boolean) => void;
+  /** Supr abre directo la confirmación de borrado (spec S4). */
+  initialConfirm?: boolean;
 }
 
 /**
@@ -34,12 +36,13 @@ export default function EventMenu({
   onDuplicar,
   onEliminar,
   onClose,
+  initialConfirm = false,
 }: EventMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const siRef = useRef<HTMLButtonElement>(null);
   const noRef = useRef<HTMLButtonElement>(null);
-  const [confirm, setConfirm] = useState(false);
+  const [confirm, setConfirm] = useState(initialConfirm);
 
   // El foco entra al menú ya: si una flecha llega en el mismo frame, el menú ya
   // tiene el foco. Mover el foco ES el anuncio: abrir nunca escribe la región viva.
@@ -94,14 +97,18 @@ export default function EventMenu({
     }
   }
 
-  const acciones: Array<{ id: MenuAction; label: string; run: () => void }> = [
-    { id: "editar", label: "Editar", run: onEditar },
-    { id: "mover", label: "Mover a…", run: onMover },
-    { id: "duracion", label: "Cambiar duración…", run: onDuracion },
+  // Las teclas mostradas son reales (F4.4 las implementa y las acota al foco):
+  // antes el menú no las mostraba porque un hint de una tecla muerta es una
+  // promesa falsa.
+  const acciones: Array<{ id: MenuAction; label: string; tecla?: string; run: () => void }> = [
+    { id: "editar", label: "Editar", tecla: "E", run: onEditar },
+    { id: "mover", label: "Mover a…", tecla: "M", run: onMover },
+    { id: "duracion", label: "Cambiar duración…", tecla: "D", run: onDuracion },
     { id: "duplicar", label: "Duplicar", run: onDuplicar },
     {
       id: "eliminar",
       label: "Eliminar",
+      tecla: "Supr",
       run: () => setConfirm(true),
     },
   ];
@@ -138,7 +145,12 @@ export default function EventMenu({
             }}
             onClick={a.run}
           >
-            {a.label}
+            <span className="agx-menu-label">{a.label}</span>
+            {a.tecla ? (
+              <span className="agx-menu-tecla" aria-hidden="true">
+                {a.tecla}
+              </span>
+            ) : null}
           </button>
         ))
       )}

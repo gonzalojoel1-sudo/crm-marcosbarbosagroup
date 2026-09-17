@@ -66,6 +66,10 @@ export default function ListView({
     const idx = current ? all.indexOf(current) : -1;
     if (idx < 0) return;
 
+    // Con modificador (Ctrl+Alt o Shift) las flechas son del nudge (S4), no de
+    // la navegación de la Lista: sin este guard el compuesto se las come.
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+
     if (e.key === "ArrowDown") {
       e.preventDefault();
       focusRow(all[Math.min(idx + 1, all.length - 1)]);
@@ -136,7 +140,7 @@ export default function ListView({
                     const { startMin, endMin } = eventMinutes(e);
                     const time = e.allDay ? "Todo el día" : `${fmtMin(startMin)} – ${fmtMin(endMin)}`;
                     return (
-                      <li key={e.name}>
+                      <li key={`${e.name}#${startMin}#${endMin}`}>
                         <button
                           type="button"
                           className="agx-lev"
