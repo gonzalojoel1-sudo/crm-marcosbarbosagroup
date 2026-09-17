@@ -30,10 +30,9 @@ CAMPOS_PERSONALIZADOS = {
 }
 
 # El fin histórico vivía como una línea "Fin: <datetime>" en `CRM Lead.notes`.
-# `custom_meeting_end` (e5f6dd1) también guardaba el fin, pero queda obsoleto:
-# `Event.ends_on` es la única fuente de verdad. El backfill honra la línea legacy
-# para no perder duraciones reales; si no está, cae a inicio + 1 h (la duración
-# que el DTO fabricaba), para no dejar reuniones de duración cero.
+# El backfill honra esa línea para no perder duraciones reales; si no está, cae a
+# inicio + 1 h (la duración que el DTO fabricaba), para no dejar reuniones de
+# duración cero. No se lee ninguna columna de fin.
 FIN_RE = re.compile(r"(?:^|\n)Fin:\s*([^\n]+)")
 
 
@@ -90,9 +89,15 @@ def backfill_events_from_meetings():
     creados = 0
     for lead in leads:
         starts_on = get_datetime(lead["custom_meeting_datetime"])
-        if frappe.db.exists("Event", {"custom_crm_lead": lead["name"], "starts_on": starts_on}):
+        # Un lead tiene UNA reunión en el modelo legacy (un solo datetime), así que
+        # la clave es el lead. Mirar el inicio sería frágil: si F2 ya movió el
+        # Event, un re-run no lo encontraría y duplicaría. Con el lead solo, un
+        # re-run no puede duplicar aunque el Event se haya movido o renombrado.
+        if frappe.db.exists("Event", {"custom_crm_lead": lead["name"]}):
             continue
         ends_on = _fin_desde_notes(starts_on, lead.get("notes"))
+        # No se copia `custom_event_id` a `Event.google_calendar_event_id`: el push
+        # propio de F2 debe reconciliar por lead para no duplicar el evento en Google.
         insertar_evento_sin_sync(
             {
                 "subject": _subject_del_lead(lead),
@@ -114,5 +119,4 @@ def execute():
     """Entrada del patch (`patches.txt`): primero el campo, después el backfill."""
     ensure_custom_fields()
     creados = backfill_events_from_meetings()
-    frappe.db.commit()
     print(f"[crm_core.patches] reuniones migradas a Event: {creados}")

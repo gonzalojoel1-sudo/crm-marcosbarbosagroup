@@ -24,8 +24,12 @@ MEETING_FIELDS = [
     "email",
     "notes",
     "custom_meeting_datetime",
-    "custom_meeting_end",
 ]
+
+# El fin histórico de la reunión vivía en `notes` como "Fin: <datetime>". Es la
+# única fuente legacy de duración y no depende de ninguna columna (la verdad
+# nueva es `Event.ends_on`, F2). Sin la línea se cae a inicio + 1 h.
+FIN_RE = re.compile(r"(?:^|\n)Fin:[^\n]*")
 
 
 def _day_bounds(day=None):
@@ -33,13 +37,28 @@ def _day_bounds(day=None):
     return f"{day} 00:00:00", f"{add_days(day, 1)} 00:00:00"
 
 
-def _end_or_default(when, end=None):
-    """Fin real de la reunión. Si `custom_meeting_end` está vacío (leads escritos
-    antes de que existiera el campo) cae a inicio + 1 h, el comportamiento
-    histórico del DTO: así ninguna reunión vieja queda de duración cero."""
-    if end:
-        return get_datetime(end)
+def _end_or_default(when, notes=None):
+    """Fin real de la reunión: la línea `Fin:` de `notes` o inicio + 1 h.
+
+    Nunca lee una columna: el fin puede venir de datos viejos o no existir, y la
+    duración nueva la da `Event.ends_on`."""
+    m = FIN_RE.search(notes or "")
+    if m:
+        try:
+            fin = get_datetime(m.group(0).replace("Fin:", "").strip())
+            if fin > get_datetime(when):
+                return fin
+        except Exception:
+            pass
     return add_to_date(when, hours=1)
+
+
+def _notes_with_end(notes, end):
+    """Reescribe la línea `Fin:` de `notes` (o la saca si `end` es None)."""
+    clean = FIN_RE.sub("", notes or "").strip()
+    if not end:
+        return clean
+    return f"{clean}\nFin: {end}".strip()
 
 
 def _notes_with_subject(notes, subject):
@@ -58,7 +77,7 @@ def _meeting_dto(r):
         subject = notes.split("\n", 1)[0].replace("Reunión agendada:", "").strip()
     who = f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip().strip("-").strip()
     subject = subject or who or r.get("email") or "Reunión"
-    end = _end_or_default(when, r.get("custom_meeting_end"))
+    end = _end_or_default(when, r.get("notes"))
     return {
         "name": r["name"],
         "subject": subject,
@@ -67,6 +86,7 @@ def _meeting_dto(r):
         "starts_on": str(when),
         "ends_on": str(end),
     }
+
 
 
 def _task_dto(r):
@@ -783,10 +803,11 @@ def create_event(subject, starts_on, ends_on=None):
         frappe.throw("El título no puede estar vacío")
     starts_on = get_datetime(starts_on)
     # Sin fin explícito, una reunión dura una hora (default histórico).
-    ends_on = _end_or_default(starts_on, ends_on)
+    ends_on = get_datetime(ends_on) if ends_on else add_to_date(starts_on, hours=1)
     if ends_on <= starts_on:
         frappe.throw("La hora de fin tiene que ser posterior a la de inicio")
-    # Una reunión en este CRM es un CRM Lead con custom_meeting_datetime.
+    # Una reunión en este CRM es un CRM Lead con custom_meeting_datetime; el fin
+    # legacy va en `notes` ("Fin: ..."), no en una columna.
     parts = subject.split(" ", 1)
     doc = frappe.get_doc(
         {
@@ -796,7 +817,7 @@ def create_event(subject, starts_on, ends_on=None):
             "status": "New",
             "source": "Agenda Reunión",
             "custom_meeting_datetime": starts_on,
-            "custom_meeting_end": ends_on,
+            "notes": _notes_with_end(None, ends_on),
         }
     )
     doc.insert(ignore_permissions=True)
@@ -869,7 +890,7 @@ def get_meeting(name):
         "status": lead.get("status") or "",
         "source": lead.get("source") or "",
         "meeting": str(lead.custom_meeting_datetime) if lead.get("custom_meeting_datetime") else None,
-        "notes": (lead.get("notes") or "").strip(),
+        "notes": FIN_RE.sub("", lead.get("notes") or "").strip(),
         "description": lead.get("descripcion") or "",
         "comments": [
             {"name": c.name, "content": c.content, "when": str(c.creation), "by": c.comment_by or c.owner}
@@ -896,7 +917,6 @@ def _meeting_fields(doc):
         "email": doc.get("email"),
         "notes": doc.get("notes"),
         "custom_meeting_datetime": doc.get("custom_meeting_datetime"),
-        "custom_meeting_end": doc.get("custom_meeting_end"),
     }
 
 
@@ -923,14 +943,14 @@ def update_meeting(name, starts_on, ends_on=None):
         ends_on = (
             add_to_date(
                 starts_on,
-                seconds=(_end_or_default(actual, doc.get("custom_meeting_end")) - actual).total_seconds(),
+                seconds=(_end_or_default(actual, doc.get("notes")) - actual).total_seconds(),
             )
             if actual
             else add_to_date(starts_on, hours=1)
         )
 
     doc.custom_meeting_datetime = starts_on
-    doc.custom_meeting_end = ends_on
+    doc.notes = _notes_with_end(doc.get("notes"), ends_on)
     doc.save(ignore_permissions=True)
     return _meeting_dto(_meeting_fields(doc))
 
@@ -947,7 +967,7 @@ def delete_meeting(name):
 
     doc = frappe.get_doc("CRM Lead", name)
     doc.custom_meeting_datetime = None
-    doc.custom_meeting_end = None
+    doc.notes = _notes_with_end(doc.get("notes"), None)
     doc.save(ignore_permissions=True)
     return {"ok": True}
 
@@ -962,7 +982,7 @@ def duplicate_meeting(name, starts_on=None):
 
     src = frappe.get_doc("CRM Lead", name)
     origen = get_datetime(src.custom_meeting_datetime)
-    duracion = (_end_or_default(origen, src.get("custom_meeting_end")) - origen).total_seconds()
+    duracion = (_end_or_default(origen, src.get("notes")) - origen).total_seconds()
     nuevo_inicio = get_datetime(starts_on) if starts_on else origen
 
     who = f"{src.first_name or ''} {src.last_name or ''}".strip().strip("-").strip()
@@ -972,8 +992,10 @@ def duplicate_meeting(name, starts_on=None):
     # Es otra reunión: no comparte el EventId de Google (rompería el dedupe del sync).
     copia.custom_event_id = None
     copia.custom_meeting_datetime = nuevo_inicio
-    copia.custom_meeting_end = add_to_date(nuevo_inicio, seconds=duracion)
-    copia.notes = _notes_with_subject(src.get("notes"), f"{titulo} (copia)")
+    copia.notes = _notes_with_end(
+        _notes_with_subject(src.get("notes"), f"{titulo} (copia)"),
+        add_to_date(nuevo_inicio, seconds=duracion),
+    )
     copia.insert(ignore_permissions=True)
     return _meeting_dto(_meeting_fields(copia))
 

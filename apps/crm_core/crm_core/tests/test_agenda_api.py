@@ -4,9 +4,9 @@ Requiere sitio Frappe (crm-test, NUNCA producción), con el runner de `bench`:
 
     bench --site crm-test run-tests --module crm_core.tests.test_agenda_api
 
-El sitio debe tener ya el Custom Field `CRM Lead.custom_meeting_end`; se crea con
-`scripts/setup_custom_fields.py` (idempotente). Sin él, `get_agenda` no puede
-traer la columna y estos tests no corren.
+El fin legacy de la reunión se guarda como línea `Fin:` en `notes` (sin columna):
+`get_agenda` lo lee de ahí, así que estos tests no dependen de ningún Custom Field
+que solo exista en un sitio.
 """
 
 import frappe
@@ -22,19 +22,20 @@ class TestAgendaApi(FrappeTestCase):
         # El título real vive en notes ("Reunión agendada: <título>").
         subject = subject or f"Reunión {suffix}"
         first = f"Agenda{suffix}"
+        notes = f"Reunión agendada: {subject}\nCuando: {dt}"
+        # `end` opcional: sin él el lead queda como los viejos (fin vacío) y el
+        # DTO tiene que caer a inicio + 1 h. El fin legacy va en `notes`.
+        if end:
+            notes = f"{notes}\nFin: {end}"
         campos = {
             "doctype": "CRM Lead",
             "first_name": first,
             "last_name": "Test",
             "email": f"{first.lower()}@example.com",
             "status": "New",
-            "notes": f"Reunión agendada: {subject}\nCuando: {dt}",
+            "notes": notes,
             "custom_meeting_datetime": dt,
         }
-        # `end` opcional: sin él el lead queda como los viejos (fin vacío) y el
-        # DTO tiene que caer a inicio + 1 h.
-        if end:
-            campos["custom_meeting_end"] = end
         # `source` es un Link: su valor puede existir en producción y no en crm-test,
         # y el insert falla con LinkValidationError antes de llegar al endpoint.
         # Se usa un valor que exista de verdad en este sitio, o se omite el campo.
@@ -115,7 +116,7 @@ class TestAgendaApi(FrappeTestCase):
         self.assertEqual(dto["ends_on"], "2026-10-17 12:30:00")
 
     def test_lead_legacy_sin_fin_cae_a_una_hora(self):
-        name = self._lead("2026-10-18 08:30:00", "Legacy")  # sin custom_meeting_end
+        name = self._lead("2026-10-18 08:30:00", "Legacy")  # sin fin legacy
 
         ev = self._events("2026-10-18")[name]
         self.assertEqual(ev["ends_on"], "2026-10-18 09:30:00")

@@ -13,7 +13,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import cint, get_datetime
 
-from crm_core import patches
+from crm_core import api, patches
 
 
 class TestMeetingEventsBackfill(FrappeTestCase):
@@ -133,3 +133,48 @@ class TestMeetingEventsBackfill(FrappeTestCase):
         ev = self._eventos(lead)[0]
         duracion = get_datetime(ev["ends_on"]) - get_datetime(ev["starts_on"])
         self.assertEqual(duracion.total_seconds(), 2 * 3600 + 15 * 60)
+
+    # ── Ciclo de vida sobre `Event` (D1) ───────────────────────────────
+    def _evento(self, lead, subject, starts_on, ends_on):
+        return api.insertar_evento_sin_sync(
+            {
+                "subject": subject,
+                "starts_on": starts_on,
+                "ends_on": ends_on,
+                "all_day": 0,
+                "event_type": "Private",
+                "event_category": "Meeting",
+                "custom_crm_lead": lead,
+            }
+        )
+
+    def test_crear_event_lo_linkea_al_lead_y_no_toca_el_lead(self):
+        lead = self._lead("2026-12-05 09:00:00", "CreaEvent")
+
+        self._evento(lead, "Reunión creada", "2026-12-05 09:00:00", "2026-12-05 09:45:00")
+
+        eventos = self._eventos(lead)
+        self.assertEqual(len(eventos), 1)
+        self.assertEqual(eventos[0]["custom_crm_lead"], lead)
+        self.assertEqual(eventos[0]["subject"], "Reunión creada")
+        # Crear la reunión no muta el contacto.
+        self.assertEqual(
+            str(frappe.db.get_value("CRM Lead", lead, "custom_meeting_datetime")),
+            "2026-12-05 09:00:00",
+        )
+
+    def test_borrar_event_no_toca_el_lead(self):
+        lead = self._lead("2026-12-06 10:00:00", "BorraEvent")
+        ev = self._evento(lead, "Reunión a borrar", "2026-12-06 10:00:00", "2026-12-06 11:00:00")
+
+        frappe.delete_doc("Event", ev.name, force=True, ignore_permissions=True)
+
+        # La reunión desaparece…
+        self.assertFalse(frappe.db.exists("Event", ev.name))
+        self.assertEqual(self._eventos(lead), [])
+        # …y el lead (contacto/historial) queda intacto: el punto de D1.
+        self.assertTrue(frappe.db.exists("CRM Lead", lead))
+        self.assertEqual(
+            str(frappe.db.get_value("CRM Lead", lead, "custom_meeting_datetime")),
+            "2026-12-06 10:00:00",
+        )
