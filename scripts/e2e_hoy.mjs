@@ -15,10 +15,17 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 const errors = [];
+// I2: los errores de página son ASERCIÓN, no log. Un bundle que revienta en el
+// cliente devuelve igual HTTP 200, así que el health check no lo ve; acá sí.
+const pageErrors = [];
 page.on("console", (m) => {
   if (m.type() === "error") errors.push(m.text());
 });
-page.on("pageerror", (e) => errors.push(String(e)));
+page.on("pageerror", (e) => {
+  const msg = String(e);
+  errors.push(msg);
+  pageErrors.push(msg);
+});
 
 await page.goto(URL, { waitUntil: "networkidle", timeout: 30000 });
 // La app abre en Agenda; ir a la pestaña Hoy (dentro de .tabs).
@@ -51,3 +58,9 @@ await page.screenshot({ path: "hoy.png", fullPage: true });
 console.log("screenshot -> hoy.png");
 
 await browser.close();
+
+// I2: si el cliente tiró aunque sea un error de página, el deploy no es verde.
+if (pageErrors.length) {
+  console.error("FALLO: pageerror en /hoy:", pageErrors);
+  process.exit(1);
+}

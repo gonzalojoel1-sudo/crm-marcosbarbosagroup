@@ -14,8 +14,9 @@ set -euo pipefail
 NEW="${1:?uso: deploy-crm.sh <tag-nuevo, ej 56> [--migrate]}"
 
 # `--migrate` corre `bench migrate`. Es OBLIGATORIO cuando el deploy agrega o cambia
-# DocTypes: en Frappe un DocType existe en la base recien despues del migrate.
-# Hace backup previo (la red de seguridad si el migrate sale mal).
+# DocTypes/Custom Fields: en Frappe la columna existe recien despues del migrate.
+# Corre ANTES de swapear los servicios (ver I1 mas abajo) y con la imagen nueva.
+# El backup previo es incondicional (la red si el migrate sale mal).
 MIGRATE=0
 for arg in "$@"; do
   if [ "$arg" = "--migrate" ]; then MIGRATE=1; fi
@@ -52,20 +53,58 @@ echo "construyendo crm-mb:$NEW (base $CURRENT)…"
 docker build --no-cache --build-arg "BASE=$CURRENT" \
   -f docker/Dockerfile.crm-mb -t "crm-mb:$NEW" .
 
+# Backup SIEMPRE, antes de tocar nada: es la red si el migrate o el swap salen mal.
+# Estaba condicionado a --migrate; a propósito pasa a ser incondicional.
+echo "backup previo…"
+docker exec "$(docker ps -qf name=crm_backend)" \
+  bench --site "$SITE" backup >/dev/null
+echo "  backup OK"
+
+if [ "$MIGRATE" = "1" ]; then
+  # I1: el migrate corre con la IMAGEN NUEVA pero en un servicio descartable,
+  # ANTES de swapear los servicios. Así el Custom Field y el backfill existen
+  # antes de que el frontend nuevo sirva tráfico; al revés, /hoy lee
+  # `Event.custom_crm_categoria` antes de que la columna exista y falla.
+  # Tiene que ser la imagen nueva: la vieja no trae `patches.py`, así que un
+  # `docker exec` sobre el backend viejo no crearía los Custom Fields.
+  # Un servicio (y no `docker run`) porque la red overlay del stack NO es
+  # "attachable": `docker run --network crm_crm-net` da PermissionDenied.
+  echo "migrate (imagen nueva, servicio descartable)…"
+  MIG_SVC=crm_migrate_tmp
+  docker service rm "$MIG_SVC" >/dev/null 2>&1 || true
+  docker service create \
+    --name "$MIG_SVC" \
+    --network crm_crm-net \
+    --restart-condition none \
+    --mount "type=volume,source=crm_sites,target=/home/frappe/frappe-bench/sites" \
+    --mount "type=volume,source=crm_logs,target=/home/frappe/frappe-bench/logs" \
+    "crm-mb:$NEW" bench --site "$SITE" migrate >/dev/null
+  # `docker service create --detach=false` no vuelve nunca con `restart-condition
+  # none` (el servicio no converge): hay que esperar el estado del task a mano.
+  MIG_STATE=""
+  for _ in $(seq 1 180); do
+    MIG_STATE=$(docker service ps "$MIG_SVC" --format '{{.CurrentState}}' 2>/dev/null | head -1)
+    case "$MIG_STATE" in
+      Complete*|Failed*|Rejected*) break ;;
+    esac
+    sleep 5
+  done
+  docker service logs "$MIG_SVC" 2>&1 | tail -30 || true
+  docker service rm "$MIG_SVC" >/dev/null 2>&1 || true
+  case "$MIG_STATE" in
+    Complete*) echo "  migrate OK" ;;
+    *)
+      echo "FALLO el migrate ($MIG_STATE); no se toca ningún servicio"
+      exit 1
+      ;;
+  esac
+fi
+
 echo "actualizando servicios…"
 for svc in $SERVICES; do
   docker service update --image "crm-mb:$NEW" "$svc" >/dev/null
   echo "  $svc -> crm-mb:$NEW"
 done
-
-if [ "$MIGRATE" = "1" ]; then
-  echo "backup previo al migrate…"
-  docker exec "$(docker ps -qf name=crm_backend)" \
-    bench --site "$SITE" backup >/dev/null
-  echo "migrate…"
-  docker exec "$(docker ps -qf name=crm_backend)" \
-    bench --site "$SITE" migrate 2>&1 | tail -20
-fi
 
 echo "esperando arranque…"
 sleep 40
