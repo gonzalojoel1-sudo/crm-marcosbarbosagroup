@@ -17,6 +17,7 @@ interface ToolbarProps {
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
+  onNew: () => void;
 }
 
 export default function Toolbar({
@@ -29,6 +30,7 @@ export default function Toolbar({
   onPrev,
   onNext,
   onToday,
+  onNew,
 }: ToolbarProps) {
   return (
     <div className="agx-bar">
@@ -75,6 +77,9 @@ export default function Toolbar({
         </div>
         <button type="button" className="agx-today" onClick={onToday}>
           Hoy
+        </button>
+        <button type="button" className="agx-new" onClick={onNew}>
+          Nueva reunión
         </button>
       </div>
     </div>

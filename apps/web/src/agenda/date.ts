@@ -102,6 +102,11 @@ export function dayLong(d: Date): string {
   return `${DOW[weekdayIndex(d)]} ${d.getDate()} de ${MON_FULL[d.getMonth()]}`;
 }
 
+/** "martes 16" — el día sin mes, como el encabezado del panel del prototipo. */
+export function dayShort(d: Date): string {
+  return `${DOW[weekdayIndex(d)]} ${d.getDate()}`;
+}
+
 /** Rango de la semana, como el prototipo: "15 – 19 de septiembre". */
 export function rangeTitle(start: Date, end: Date): string {
   if (start.getMonth() === end.getMonth()) {

@@ -275,10 +275,31 @@ export const api = {
   quickAdd: (subject: string) =>
     post<{ name: string; subject: string }>("crm_core.api.quick_add_task", { subject }),
   complete: (name: string) => post<{ ok: boolean }>("crm_core.api.complete_task", { name }),
-  createEvent: (subject: string, starts_on: string, ends_on: string) =>
+  createEvent: (subject: string, starts_on: string, ends_on?: string) =>
     post<{ name: string; subject: string }>("crm_core.api.create_event", {
       subject,
       starts_on,
       ends_on,
+    }),
+  updateMeeting: (name: string, starts_on: string, ends_on?: string) =>
+    post<EventDTO>("crm_core.api.update_meeting", { name, starts_on, ends_on }),
+  // `update_meeting` sólo escribe `starts_on`/`ends_on` y `create_event` sólo
+  // `subject`: el título en edición y las notas (`Event.description`) no tienen
+  // endpoint propio en F2. Se persisten con el API estándar de Frappe, que valida
+  // permisos igual que los endpoints propios. Se llama DESPUÉS de
+  // `update_meeting`, que ya neutralizó `sync_with_google_calendar` (los hooks de
+  // Google salen por ese guard y no hay push accidental).
+  setEventFields: (name: string, fields: { subject?: string; description?: string }) =>
+    post<{ name: string }>("frappe.client.set_value", {
+      doctype: "Event",
+      docname: name,
+      fieldname: fields,
+    }),
+  getEventDescription: (name: string) =>
+    get<{ description: string }>("frappe.client.get_value", {
+      doctype: "Event",
+      filters: name,
+      fieldname: "description",
+      as_dict: "true",
     }),
 };

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { DOW_SHORT, accessibleName, dayLong, fmtMin, sameDay, weekdayIndex, ymd } from "./date";
 import {
   END_H,
@@ -23,14 +23,27 @@ interface WeekViewProps {
   zoom: DensityStep;
   now: Date;
   weekLabel: string;
+  onCreateSlot: (dayIndex: number, startMin: number) => void;
+  onEdit: (event: AgendaEvent) => void;
 }
 
-export default function WeekView({ days, events, zoom, now, weekLabel }: WeekViewProps) {
+const DRAG_UMBRAL = 4; // menos de 4 px de movimiento es un click, no un arrastre
+
+export default function WeekView({
+  days,
+  events,
+  zoom,
+  now,
+  weekLabel,
+  onCreateSlot,
+  onEdit,
+}: WeekViewProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const headsRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<number | null>(null);
   const prevHourH = useRef<number | null>(null);
   const jumped = useRef(false);
+  const downRef = useRef<{ x: number; y: number; day: number } | null>(null);
 
   // El alto de hora se deriva del alto real disponible (prototipo fitHourHeight).
   useLayoutEffect(() => {
@@ -85,6 +98,26 @@ export default function WeekView({ days, events, zoom, now, weekLabel }: WeekVie
     [days, events],
   );
   const hasAllDay = allDayByDay.some((list) => list.length > 0);
+
+  // SC 2.5.7: un solo puntero, sin arrastrar. El click en un hueco vacío abre el
+  // panel con el día y la media hora MÁS CERCANA al click; si el puntero se movió
+  // más de 4 px no es un click (el arrastre llega en otra fase).
+  function onColPointerDown(e: PointerEvent<HTMLDivElement>, dayIdx: number) {
+    if ((e.target as Element).closest(".agx-ev")) return;
+    downRef.current = { x: e.clientX, y: e.clientY, day: dayIdx };
+  }
+
+  function onColPointerUp(e: PointerEvent<HTMLDivElement>, dayIdx: number) {
+    const d = downRef.current;
+    downRef.current = null;
+    if (!d || d.day !== dayIdx) return;
+    if ((e.target as Element).closest(".agx-ev")) return;
+    if (Math.abs(e.clientX - d.x) > DRAG_UMBRAL || Math.abs(e.clientY - d.y) > DRAG_UMBRAL) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const snapped = Math.round(yToMinutes(e.clientY - rect.top, hourH) / 30) * 30;
+    const startMin = Math.max(START_H * 60, Math.min(END_H * 60 - 30, snapped));
+    onCreateSlot(dayIdx, startMin);
+  }
 
   return (
     <>
@@ -148,7 +181,12 @@ export default function WeekView({ days, events, zoom, now, weekLabel }: WeekVie
           {days.map((date, dayIdx) => {
             const today = sameDay(date, now);
             return (
-              <div className={`agx-col${today ? " today" : ""}`} key={ymd(date)}>
+              <div
+                className={`agx-col${today ? " today" : ""}`}
+                key={ymd(date)}
+                onPointerDown={(e) => onColPointerDown(e, dayIdx)}
+                onPointerUp={(e) => onColPointerUp(e, dayIdx)}
+              >
                 {HOUR_LIST.map((h) => (
                   <div
                     className="agx-hl"
@@ -168,9 +206,11 @@ export default function WeekView({ days, events, zoom, now, weekLabel }: WeekVie
                       type="button"
                       className="agx-ev"
                       key={p.event.name}
+                      data-ev={p.event.name}
                       data-compact={density === "compact" ? "" : undefined}
                       data-tiny={density === "tiny" ? "" : undefined}
                       data-narrow={narrow ? "" : undefined}
+                      onClick={() => onEdit(p.event)}
                       style={
                         {
                           top,

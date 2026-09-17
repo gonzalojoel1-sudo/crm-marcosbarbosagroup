@@ -7,6 +7,8 @@ interface ListViewProps {
   days: Date[];
   events: AgendaEvent[];
   now: Date;
+  onNewDay: (dayIndex: number) => void;
+  onEdit: (event: AgendaEvent) => void;
 }
 
 function countLabel(n: number): string {
@@ -19,7 +21,7 @@ function countLabel(n: number): string {
  * adentro y cada fila es un <button> real. El menú de acciones llega en otra
  * fase; acá no se promete ninguno.
  */
-export default function ListView({ days, events, now }: ListViewProps) {
+export default function ListView({ days, events, now, onNewDay, onEdit }: ListViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [roving, setRoving] = useState<string | null>(null);
 
@@ -112,6 +114,13 @@ export default function ListView({ days, events, now }: ListViewProps) {
               <span className="agx-ldia-c">{countLabel(g.events.length)}</span>
             </h3>
             <div className="agx-ldia-body">
+              <button
+                type="button"
+                className="agx-ldia-nueva"
+                onClick={() => onNewDay(i)}
+              >
+                Nueva reunión
+              </button>
               {g.events.length ? (
                 <ul className="agx-levs">
                   {g.events.map((e) => {
@@ -126,6 +135,7 @@ export default function ListView({ days, events, now }: ListViewProps) {
                           data-day={i}
                           tabIndex={effective === e.name ? 0 : -1}
                           onFocus={() => setRoving(e.name)}
+                          onClick={() => onEdit(e)}
                           title={`${e.subject} · ${time}`}
                           aria-label={accessibleName(
                             dayLong(g.date),
