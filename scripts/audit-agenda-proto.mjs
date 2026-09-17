@@ -1135,4 +1135,257 @@ await zp.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A2 "Mover a…" · ${antesMv.min} -> ${trasPaso.min} · dia ${antesMv.dia} -> ${trasDia.dia} · anuncio "${trasPaso.anuncio}" · sin anuncio al abrir ${!enMenu.anuncio && !mvAbierto.anuncio} · Escape no escribe ${trasEscape.objeto === antesEscape} · borde disabled ${borde.m15}/${borde.m60} (+15 ok ${!borde.p15}) · teclado foco ${kbdAbierto.focoPaso}→Tab×2 ${kbdFocoPaso.paso}→Aplicar ${kbdFoco} · min ${antesKbd.min} -> ${trasKbd.min} · scroll ${scrollAntes} -> ${trasScroll.scrollTop}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── "Cambiar duración…" (S5 · SC 2.5.7): redimensionar sin arrastrar ──
+// Viaje real por el menú que cambia la duración con presets y pasos. Verifica que
+// el evento cambie EXACTAMENTE lo pedido, que se anuncie SOLO al aplicar, que
+// Escape no escriba y que abrir no anuncie. Incluye viaje completo por teclado y
+// que la variante zoom conserve el scroll (nada de mount()).
+const dup = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await dup.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await dup.waitForTimeout(400);
+const durTitulo = await dup.evaluate(() => EVENTS[0].title);
+const abrirMenuReunion0Dur = async () => {
+  await dup.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+  await dup.waitForTimeout(80);
+  await dup.locator('#grilla .ev[data-i="0"]').click();
+  await dup.waitForTimeout(250);
+};
+
+// 1) puntero: abrir menú → "Cambiar duración…" → preset 90 → Aplicar
+await abrirMenuReunion0Dur();
+const enMenuDur = await dup.evaluate(() => ({
+  hayMenu: !!document.querySelector("#menu"),
+  hayDuracion: !!document.querySelector('[data-accion="duracion"]'),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+await dup.locator('[data-accion="duracion"]').click();
+await dup.waitForTimeout(250);
+const durAbierto = await dup.evaluate(() => {
+  const d = document.querySelector("#dur-dialog");
+  if (!d) return { falta: true };
+  const presets = [...d.querySelectorAll("[data-dpreset]")];
+  const pasos = [...d.querySelectorAll("[data-dpaso]")];
+  const ctr = [...presets, ...pasos, d.querySelector("#dur-aplicar"), d.querySelector("#dur-cancelar")];
+  return {
+    rol: d.getAttribute("role"), modal: d.getAttribute("aria-modal"),
+    etiquetado: !!d.querySelector("#dur-titulo"),
+    presets: presets.map((b) => b.dataset.dpreset),
+    pasos: pasos.map((b) => b.dataset.dpaso),
+    presetActual: presets.find((b) => b.getAttribute("aria-pressed") === "true")?.dataset.dpreset || null,
+    tamano: ctr.every((b) => { const r = b.getBoundingClientRect(); return r.width >= 24 && r.height >= 24; }),
+    prohibido: !!d.querySelector('[role="grid"], [aria-grabbed], [aria-dropeffect]'),
+    menu: !!document.querySelector("#menu"),
+    focoAdentro: d.contains(document.activeElement),
+    focoPreset: document.activeElement?.dataset?.dpreset || null,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+await dup.locator('#dur-dialog [data-dpreset="90"]').click();
+await dup.waitForTimeout(150);
+const draftPreset = await dup.evaluate(() => ({
+  hora: (document.querySelector("#dur-hora")?.textContent || "").trim(),
+  evento: EVENTS[0].dur,
+}));
+await dup.locator("#dur-aplicar").click();
+await dup.waitForTimeout(400);
+const trasPreset = await dup.evaluate(() => ({
+  dur: EVENTS[0].dur, min: EVENTS[0].min,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  dialogo: !!document.querySelector("#dur-dialog"),
+  focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
+}));
+
+// 2) Escape: el borrador no debe tocar el evento ni anunciar (se compara el EVENTO completo)
+const antesEscapeDur = await dup.evaluate(() => JSON.stringify(EVENTS[0]));
+await abrirMenuReunion0Dur();
+await dup.locator('[data-accion="duracion"]').click();
+await dup.waitForTimeout(200);
+await dup.locator('#dur-dialog [data-dpaso="+15"]').click();
+await dup.waitForTimeout(120);
+await dup.keyboard.press("Escape");
+await dup.waitForTimeout(300);
+const trasEscapeDur = await dup.evaluate(() => ({
+  objeto: JSON.stringify(EVENTS[0]),
+  dialogo: !!document.querySelector("#dur-dialog"),
+  focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+
+// 3) borde: un evento tarde (17:00) se agranda con +15 hasta el fin del rango; ahí el
+//    control se deshabilita y NO se escribe el evento (el corte es del borde, no un apagón)
+const idxBorde = await dup.evaluate(() => EVENTS.findIndex((e) => e.title === "Jonatan · Plan 3"));
+await dup.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await dup.locator(`#grilla .ev[data-i="${idxBorde}"]`).click();
+await dup.waitForTimeout(250);
+await dup.locator('[data-accion="duracion"]').click();
+await dup.waitForTimeout(200);
+const bordeDur = await dup.evaluate(() => {
+  const d = document.querySelector("#dur-dialog");
+  let guard = 0;
+  while (guard++ < 40) {
+    const b = d.querySelector('[data-dpaso="+15"]');
+    if (!b || b.disabled) break;
+    b.click();
+  }
+  const p15 = d.querySelector('[data-dpaso="+15"]');
+  const m15 = d.querySelector('[data-dpaso="-15"]');
+  const preset15 = d.querySelector('[data-dpreset="15"]');
+  const i = EVENTS.findIndex((e) => e.title === "Jonatan · Plan 3");
+  const res = {
+    draft: DUR ? DUR.dur : null,
+    min: EVENTS[i].min, tope: END_H * 60,
+    p15: p15.disabled, p15aria: p15.getAttribute("aria-disabled"),
+    m15: m15.disabled, preset15: preset15.disabled,
+    durBorrador: DUR ? DUR.dur : null,
+  };
+  d.querySelector("#dur-cancelar")?.click();
+  res.durEvento = EVENTS[i].dur;
+  return res;
+});
+await dup.waitForTimeout(200);
+await dup.close();
+
+// 4) teclado de punta a punta: Enter abre el menú, ArrowDown×2 a "Cambiar duración…",
+//    Enter abre el diálogo, Tab a un preset y a +15, Enter en cada uno, Tab a Aplicar y Enter
+const kbdDur = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await kbdDur.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await kbdDur.waitForTimeout(400);
+const durKbdAntes = await kbdDur.evaluate(() => ({ dur: EVENTS[0].dur, min: EVENTS[0].min, titulo: EVENTS[0].title }));
+await kbdDur.evaluate(() => {
+  const a = document.querySelector("#announcer"); if (a) a.textContent = "";
+  document.querySelector('#grilla .ev[data-i="0"]').focus();
+});
+await kbdDur.waitForTimeout(80);
+await kbdDur.keyboard.press("Enter");                 // menú (foco: primer ítem "Editar")
+await kbdDur.waitForTimeout(200);
+await kbdDur.keyboard.press("ArrowDown");             // "Mover a…"
+await kbdDur.keyboard.press("ArrowDown");             // "Cambiar duración…"
+await kbdDur.keyboard.press("Enter");                 // abre el diálogo
+await kbdDur.waitForTimeout(200);
+const kbdDurAbierto = await kbdDur.evaluate(() => {
+  const d = document.querySelector("#dur-dialog");
+  const foco = document.activeElement;
+  return {
+    dialogo: !!d,
+    focoPreset: foco?.dataset?.dpreset || null,
+    enDialogo: d ? d.contains(foco) : false,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+let kdTabs = 0;
+while (kdTabs++ < 12 && (await kbdDur.evaluate(() => document.activeElement?.dataset?.dpreset || null)) !== "60") {
+  await kbdDur.keyboard.press("Tab");
+}
+const kbdDurFocoPreset = await kbdDur.evaluate(() => document.activeElement?.dataset?.dpreset || null);
+await kbdDur.keyboard.press("Enter");                 // preset 60 (borrador)
+await kbdDur.waitForTimeout(120);
+kdTabs = 0;
+while (kdTabs++ < 12 && (await kbdDur.evaluate(() => document.activeElement?.dataset?.dpaso || null)) !== "+15") {
+  await kbdDur.keyboard.press("Tab");
+}
+const kbdFocoPasoDur = await kbdDur.evaluate(() => document.activeElement?.dataset?.dpaso || null);
+await kbdDur.keyboard.press("Enter");                 // +15 min (borrador)
+await kbdDur.waitForTimeout(120);
+const kbdDraftDur = await kbdDur.evaluate(() => (document.querySelector("#dur-hora")?.textContent || "").trim());
+let kbdFocoDur = null, kdGuard = 0;
+while (kdGuard++ < 12) {
+  kbdFocoDur = await kbdDur.evaluate(() => document.activeElement?.id || null);
+  if (kbdFocoDur === "dur-aplicar") break;
+  await kbdDur.keyboard.press("Tab");
+}
+await kbdDur.keyboard.press("Enter");                 // Aplicar
+await kbdDur.waitForTimeout(400);
+const trasKbdDur = await kbdDur.evaluate(() => ({
+  dur: EVENTS[0].dur, min: EVENTS[0].min,
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  dialogo: !!document.querySelector("#dur-dialog"),
+  focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
+}));
+await kbdDur.close();
+
+// 5) zoom: cambiar la duración NO resetea el scroll de la grilla (nada de mount())
+const zdur = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await zdur.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await zdur.waitForTimeout(500);
+const idxScrollDur = await zdur.evaluate(() => EVENTS.findIndex((e) => e.title === "Block: trabajo profundo"));
+const scrollAntesDur = await zdur.evaluate((i) => {
+  const w = document.querySelector(".gridwrap");
+  const heads = document.querySelector(".heads").getBoundingClientRect().height;
+  const e = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  w.scrollTop = Math.max(0, Math.round(heads + parseFloat(e.style.top) + parseFloat(e.style.height) / 2 - w.clientHeight / 2));
+  return w.scrollTop;
+}, idxScrollDur);
+const durScrollAntes = await zdur.evaluate((i) => EVENTS[i].dur, idxScrollDur);
+await zdur.waitForTimeout(120);
+await zdur.locator(`#grilla .ev[data-i="${idxScrollDur}"]`).click();
+await zdur.waitForTimeout(250);
+await zdur.locator('[data-accion="duracion"]').click();
+await zdur.waitForTimeout(200);
+await zdur.locator('#dur-dialog [data-dpaso="+15"]').click();
+await zdur.waitForTimeout(120);
+await zdur.locator("#dur-aplicar").click();
+await zdur.waitForTimeout(400);
+const trasScrollDur = await zdur.evaluate((i) => ({
+  scrollTop: document.querySelector(".gridwrap").scrollTop,
+  dur: EVENTS[i].dur,
+}), idxScrollDur);
+await zdur.close();
+{
+  const v = [];
+  const anuncioPreset = `Duración de ${durTitulo} ahora 90 minutos`;
+  if (!enMenuDur.hayMenu) v.push("el click en la reunion no abrio el menu");
+  if (!enMenuDur.hayDuracion) v.push('el menu no ofrece "Cambiar duración…"');
+  if (enMenuDur.anuncio) v.push(`se anuncio al abrir el menu: "${enMenuDur.anuncio}"`);
+  if (durAbierto.falta) v.push("no se abre #dur-dialog");
+  else {
+    if (durAbierto.rol !== "dialog") v.push(`role ${durAbierto.rol}`);
+    if (durAbierto.modal !== "false") v.push(`aria-modal ${durAbierto.modal}`);
+    if (!durAbierto.etiquetado) v.push("sin titulo que lo nombre");
+    if (JSON.stringify(durAbierto.presets) !== JSON.stringify(["15", "30", "45", "60", "90", "120"])) v.push(`presets ${durAbierto.presets.join(",")}`);
+    if (JSON.stringify(durAbierto.pasos) !== JSON.stringify(["-15", "+15"])) v.push(`pasos ${durAbierto.pasos.join(",")}`);
+    if (durAbierto.presetActual !== "45") v.push(`no marca el preset de la duración actual (${durAbierto.presetActual})`);
+    if (!durAbierto.tamano) v.push("hay controles menores a 24x24");
+    if (durAbierto.prohibido) v.push("usa role=grid/aria-grabbed/aria-dropeffect");
+    if (durAbierto.menu) v.push("el menu quedo abierto detras del dialogo");
+    if (!durAbierto.focoAdentro) v.push("el foco no entra al dialogo");
+    if (durAbierto.focoPreset !== "15") v.push(`el foco al abrir no quedo en el primer preset: ${durAbierto.focoPreset}`);
+    if (durAbierto.anuncio) v.push(`se anuncio al abrir el dialogo: "${durAbierto.anuncio}"`);
+  }
+  if (!/10:00/.test(draftPreset.hora)) v.push(`el preset no refleja el borrador en el rango: "${draftPreset.hora}"`);
+  if (draftPreset.evento !== 45) v.push(`el preset escribio el evento antes de Aplicar: dur ${draftPreset.evento}`);
+  if (trasPreset.dur !== 90) v.push(`el preset 90 no dejo dur en 90: ${trasPreset.dur}`);
+  if (trasPreset.min !== durKbdAntes.min) v.push(`cambiar la duración movio el inicio: ${durKbdAntes.min} -> ${trasPreset.min}`);
+  if (trasPreset.anuncio !== anuncioPreset) v.push(`anuncio "${trasPreset.anuncio}" (esperado "${anuncioPreset}")`);
+  if (trasPreset.dialogo) v.push("Aplicar no cerro el dialogo");
+  if (!trasPreset.focoEnEvento) v.push("Aplicar no devolvio el foco a la reunion");
+  if (trasEscapeDur.objeto !== antesEscapeDur) v.push("Escape si escribio el evento (objeto distinto)");
+  if (trasEscapeDur.dialogo) v.push("Escape no cerro el dialogo");
+  if (trasEscapeDur.anuncio) v.push(`Escape anuncio: "${trasEscapeDur.anuncio}"`);
+  if (!trasEscapeDur.focoEnEvento) v.push("Escape no devolvio el foco");
+  if (bordeDur.draft !== bordeDur.tope - bordeDur.min) v.push(`el borrador no llego al borde exacto: ${bordeDur.draft} (esperado ${bordeDur.tope - bordeDur.min})`);
+  if (!bordeDur.p15 || bordeDur.p15aria !== "true") v.push(`en el borde el paso +15 no se deshabilita (${bordeDur.p15}/${bordeDur.p15aria})`);
+  if (bordeDur.m15) v.push("en el borde tambien se deshabilito un paso valido (-15)");
+  if (bordeDur.preset15) v.push("en el borde tambien se deshabilito un preset valido (15)");
+  if (bordeDur.durEvento !== 60) v.push(`los pasos del borde escribieron el evento: dur ${bordeDur.durEvento}`);
+  // teclado de punta a punta
+  const anuncioKbdDur = `Duración de ${durKbdAntes.titulo} ahora 75 minutos`;
+  if (!kbdDurAbierto.dialogo) v.push("el atajo del menu no abrio el dialogo por teclado");
+  if (kbdDurAbierto.focoPreset !== "15") v.push(`el foco al abrir por teclado no quedo en el primer preset: ${kbdDurAbierto.focoPreset}`);
+  if (!kbdDurAbierto.enDialogo) v.push("el foco no entra al dialogo por teclado");
+  if (kbdDurAbierto.anuncio) v.push(`se anuncio al abrir el dialogo por teclado: "${kbdDurAbierto.anuncio}"`);
+  if (kbdDurFocoPreset !== "60") v.push(`Tab no alcanzo el preset 60: ${kbdDurFocoPreset}`);
+  if (kbdFocoPasoDur !== "+15") v.push(`Tab no alcanzo el paso +15: ${kbdFocoPasoDur}`);
+  if (!/09:45/.test(kbdDraftDur)) v.push(`los Enter de teclado no ajustaron el borrador a 60+15: "${kbdDraftDur}"`);
+  if (kbdFocoDur !== "dur-aplicar") v.push(`Tab no llego a Aplicar: ${kbdFocoDur}`);
+  if (trasKbdDur.dur !== durKbdAntes.dur + 30) v.push(`el viaje de teclado no aplico 60+15 (45 -> ${trasKbdDur.dur})`);
+  if (trasKbdDur.anuncio !== anuncioKbdDur) v.push(`anuncio de teclado "${trasKbdDur.anuncio}" (esperado "${anuncioKbdDur}")`);
+  if (trasKbdDur.dialogo) v.push("Aplicar por teclado no cerro el dialogo");
+  if (!trasKbdDur.focoEnEvento) v.push("Aplicar por teclado no devolvio el foco");
+  // scroll de la variante zoom
+  if (!(scrollAntesDur > 0)) v.push(`no se pudo fijar un scroll no nulo para probar (${scrollAntesDur})`);
+  if (trasScrollDur.dur !== durScrollAntes + 15) v.push(`el viaje de scroll no cambio la duración: ${durScrollAntes} -> ${trasScrollDur.dur}`);
+  if (trasScrollDur.scrollTop !== scrollAntesDur) v.push(`cambiar la duración reseteo el scroll: ${scrollAntesDur} -> ${trasScrollDur.scrollTop}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A3 "Cambiar duración…" · preset 45 -> ${trasPreset.dur} · anuncio "${trasPreset.anuncio}" · sin anuncio al abrir ${!enMenuDur.anuncio && !durAbierto.anuncio} · Escape no escribe ${trasEscapeDur.objeto === antesEscapeDur} · borde +15 disabled ${bordeDur.p15} en ${bordeDur.draft} (+15 del preset ok ${!bordeDur.preset15}) · teclado foco ${kbdDurAbierto.focoPreset}→preset ${kbdDurFocoPreset}→paso ${kbdFocoPasoDur}→Aplicar ${kbdFocoDur} · dur ${durKbdAntes.dur} -> ${trasKbdDur.dur} · scroll ${scrollAntesDur} -> ${trasScrollDur.scrollTop}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();

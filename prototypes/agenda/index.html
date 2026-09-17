@@ -397,6 +397,35 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 #mover-dialog .mv-acciones { display: flex; gap: 6px; margin-top: 2px; }
 #mover-dialog .mv-acciones .btn { min-height: 24px; }
 
+/* ── "Cambiar duración…": mismo borrador que "Mover a…" ───────────────────
+   Presets y pasos son <button>: puntero y teclado usan los mismos controles.
+   El control que no puede cambiar la duración se deshabilita, no se recorta. */
+#dur-dialog {
+  position: fixed; z-index: 61;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: 12px; padding: 10px; min-width: 250px; max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; gap: 7px;
+}
+#dur-dialog h2 { margin: 0; font-size: 13px; font-weight: 600; }
+#dur-dialog .du-hora { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+#dur-dialog .du-lab { display: block; font-size: 11px; color: var(--fg-dim); }
+#dur-dialog .du-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+#dur-dialog .du-pasos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+#dur-dialog button[data-dpreset],
+#dur-dialog button[data-dpaso] {
+  min-width: 24px; min-height: 24px; padding: 3px 5px; line-height: 1.15;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--fg); font: inherit; font-size: 11.5px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+#dur-dialog button[data-dpreset]:hover:not(:disabled),
+#dur-dialog button[data-dpaso]:hover:not(:disabled) { border-color: var(--border-2); }
+#dur-dialog button[data-dpreset].on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#dur-dialog button:disabled { opacity: .4; cursor: not-allowed; }
+#dur-dialog .du-acciones { display: flex; gap: 6px; margin-top: 2px; }
+#dur-dialog .du-acciones .btn { min-height: 24px; }
+
 /* ═══ Selector de variantes (verbatim de PICKER.md: es chrome, no diseño) ═══ */
 .proto-picker {
   position: fixed;
@@ -924,7 +953,7 @@ const ACCIONES = [
   { id: "duplicar", label: "Duplicar",          tecla: "" },
   { id: "eliminar", label: "Eliminar",          tecla: "Supr" },
 ];
-const ACCIONES_HECHAS = new Set(["editar", "mover"]);
+const ACCIONES_HECHAS = new Set(["editar", "mover", "duracion"]);
 
 function abrirMenu(i) {
   const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
@@ -1103,6 +1132,132 @@ function renderMover() {
     <div class="mv-acciones">
       <button type="button" class="btn primary" id="mover-aplicar">Aplicar</button>
       <button type="button" class="btn" id="mover-cancelar">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   "Cambiar duración…": redimensionar sin arrastrar (SC 2.5.7). Espeja
+   "Mover a…": borrador + Aplicar, Escape no escribe, sin mount() y con los
+   presets/pasos como <button>, así el puntero y el teclado usan lo mismo.
+   ══════════════════════════════════════════════════════════════════════ */
+let DUR = null;                    // { i, dur } — borrador, no el evento
+let DUR_ANCHOR = { x: 0, y: 0 };   // rect del bloque que lo abrió
+const DUR_PRESETS = [15, 30, 45, 60, 90, 120];
+const DUR_MIN = 15;
+
+function abrirDur(i) {
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  if (!el || !EVENTS[i]) return;
+  const e = EVENTS[i];
+  DUR = { i, dur: e.dur };   // releer la duración actual: nunca confiar en estado viejo entre aperturas
+  const r = el.getBoundingClientRect();
+  DUR_ANCHOR = { x: r.left, y: r.bottom + 4 };
+  desmontarMenu();   // el diálogo reemplaza al menú; el foco pasa adentro, por eso abrir nunca anuncia
+  document.getElementById("dur-dialog")?.remove();
+  document.getElementById("stage").insertAdjacentHTML("beforeend", renderDur());
+  requestAnimationFrame(() => {
+    posicionarDur();
+    // Mover el foco ES el anuncio: abrir no anuncia.
+    document.querySelector("#dur-dialog button:not(:disabled)")?.focus();
+  });
+}
+
+function cerrarDur({ volverFoco = true } = {}) {
+  const i = DUR?.i;
+  DUR = null;
+  document.getElementById("dur-dialog")?.remove();
+  // Devolver el foco a la reunión también es el anuncio: cerrar no anuncia.
+  if (volverFoco) requestAnimationFrame(() => {
+    document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus();
+  });
+}
+
+/* Aplicar es el único punto que escribe. El evento no recibió el foco durante
+   la acción, así que el cambio SÍ se anuncia; recién después vuelve el foco. */
+function aplicarDur() {
+  if (!DUR) return;
+  const d = DUR;
+  const e = EVENTS[d.i];
+  e.dur = d.dur;
+  cerrarDur({ volverFoco: false });
+  const wrap = document.querySelector(".gridwrap");
+  const st = wrap ? wrap.scrollTop : 0;
+  paint();
+  const wrap2 = document.querySelector(".gridwrap");
+  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
+  announce(`Duración de ${e.title} ahora ${e.dur} minutos`);
+  document.querySelector(`#grilla .ev[data-i="${d.i}"]`)?.focus();
+}
+
+// El control que no puede cambiar la duración no se ofrece, en vez de recortar
+// en silencio: ni por debajo de 15 min ni pasando el fin del rango visible.
+function presetPermitido(dur) {
+  return EVENTS[DUR.i].min + dur <= END_H * 60;
+}
+function pasoDurPermitido(delta) {
+  return DUR.dur + delta >= DUR_MIN && presetPermitido(DUR.dur + delta);
+}
+
+function pintarDur() {
+  const d = document.getElementById("dur-dialog");
+  if (!d || !DUR) return;
+  const e = EVENTS[DUR.i];
+  d.querySelector("#dur-hora").textContent =
+    `${DIAS_LARGOS[e.day]} de septiembre, ${fmt(e.min)} – ${fmt(e.min + DUR.dur)}`;
+  d.querySelectorAll("[data-dpreset]").forEach((b) => {
+    const v = Number(b.dataset.dpreset);
+    const ok = presetPermitido(v);
+    b.disabled = !ok;
+    b.setAttribute("aria-disabled", String(!ok));
+    const on = v === DUR.dur;
+    b.setAttribute("aria-pressed", String(on));
+    b.classList.toggle("on", on);
+  });
+  d.querySelectorAll("[data-dpaso]").forEach((b) => {
+    const ok = pasoDurPermitido(Number(b.dataset.dpaso));
+    b.disabled = !ok;
+    b.setAttribute("aria-disabled", String(!ok));
+  });
+}
+
+// Misma estrategia que el menú y "Mover a…": fixed, anclada al bloque y clameada.
+function posicionarDur() {
+  const d = document.getElementById("dur-dialog");
+  if (!d || !DUR) return;
+  const b = d.getBoundingClientRect();
+  const x = Math.max(4, Math.min(DUR_ANCHOR.x, innerWidth - b.width - 4));
+  let y = DUR_ANCHOR.y;
+  if (y + b.height > innerHeight - 4) y = DUR_ANCHOR.y - b.height - 8;
+  y = Math.max(4, Math.min(y, innerHeight - b.height - 4));
+  d.style.left = `${x}px`;
+  d.style.top = `${y}px`;
+}
+
+function renderDur() {
+  if (!DUR) return "";
+  const e = EVENTS[DUR.i];
+  const presets = DUR_PRESETS.map((v) => {
+    const ok = presetPermitido(v);
+    const on = v === DUR.dur;
+    return `<button type="button" data-dpreset="${v}" class="${on ? "on" : ""}" aria-pressed="${on}" aria-label="${v} minutos" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${v} min</button>`;
+  }).join("");
+  const pasos = ["-15", "+15"].map((p) => {
+    const ok = pasoDurPermitido(Number(p));
+    const label = p === "-15" ? "−15 min" : "+15 min";
+    return `<button type="button" data-dpaso="${p}" aria-label="${label}" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${label}</button>`;
+  }).join("");
+  return `<div id="dur-dialog" role="dialog" aria-modal="false" aria-labelledby="dur-titulo"
+      style="left:${DUR_ANCHOR.x}px;top:${DUR_ANCHOR.y}px">
+    <h2 id="dur-titulo">Cambiar duración · ${e.title}</h2>
+    <p class="du-hora" id="dur-hora">${DIAS_LARGOS[e.day]} de septiembre, ${fmt(e.min)} – ${fmt(e.min + DUR.dur)}</p>
+    <span class="du-lab" id="dur-presets-lab">Duración</span>
+    <div class="du-presets" role="group" aria-labelledby="dur-presets-lab">${presets}</div>
+    <span class="du-lab" id="dur-pasos-lab">Ajustar</span>
+    <div class="du-pasos" role="group" aria-labelledby="dur-pasos-lab">${pasos}</div>
+    <div class="du-acciones">
+      <button type="button" class="btn primary" id="dur-aplicar">Aplicar</button>
+      <button type="button" class="btn" id="dur-cancelar">Cancelar</button>
     </div>
   </div>`;
 }
@@ -1441,6 +1596,8 @@ stage.addEventListener("click", (ev) => {
       abrirPanel({ dia: e2.day, min: e2.min, dur: e2.dur, evento: e2 });
     } else if (acc.dataset.accion === "mover" && MENU) {
       abrirMover(MENU.i);
+    } else if (acc.dataset.accion === "duracion" && MENU) {
+      abrirDur(MENU.i);
     }
     return;
   }
@@ -1457,6 +1614,19 @@ stage.addEventListener("click", (ev) => {
   }
   if (ev.target.closest("#mover-aplicar")) { aplicarMover(); return; }
   if (ev.target.closest("#mover-cancelar")) { cerrarMover(); return; }
+  const presetDur = ev.target.closest("#dur-dialog [data-dpreset]");
+  if (presetDur) {
+    // un preset deshabilitado no llega acá (el navegador no dispara click), pero se revalida
+    if (DUR && !presetDur.disabled) { DUR.dur = Number(presetDur.dataset.dpreset); pintarDur(); }
+    return;
+  }
+  const pasoDur = ev.target.closest("#dur-dialog [data-dpaso]");
+  if (pasoDur) {
+    if (DUR && !pasoDur.disabled) { DUR.dur += Number(pasoDur.dataset.dpaso); pintarDur(); posicionarDur(); }
+    return;
+  }
+  if (ev.target.closest("#dur-aplicar")) { aplicarDur(); return; }
+  if (ev.target.closest("#dur-cancelar")) { cerrarDur(); return; }
   if (ev.target.closest("[data-cerrar-panel]")) { cerrarPanel(); return; }
   const dur = ev.target.closest(".p-dur");
   if (dur) {
@@ -1546,6 +1716,7 @@ document.addEventListener("pointerdown", (ev) => {
   if (MENU && !ev.target.closest("#menu")) desmontarMenu();
   // cancelar el borrador con un click afuera no escribe: es la misma salida que Escape
   if (MOVER && !ev.target.closest("#mover-dialog")) cerrarMover({ volverFoco: false });
+  if (DUR && !ev.target.closest("#dur-dialog")) cerrarDur({ volverFoco: false });
 }, true);
 window.addEventListener("pointermove", onMove);
 window.addEventListener("pointerup", onUp);
@@ -1585,6 +1756,22 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (MOVER) cerrarMover({ volverFoco: false });   // foco huérfano: limpiar
+  // El diálogo Cambiar duración se maneja antes que el panel: Escape no debe cerrar lo de atrás.
+  const durEl = document.getElementById("dur-dialog");
+  if (DUR && durEl?.contains(document.activeElement)) {
+    if (e.key === "Escape") { cerrarDur(); e.preventDefault(); return; }
+    // Igual que "Mover a…": Tab recorre SUS controles y cicla, saltando los deshabilitados.
+    if (e.key === "Tab") {
+      const ctr = [...durEl.querySelectorAll("button:not(:disabled)")];
+      const idx = ctr.indexOf(document.activeElement);
+      const dir = e.shiftKey ? -1 : 1;
+      ctr[(idx + dir + ctr.length) % ctr.length]?.focus();
+      e.preventDefault(); return;
+    }
+    // Enter/Space los activa el propio <button>; el resto de teclas no pasa al fondo.
+    return;
+  }
+  if (DUR) cerrarDur({ volverFoco: false });   // foco huérfano: limpiar
   // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
   if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
