@@ -380,21 +380,26 @@ const ann = await ap.evaluate(() => {
   if (!a) return { falta: true };
   const dentro = document.querySelector("#stage").contains(a);
   window.__annRef = a;                       // referencia antes de re-renderizar
+  window.__stageChildRef = document.querySelector("#stage")?.firstElementChild;   // para probar que el re-render pasó
   return { rol: a.getAttribute("role"), live: a.getAttribute("aria-live"), atomic: a.getAttribute("aria-atomic"), dentro };
 });
 await ap.locator('[data-view="lista"]').click();
 await ap.waitForTimeout(400);
-const sobrevive = await ap.evaluate(() => document.querySelector("#announcer") === window.__annRef);
+const sobrevive = await ap.evaluate(() => ({
+  ann: document.querySelector("#announcer") === window.__annRef,
+  rerender: document.querySelector("#stage")?.firstElementChild !== window.__stageChildRef,
+}));
 await ap.close();
 {
   const v = [];
   if (ann.falta) v.push("no existe #announcer");
   else {
     if (ann.dentro) v.push("#announcer esta dentro de #stage (se destruye al re-renderizar)");
-    if (!sobrevive) v.push("#announcer no sobrevivio al re-render");
+    if (!sobrevive.rerender) v.push("no se detecto re-render de #stage (la guarda pasaria en vano)");
+    if (!sobrevive.ann) v.push("#announcer no sobrevivio al re-render");
     if (ann.rol !== "status" || ann.live !== "polite" || ann.atomic !== "true") v.push(`atributos ${ann.rol}/${ann.live}/${ann.atomic}`);
   }
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `anunciador persistente · fuera de #stage ${!ann.dentro} · sobrevive ${sobrevive}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `anunciador persistente · fuera de #stage ${!ann.dentro} · re-render ${sobrevive.rerender} · sobrevive ${sobrevive.ann}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 // ── Panel lateral no-modal: abre, enfoca, no tapa la grilla, Escape cierra y devuelve el foco ──
@@ -520,6 +525,18 @@ await cp.close();
 const kp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 await kp.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
 await kp.waitForTimeout(400);
+// "n" es un atajo de producto de UNA tecla: exige foco DENTRO de un componente del
+// producto (SC 2.1.4). Sin ningún control enfocado (body) NO dispara.
+const nAntes = await kp.evaluate(() => EVENTS.length);
+await kp.keyboard.press("n");
+await kp.waitForTimeout(300);
+const nSinFoco = await kp.evaluate(() => ({
+  panel: !!document.querySelector("#panel"),
+  titulo: (document.querySelector("#panel-titulo")?.textContent || "").trim(),
+  n: EVENTS.length,
+}));
+// con el foco en la grilla, "n" sí abre la nueva reunión en la hora actual
+await kp.locator("#grilla").focus();
 await kp.keyboard.press("n");
 await kp.waitForTimeout(300);
 const porTecla = await kp.evaluate(() => (document.querySelector("#panel-titulo")?.textContent || "").trim());
@@ -539,9 +556,11 @@ await kp.close();
   if (!creado.diceHora) v.push(`el panel no dice la hora: "${creado.texto}"`);
   if (drag.ev <= evAntes) v.push(`el arrastre no creo evento (${evAntes}->${drag.ev})`);
   if (drag.panel) v.push("el arrastre (>4 px) abrio el panel");
-  if (!/^Nueva reunión · martes 16, 15:30 – 16:15$/.test(porTecla)) v.push(`atajo N sin hora actual: "${porTecla}"`);
+  if (nSinFoco.panel) v.push(`sin foco de componente, "n" abrio el panel: "${nSinFoco.titulo}"`);
+  if (nSinFoco.n !== nAntes) v.push(`sin foco de componente, "n" cambio EVENTS: ${nAntes} -> ${nSinFoco.n}`);
+  if (!/^Nueva reunión · martes 16, 15:30 – 16:15$/.test(porTecla)) v.push(`con foco en la grilla, "n" no abrio la hora actual: "${porTecla}"`);
   if (!/^Nueva reunión · jueves 18, 09:00 – 09:45$/.test(porDia)) v.push(`boton por dia sin contexto: "${porDia}"`);
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `A1 puntero sin arrastre · ${creado.texto} · arrastre crea ${drag.ev > evAntes} sin panel ${!drag.panel} · tecla N "${porTecla}" · por dia "${porDia}"`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A1 puntero sin arrastre · ${creado.texto} · arrastre crea ${drag.ev > evAntes} sin panel ${!drag.panel} · "n" sin foco sin panel ${!nSinFoco.panel} · con foco en grilla "${porTecla}" · por dia "${porDia}"`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 // ── Guardar desde el panel: crea el evento con lo elegido, cierra, enfoca y NO anuncia ──
@@ -925,6 +944,7 @@ await mvp.locator("#mover-aplicar").click();
 await mvp.waitForTimeout(400);
 const trasPaso = await mvp.evaluate(() => ({
   min: EVENTS[0].min, dia: EVENTS[0].day,
+  aria: document.activeElement?.getAttribute("aria-label") || "",
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   dialogo: !!document.querySelector("#mover-dialog"),
   focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
@@ -940,6 +960,8 @@ await mvp.locator("#mover-aplicar").click();
 await mvp.waitForTimeout(400);
 const trasDia = await mvp.evaluate(() => ({
   min: EVENTS[0].min, dia: EVENTS[0].day,
+  diaLargo: DIAS_LARGOS[EVENTS[0].day],
+  aria: document.activeElement?.getAttribute("aria-label") || "",
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
 }));
 
@@ -1040,6 +1062,7 @@ await kbd.keyboard.press("Enter");                 // Aplicar
 await kbd.waitForTimeout(400);
 const trasKbd = await kbd.evaluate(() => ({
   min: EVENTS[0].min, dia: EVENTS[0].day,
+  aria: document.activeElement?.getAttribute("aria-label") || "",
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   dialogo: !!document.querySelector("#mover-dialog"),
   focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
@@ -1077,7 +1100,6 @@ await zp.close();
 {
   const v = [];
   const minEsperado = antesMv.min + 15;
-  const anuncioEsperado = `Movida ${antesMv.titulo} a las ${fmt2(minEsperado)}`;
   if (!enMenu.hayMenu) v.push("el click en la reunion no abrio el menu");
   if (!enMenu.hayMover) v.push('el menu no ofrece "Mover a…"');
   if (enMenu.anuncio) v.push(`se anuncio al abrir el menu: "${enMenu.anuncio}"`);
@@ -1098,12 +1120,16 @@ await zp.close();
     if (mvAbierto.anuncio) v.push(`se anuncio al abrir el dialogo: "${mvAbierto.anuncio}"`);
   }
   if (trasPaso.min !== minEsperado) v.push(`el paso +15 no movio 15 min: ${antesMv.min} -> ${trasPaso.min}`);
-  if (trasPaso.anuncio !== anuncioEsperado) v.push(`anuncio "${trasPaso.anuncio}" (esperado "${anuncioEsperado}")`);
+  // Aplicar reenfoca el evento; su nombre accesible ya trae la hora nueva, así que
+  // la live region debe quedar vacía (misma alternancia que el nudge de A6).
+  if (trasPaso.anuncio) v.push(`Aplicar anuncio ademas de re-enfocar (doble lectura): "${trasPaso.anuncio}"`);
+  if (!trasPaso.aria.includes(fmt2(minEsperado))) v.push(`el nombre accesible enfocado no trae la hora nueva (${fmt2(minEsperado)}): "${trasPaso.aria}"`);
   if (trasPaso.dialogo) v.push("Aplicar no cerro el dialogo");
   if (!trasPaso.focoEnEvento) v.push("Aplicar no devolvio el foco a la reunion");
   if (trasDia.dia !== 3) v.push(`el boton de dia no movio a jueves: ${antesMv.dia} -> ${trasDia.dia}`);
   if (trasDia.min !== minEsperado) v.push(`el boton de dia cambio la hora: ${minEsperado} -> ${trasDia.min}`);
-  if (!/Movida/.test(trasDia.anuncio)) v.push(`el movimiento de dia no anuncio: "${trasDia.anuncio}"`);
+  if (trasDia.anuncio) v.push(`el movimiento de dia anuncio ademas de re-enfocar (doble lectura): "${trasDia.anuncio}"`);
+  if (!trasDia.aria.includes(trasDia.diaLargo)) v.push(`el nombre accesible enfocado no trae el dia nuevo (${trasDia.diaLargo}): "${trasDia.aria}"`);
   if (trasEscape.objeto !== antesEscape) v.push("Escape si escribio el evento (objeto distinto)");
   if (trasEscape.dialogo) v.push("Escape no cerro el dialogo");
   if (trasEscape.anuncio) v.push(`Escape anuncio: "${trasEscape.anuncio}"`);
@@ -1113,7 +1139,6 @@ await zp.close();
   if (borde.p15) v.push("en el piso del rango tambien se deshabilito un paso valido (+15)");
   if (borde.minBorrador !== null && borde.minBorrador < borde.piso) v.push(`el borrador paso el piso: ${borde.minBorrador} < ${borde.piso}`);
   // teclado de punta a punta
-  const anuncioKbd = `Movida ${antesKbd.titulo} a las ${fmt2(antesKbd.min + 15)}`;
   if (!kbdMenu.menu) v.push("Enter no abrio el menu para el viaje de teclado");
   if (kbdMenu.anuncio) v.push(`se anuncio al abrir el menu por teclado: "${kbdMenu.anuncio}"`);
   if (!kbdAbierto.dialogo) v.push("el atajo del menu no abrio el dialogo por teclado");
@@ -1125,7 +1150,8 @@ await zp.close();
   if (!/08:45/.test(kbdDraft)) v.push(`Enter en el paso no ajusto el borrador: "${kbdDraft}"`);
   if (kbdFoco !== "mover-aplicar") v.push(`Tab no llego a Aplicar: ${kbdFoco}`);
   if (trasKbd.min !== antesKbd.min + 15) v.push(`Enter en Aplicar no movio 15 min: ${antesKbd.min} -> ${trasKbd.min}`);
-  if (trasKbd.anuncio !== anuncioKbd) v.push(`anuncio de teclado "${trasKbd.anuncio}" (esperado "${anuncioKbd}")`);
+  if (trasKbd.anuncio) v.push(`Aplicar por teclado anuncio ademas de re-enfocar (doble lectura): "${trasKbd.anuncio}"`);
+  if (!trasKbd.aria.includes(fmt2(antesKbd.min + 15))) v.push(`el nombre accesible enfocado no trae la hora nueva (${fmt2(antesKbd.min + 15)}): "${trasKbd.aria}"`);
   if (trasKbd.dialogo) v.push("Aplicar por teclado no cerro el dialogo");
   if (!trasKbd.focoEnEvento) v.push("Aplicar por teclado no devolvio el foco");
   // scroll de la variante zoom
@@ -1190,6 +1216,7 @@ await dup.locator("#dur-aplicar").click();
 await dup.waitForTimeout(400);
 const trasPreset = await dup.evaluate(() => ({
   dur: EVENTS[0].dur, min: EVENTS[0].min,
+  aria: document.activeElement?.getAttribute("aria-label") || "",
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   dialogo: !!document.querySelector("#dur-dialog"),
   focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
@@ -1297,6 +1324,7 @@ await kbdDur.keyboard.press("Enter");                 // Aplicar
 await kbdDur.waitForTimeout(400);
 const trasKbdDur = await kbdDur.evaluate(() => ({
   dur: EVENTS[0].dur, min: EVENTS[0].min,
+  aria: document.activeElement?.getAttribute("aria-label") || "",
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   dialogo: !!document.querySelector("#dur-dialog"),
   focoEnEvento: document.activeElement === document.querySelector('#grilla .ev[data-i="0"]'),
@@ -1332,7 +1360,6 @@ const trasScrollDur = await zdur.evaluate((i) => ({
 await zdur.close();
 {
   const v = [];
-  const anuncioPreset = `Duración de ${durTitulo} ahora 90 minutos`;
   if (!enMenuDur.hayMenu) v.push("el click en la reunion no abrio el menu");
   if (!enMenuDur.hayDuracion) v.push('el menu no ofrece "Cambiar duración…"');
   if (enMenuDur.anuncio) v.push(`se anuncio al abrir el menu: "${enMenuDur.anuncio}"`);
@@ -1355,7 +1382,10 @@ await zdur.close();
   if (draftPreset.evento !== 45) v.push(`el preset escribio el evento antes de Aplicar: dur ${draftPreset.evento}`);
   if (trasPreset.dur !== 90) v.push(`el preset 90 no dejo dur en 90: ${trasPreset.dur}`);
   if (trasPreset.min !== durKbdAntes.min) v.push(`cambiar la duración movio el inicio: ${durKbdAntes.min} -> ${trasPreset.min}`);
-  if (trasPreset.anuncio !== anuncioPreset) v.push(`anuncio "${trasPreset.anuncio}" (esperado "${anuncioPreset}")`);
+  // Aplicar reenfoca el evento; su nombre accesible ya trae el fin nuevo, así que
+  // la live region debe quedar vacía (misma alternancia que el nudge de A6).
+  if (trasPreset.anuncio) v.push(`Aplicar anuncio ademas de re-enfocar (doble lectura): "${trasPreset.anuncio}"`);
+  if (!trasPreset.aria.includes(`a ${fmt2(trasPreset.min + trasPreset.dur)}`)) v.push(`el nombre accesible enfocado no trae el fin nuevo (${fmt2(trasPreset.min + trasPreset.dur)}): "${trasPreset.aria}"`);
   if (trasPreset.dialogo) v.push("Aplicar no cerro el dialogo");
   if (!trasPreset.focoEnEvento) v.push("Aplicar no devolvio el foco a la reunion");
   if (trasEscapeDur.objeto !== antesEscapeDur) v.push("Escape si escribio el evento (objeto distinto)");
@@ -1368,7 +1398,6 @@ await zdur.close();
   if (bordeDur.preset15) v.push("en el borde tambien se deshabilito un preset valido (15)");
   if (bordeDur.durEvento !== 60) v.push(`los pasos del borde escribieron el evento: dur ${bordeDur.durEvento}`);
   // teclado de punta a punta
-  const anuncioKbdDur = `Duración de ${durKbdAntes.titulo} ahora 75 minutos`;
   if (!kbdDurAbierto.dialogo) v.push("el atajo del menu no abrio el dialogo por teclado");
   if (kbdDurAbierto.focoPreset !== "15") v.push(`el foco al abrir por teclado no quedo en el primer preset: ${kbdDurAbierto.focoPreset}`);
   if (!kbdDurAbierto.enDialogo) v.push("el foco no entra al dialogo por teclado");
@@ -1378,7 +1407,8 @@ await zdur.close();
   if (!/09:45/.test(kbdDraftDur)) v.push(`los Enter de teclado no ajustaron el borrador a 60+15: "${kbdDraftDur}"`);
   if (kbdFocoDur !== "dur-aplicar") v.push(`Tab no llego a Aplicar: ${kbdFocoDur}`);
   if (trasKbdDur.dur !== durKbdAntes.dur + 30) v.push(`el viaje de teclado no aplico 60+15 (45 -> ${trasKbdDur.dur})`);
-  if (trasKbdDur.anuncio !== anuncioKbdDur) v.push(`anuncio de teclado "${trasKbdDur.anuncio}" (esperado "${anuncioKbdDur}")`);
+  if (trasKbdDur.anuncio) v.push(`Aplicar por teclado anuncio ademas de re-enfocar (doble lectura): "${trasKbdDur.anuncio}"`);
+  if (!trasKbdDur.aria.includes(`a ${fmt2(trasKbdDur.min + trasKbdDur.dur)}`)) v.push(`el nombre accesible enfocado no trae el fin nuevo (${fmt2(trasKbdDur.min + trasKbdDur.dur)}): "${trasKbdDur.aria}"`);
   if (trasKbdDur.dialogo) v.push("Aplicar por teclado no cerro el dialogo");
   if (!trasKbdDur.focoEnEvento) v.push("Aplicar por teclado no devolvio el foco");
   // scroll de la variante zoom
@@ -1967,7 +1997,8 @@ const acentoU = [...new Map(acento.map((o) => [`${o.el}|${o.texto}`, o])).values
   if (obj.contraste.length) v.push(`contraste < 4.5:1 en controles con relleno: ${obj.contraste.slice(0, 8).join(", ")}`);
   for (const a of acentoU) if (a.actual < 4.5) v.push(`texto sobre el acento ${a.actual}:1 en ${a.el} "${a.texto}"`);
   const peor = acentoU.reduce((m, a) => Math.min(m, a.actual), 99);
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `A7 objetivos ≥24px y contraste de controles · 3 variantes × 3 densidades + Lista/Mes · chicos ${obj.chicos.length} · contraste <4.5 ${obj.contraste.length} · excepción ${Object.keys({ "[data-densa]": 1 })[0]} (bloque corto, Essential) en ${obj.excepcionados.length} objetivos · texto sobre --accent: antes(hoy sin tocar 3.52) ahora peor ${peor}:1 en ${acentoU.length} controles`);
+  const peorBlanco = acentoU.reduce((m, a) => Math.min(m, a.blanco), 99);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A7 objetivos ≥24px y contraste de controles · 3 variantes × 3 densidades + Lista/Mes · chicos ${obj.chicos.length} · contraste <4.5 ${obj.contraste.length} · excepción ${Object.keys({ "[data-densa]": 1 })[0]} (bloque corto, Essential) en ${obj.excepcionados.length} objetivos · texto sobre --accent: con #fff medido ${peorBlanco}:1 (defecto cerrado) ahora peor ${peor}:1 en ${acentoU.length} controles`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 

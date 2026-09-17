@@ -569,23 +569,23 @@ const cat = (k) => CATS[k] || { label: "", color: "#6b7280" };
 
 /* Anuncios: el nodo vive fuera del subarbol que se reemplaza, y se limpia
    antes de escribir para que un mensaje identico repetido se vuelva a leer. */
-let lastMsg = "";
 function announce(texto) {
   const a = document.getElementById("announcer");
   if (!a) return;
   a.textContent = "";
-  requestAnimationFrame(() => { a.textContent = texto; lastMsg = texto; });
+  requestAnimationFrame(() => { a.textContent = texto; });
 }
 
-/* SC 2.1.4: los atajos de UNA tecla valen solo con el foco dentro de un componente
-   del producto (grilla, menú o barra de vistas); sin ningún control enfocado también
-   valen (el documento es el foco implícito). Con el foco en un campo u otro control,
-   la tecla es texto. El chrome del prototipo (1/2/3, r) queda global a propósito:
-   no es UI del producto. */
+/* SC 2.1.4: los atajos de UNA tecla del producto valen solo con el foco dentro de
+   un componente del producto (la grilla, su contenedor con scroll, el menú o la
+   barra de acciones/vistas). Sin ningún control enfocado (body) NO valen: "sin
+   foco" no es foco de componente. Con el foco en un campo u otro control, la tecla
+   es texto. El chrome del prototipo (1/2/3, r) queda global a propósito: no es UI
+   del producto. */
 const EN_GRILLA = () => {
   const a = document.activeElement;
-  if (!a || a === document.body || a === document.documentElement) return true;
-  return !!a.closest("#grilla, #menu, .hoy-btn, [data-view]");
+  if (!a || a === document.body || a === document.documentElement) return false;
+  return !!a.closest("#grilla, .gridwrap, #menu, .hoy-btn, [data-view], [data-nueva]");
 };
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -907,7 +907,7 @@ function cerrarPanel({ volverFoco = true } = {}) {
   mount(current);
   if (volverFoco) requestAnimationFrame(() => {
     // sin evento enfocable (Lista/Mes o grilla vacía) cae en un control estable del stage
-    const destino = document.querySelector("#grilla .ev, #grilla [data-slot]")
+    const destino = document.querySelector("#grilla .ev")
       || document.querySelector("#stage button");
     destino?.focus();
   });
@@ -1229,8 +1229,9 @@ function cerrarMover({ volverFoco = true } = {}) {
   });
 }
 
-/* Aplicar es el único punto que escribe. El evento no recibió el foco durante
-   la acción, así que el cambio SÍ se anuncia; recién después vuelve el foco. */
+/* Aplicar es el único punto que escribe. Al terminar, el foco vuelve al evento
+   afectado y su nombre accesible ya trae el día y la hora nuevos: mover el foco
+   ES el anuncio, así que no se escribe además la región viva (alternancia). */
 function aplicarMover() {
   if (!MOVER) return;
   const m = MOVER;
@@ -1243,7 +1244,6 @@ function aplicarMover() {
   paint();
   const wrap2 = document.querySelector(".gridwrap");
   if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
-  announce(`Movida ${e.title} a las ${fmt(e.min)}`);
   document.querySelector(`#grilla .ev[data-i="${m.i}"]`)?.focus();
 }
 
@@ -1350,8 +1350,9 @@ function cerrarDur({ volverFoco = true } = {}) {
   });
 }
 
-/* Aplicar es el único punto que escribe. El evento no recibió el foco durante
-   la acción, así que el cambio SÍ se anuncia; recién después vuelve el foco. */
+/* Aplicar es el único punto que escribe. Al terminar, el foco vuelve al evento
+   afectado y su nombre accesible ya trae la duración nueva (hora de fin incluida):
+   mover el foco ES el anuncio, así que no se escribe además la región viva. */
 function aplicarDur() {
   if (!DUR) return;
   const d = DUR;
@@ -1363,7 +1364,6 @@ function aplicarDur() {
   paint();
   const wrap2 = document.querySelector(".gridwrap");
   if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
-  announce(`Duración de ${e.title} ahora ${e.dur} minutos`);
   document.querySelector(`#grilla .ev[data-i="${d.i}"]`)?.focus();
 }
 
