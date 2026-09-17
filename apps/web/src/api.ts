@@ -18,6 +18,9 @@ export interface EventDTO {
   subject: string;
   starts_on: string;
   ends_on: string;
+  all_day: boolean;
+  who?: string;
+  email?: string;
 }
 
 export interface HoyData {
