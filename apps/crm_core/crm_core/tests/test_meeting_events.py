@@ -251,7 +251,7 @@ class TestMeetingEventsBackfill(FrappeTestCase):
         eventos = self._eventos(lead)
         self.assertEqual(len(eventos), 2)
         # El id legacy va a la reunión del inicio congelado, no a la segunda.
-        self.assertEqual(eventos[0]["starts_on"], "2026-12-09 09:00:00")
+        self.assertEqual(str(eventos[0]["starts_on"]), "2026-12-09 09:00:00")
         self.assertEqual(eventos[0]["google_calendar_event_id"], "gcal-varias")
         self.assertNotEqual(eventos[0]["name"], extra.name)
         self.assertFalse(eventos[1]["google_calendar_event_id"])
