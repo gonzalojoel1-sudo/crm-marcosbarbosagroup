@@ -586,4 +586,81 @@ await gp.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `guardar · creado ${guardado.creado} · panel cerrado ${!guardado.panel} · foco ${guardado.focoEnNuevo} · anuncio "${guardado.anuncio}" · EVENTS ${JSON.stringify(e)}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── Guardar fallbacks: titulo vacio y hora no parseable conservan los defaults ──
+const fp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await fp.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await fp.waitForTimeout(400);
+await fp.evaluate(() => abrirPanel({ dia: 2, min: 11 * 60, dur: 45 }));
+await fp.waitForTimeout(300);
+await fp.locator("#p-titulo").fill("");
+await fp.locator("#p-inicio").fill("lalala");
+await fp.keyboard.press("Enter");
+await fp.waitForTimeout(500);
+const fallback = await fp.evaluate(() => {
+  const e = EVENTS[EVENTS.length - 1];
+  return { title: e.title, min: e.min, panel: !!document.querySelector("#panel") };
+});
+await fp.close();
+{
+  const v = [];
+  if (fallback.title !== "Reunión sin título") v.push(`titulo vacio guardo "${fallback.title}"`);
+  if (fallback.min !== 11 * 60) v.push(`hora no parseable guardo ${fallback.min} (esperado ${11 * 60})`);
+  if (fallback.panel) v.push("el panel no se cerro con fallbacks");
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `guardar fallbacks · titulo "${fallback.title}" · min ${fallback.min}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+// ── Edicion desde el panel: actualiza la reunion, cierra, enfoca el bloque y NO anuncia ──
+const ep = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await ep.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await ep.waitForTimeout(400);
+const idxEdit = await ep.evaluate(() => EVENTS.findIndex((e) => e.title === "Llamada: Estudio Norte"));
+await ep.evaluate((i) => abrirPanel({ dia: EVENTS[i].day, min: EVENTS[i].min, dur: EVENTS[i].dur, evento: EVENTS[i] }), idxEdit);
+await ep.waitForTimeout(300);
+await ep.locator("#p-titulo").fill("Llamada: Estudio Norte (editada)");
+await ep.keyboard.press("Enter");
+await ep.waitForTimeout(500);
+const editado = await ep.evaluate((i) => {
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  return {
+    titulo: EVENTS[i].title,
+    panel: !!document.querySelector("#panel"),
+    focoEnEditado: el ? document.activeElement === el : false,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+}, idxEdit);
+await ep.close();
+{
+  const v = [];
+  if (editado.titulo !== "Llamada: Estudio Norte (editada)") v.push(`no se actualizo el titulo: "${editado.titulo}"`);
+  if (editado.panel) v.push("el panel no se cerro al editar");
+  if (!editado.focoEnEditado) v.push("el foco no quedo en el elemento editado");
+  if (editado.anuncio) v.push(`se anuncio y ademas se movio el foco: "${editado.anuncio}"`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `guardar edicion · titulo "${editado.titulo}" · panel cerrado ${!editado.panel} · foco ${editado.focoEnEditado} · anuncio "${editado.anuncio}"`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+// ── Si el bloque no se pinta (agenda oculta) no hay foco: guardar debe anunciar el resultado ──
+const sp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await sp.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await sp.waitForTimeout(400);
+await sp.locator('.cal[data-cat="consultora"]').click();   // oculta la agenda del evento nuevo
+await sp.waitForTimeout(250);
+await sp.evaluate(() => abrirPanel({ dia: 2, min: 11 * 60, dur: 45 }));
+await sp.waitForTimeout(300);
+await sp.locator("#p-titulo").fill("Reunión sin foco");
+await sp.keyboard.press("Enter");
+await sp.waitForTimeout(500);
+const sinFoco = await sp.evaluate(() => ({
+  creado: EVENTS.some((e) => e.title === "Reunión sin foco"),
+  panel: !!document.querySelector("#panel"),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+await sp.close();
+{
+  const v = [];
+  if (!sinFoco.creado) v.push("no se creo el evento con la agenda oculta");
+  if (sinFoco.panel) v.push("el panel no se cerro");
+  if (!/Creada Reunión sin foco, miércoles 17 de 11:00 a 11:45/.test(sinFoco.anuncio)) v.push(`no se anuncio el resultado: "${sinFoco.anuncio}"`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `guardar sin foco · creado ${sinFoco.creado} · anuncio "${sinFoco.anuncio}"`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();

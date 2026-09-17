@@ -808,26 +808,27 @@ function cerrarPanel({ volverFoco = true } = {}) {
 
 /* Guardar cierra el ciclo: crea o actualiza, re-renderiza y deja el foco en el
    elemento afectado. Mover el foco ES el anuncio (su nombre accesible trae día,
-   hora y título), así que nunca se anuncia y se enfoca a la vez. */
+   hora y título): si el foco cambia no se anuncia; si el bloque no se pintó (por
+   ejemplo su agenda está oculta) no hay foco posible y entonces sí se anuncia. */
 function guardarPanel(datos) {
   const { dia, evento } = PANEL;   // leer antes de cerrar: cerrarPanel deja PANEL en null
   if (evento) {
     evento.title = datos.titulo; evento.min = datos.min; evento.dur = datos.dur;
-    LAST_FIT = 0;
     cerrarPanel({ volverFoco: false });
     requestAnimationFrame(() => {
       const el = document.querySelector(`#grilla .ev[data-i="${EVENTS.indexOf(evento)}"]`);
       if (el) el.focus();
+      else announce(`Actualizada ${evento.title}, ${DIAS_LARGOS[dia]} de ${fmt(evento.min)} a ${fmt(evento.min + evento.dur)}`);
     });
     return;
   }
   const nuevo = { day: dia, min: datos.min, dur: datos.dur, title: datos.titulo, cat: "consultora", origin: "CRM", sync: "ok" };
   EVENTS.push(nuevo);
-  LAST_FIT = 0;
   cerrarPanel({ volverFoco: false });
   requestAnimationFrame(() => {
     const el = document.querySelector(`#grilla .ev[data-i="${EVENTS.indexOf(nuevo)}"]`);
     if (el) el.focus();
+    else announce(`Creada ${nuevo.title}, ${DIAS_LARGOS[dia]} de ${fmt(nuevo.min)} a ${fmt(nuevo.min + nuevo.dur)}`);
   });
 }
 
