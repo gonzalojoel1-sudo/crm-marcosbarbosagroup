@@ -120,3 +120,45 @@ El review final dice: **merge condicional** — mergeá como **prototipo**, no c
 Las 10 tareas están, las guardas están verdes y los puntos A/B/C que antes bloqueaban **están cerrados**. Lo que
 evita llamarlo "entrega conforme" es el alcance declarado fuera de alcance en §4, no un defecto abierto. Si el
 objetivo de mergear es tener las guardas verdes en `main` antes del port a React, es una razón legítima.
+
+---
+
+# Port a prod: lo que apareció al empezar (2026-09-17)
+
+**El plan del port está en `docs/superpowers/plans/2026-09-17-agenda-port-a-prod.md` (8 tareas).**
+La Task 1 (los endpoints que faltaban: mover, duración, duplicar, eliminar) está escrita en el commit
+`78a6786`, **pero no verificada**: en este entorno no hay `bench`, así que los 10 tests de integración
+**no se corrieron**. Hay que correrlos en el VPS contra `crm-test`. Tampoco se tocó producción.
+
+## DECISIÓN 1 (bloqueante) — el CRM no tiene duración de reunión
+
+**Hallazgo: `CRM Lead` no tiene campo de fin.** `_meeting_dto` **fabrica** `end = start + 1 hora`
+(api.py:38) y `create_event` **ignora** el `ends_on` que le mandes. O sea que hoy **toda reunión dura
+1 hora por invención**, y "cambiar la duración" no tiene dónde guardarse.
+
+El subagente resolvió con un parche: guardar `Fin: <datetime>` **dentro de `notes`**. Eso es frágil, y
+además se apila sobre otro parche ya existente: el **título** del evento también se parsea de `notes`
+("Reunión agendada: <summary>"). Estaríamos guardando datos estructurados en texto libre — dos veces.
+
+**Opciones:**
+- **(a) Agregar un campo real** (`custom_meeting_end` en `CRM Lead`) y hacer el deploy **con `--migrate`**.
+  Es la única forma de que mover, redimensionar y duplicar sean confiables. El plan preveía un deploy
+  **sin** migrate; esto lo cambia, y un migrate sobre el CRM en uso exige el backup previo (que el
+  script ya hace).
+- **(b) Aceptar que toda reunión dura 1 hora** y sacar "Cambiar duración" de la agenda. Menos funcional,
+  pero sin tocar el modelo de datos.
+- **(c) Dejar el parche de `notes`.** No lo recomiendo: datos estructurados en texto libre, y ya hay uno.
+
+**Mi recomendación: (a).** Redimensionar es una de las cinco operaciones que pediste, y sin campo real
+no puede funcionar bien.
+
+## DECISIÓN 2 — eliminar una reunión
+
+Como una reunión **es** un `CRM Lead`, borrarla de verdad borraría el lead, el contacto y el historial.
+El subagente eligió **borrado suave**: limpia los campos de reunión y **conserva** el lead. Creo que es
+lo correcto, pero es una decisión de producto tuya: **¿eliminar la reunión debe borrar el lead también?**
+
+## DECISIÓN 3 — dónde se corren los tests
+
+Sin `bench` acá, la verificación de la Task 1 (y de las que siguen) tiene que correr en el VPS contra
+`crm-test`. Necesito que me confirmes que puedo entrar y correrlos, o los corrés vos.
