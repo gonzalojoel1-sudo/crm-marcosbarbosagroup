@@ -10,6 +10,15 @@ export interface AgendaEvent {
   category?: string;
 }
 
+// Tarea ya normalizada. `due` es el vencimiento (nunca una duración): una tarea
+// no ocupa una franja de la grilla, se muestra fuera del tiempo.
+export interface AgendaTask {
+  name: string;
+  subject: string;
+  due: Date | null;
+  priority: string;
+}
+
 export interface DensityStep {
   id: "compacto" | "comodo" | "amplio";
   label: string;

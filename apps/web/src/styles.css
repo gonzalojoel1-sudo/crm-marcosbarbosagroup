@@ -2652,6 +2652,89 @@ button.meta-row:hover {
   white-space: nowrap;
 }
 
+/* Franja de TAREAS, fuera de la grilla temporal: una tarea tiene vencimiento,
+   no duración, así que no ocupa una franja. Forma y color neutros (borde y check)
+   para no leerse como un bloque de reunión, que es sólido y lleva categoría. */
+.agx-tasks {
+  display: grid;
+  grid-template-columns: 52px repeat(5, 1fr);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+  max-height: 96px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.agx-tasks-lab {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 5px 8px;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+.agx-tasks-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 4px;
+}
+/* Objetivo ≥24 px de alto (SC 2.5.8). El texto usa tokens del tema (--fg y
+   --fg-dim sobre --surface), ya medidos ≥ 4.5:1. */
+.agx-task {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 24px;
+  padding: 3px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--fg-faint);
+  border-radius: 6px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+.agx-task:hover {
+  background: var(--surface-2);
+  border-color: var(--border-2);
+}
+.agx-task-ico {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--fg-dim);
+}
+.agx-task-t {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agx-task-h {
+  flex: none;
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-dim);
+}
+.agx-ltasks {
+  list-style: none;
+  margin: 3px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
 /* ── Lista (compuesto APG) ── */
 .agx-lista {
   flex: 1;
@@ -2744,8 +2827,17 @@ button.meta-row:hover {
   white-space: nowrap;
 }
 .agx-lev-c {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11.5px;
   color: var(--fg-dim);
+  flex: none;
+}
+.agx-lev-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   flex: none;
 }
 .agx-lvy {

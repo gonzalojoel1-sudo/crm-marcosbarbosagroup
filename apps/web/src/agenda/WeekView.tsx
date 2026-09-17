@@ -8,7 +8,19 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from "react";
-import { DOW_SHORT, accessibleName, dayLong, fmtMin, sameDay, weekdayIndex, ymd } from "./date";
+import {
+  DOW_SHORT,
+  accessibleName,
+  dayLong,
+  fmtMin,
+  minutesOfDay,
+  sameDay,
+  weekdayIndex,
+  ymd,
+} from "./date";
+import { categoryOf } from "./categories";
+import { accessibleTaskName } from "./tasks";
+import { IconCheck } from "../icons";
 import {
   END_H,
   HOURS,
@@ -22,7 +34,7 @@ import {
   yToMinutes,
   type Placed,
 } from "./geometry";
-import type { AgendaEvent, DensityStep } from "./types";
+import type { AgendaEvent, AgendaTask, DensityStep } from "./types";
 
 const HOUR_LIST = Array.from({ length: END_H - START_H + 1 }, (_, i) => START_H + i);
 
@@ -37,6 +49,8 @@ interface WeekViewProps {
   onResizeEvent: (event: AgendaEvent, durMin: number) => void;
   onOpenMenu: (event: AgendaEvent, trigger: HTMLElement) => void;
   expandedName: string | null;
+  tasksByDay: AgendaTask[][];
+  onCompleteTask: (task: AgendaTask) => void;
 }
 
 const DRAG_UMBRAL = 4; // menos de 4 px de movimiento es un click, no un arrastre
@@ -90,6 +104,8 @@ export default function WeekView({
   onResizeEvent,
   onOpenMenu,
   expandedName,
+  tasksByDay,
+  onCompleteTask,
 }: WeekViewProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const headsRef = useRef<HTMLDivElement>(null);
@@ -182,6 +198,7 @@ export default function WeekView({
     [days, events],
   );
   const hasAllDay = allDayByDay.some((list) => list.length > 0);
+  const hasTasks = tasksByDay.some((list) => list.length > 0);
 
   const swallowClick = useCallback(() => {
     suppressClick.current = true;
@@ -431,6 +448,39 @@ export default function WeekView({
         </div>
       ) : null}
 
+      {hasTasks ? (
+        <div className="agx-tasks" role="group" aria-label="Tareas de la semana">
+          <div className="agx-tasks-lab" aria-hidden="true">
+            Tareas
+          </div>
+          {days.map((date, i) => (
+            <div className="agx-tasks-cell" key={ymd(date)}>
+              {tasksByDay[i].map((t) => {
+                const dueMin = t.due ? minutesOfDay(t.due) : 0;
+                return (
+                  <button
+                    type="button"
+                    className="agx-task"
+                    key={t.name}
+                    onClick={() => onCompleteTask(t)}
+                    title={`Tarea: ${t.subject} · ${fmtMin(dueMin)} · marcar como hecha`}
+                    aria-label={accessibleTaskName(dayLong(date), dueMin, t.subject, t.priority)}
+                  >
+                    <IconCheck className="agx-task-ico" />
+                    <span className="agx-task-t" aria-hidden="true">
+                      {t.subject}
+                    </span>
+                    <span className="agx-task-h" aria-hidden="true">
+                      {fmtMin(dueMin)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <div
         className="agx-gridwrap"
         ref={wrapRef}
@@ -513,6 +563,7 @@ export default function WeekView({
                           height,
                           "--lane": p.lane,
                           "--lanes": p.lanes,
+                          "--agx-ev-color": categoryOf(p.event.category).color,
                         } as CSSProperties
                       }
                       title={`${p.event.subject} · ${fmtMin(p.startMin)} – ${fmtMin(p.endMin)}`}

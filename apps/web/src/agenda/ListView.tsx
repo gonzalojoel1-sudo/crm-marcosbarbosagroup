@@ -1,7 +1,10 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { accessibleName, dayLong, fmtMin, sameDay, ymd } from "./date";
+import { accessibleName, dayLong, fmtMin, minutesOfDay, sameDay, ymd } from "./date";
 import { eventMinutes } from "./geometry";
-import type { AgendaEvent } from "./types";
+import { categoryOf } from "./categories";
+import { accessibleTaskName } from "./tasks";
+import { IconCheck } from "../icons";
+import type { AgendaEvent, AgendaTask } from "./types";
 
 interface ListViewProps {
   days: Date[];
@@ -10,6 +13,8 @@ interface ListViewProps {
   onNewDay: (dayIndex: number) => void;
   onOpenMenu: (event: AgendaEvent, trigger: HTMLElement) => void;
   expandedName: string | null;
+  tasksByDay: AgendaTask[][];
+  onCompleteTask: (task: AgendaTask) => void;
 }
 
 function countLabel(n: number): string {
@@ -30,6 +35,8 @@ export default function ListView({
   onNewDay,
   onOpenMenu,
   expandedName,
+  tasksByDay,
+  onCompleteTask,
 }: ListViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [roving, setRoving] = useState<string | null>(null);
@@ -163,7 +170,16 @@ export default function ListView({
                         >
                           <span className="agx-lev-h">{time}</span>
                           <span className="agx-lev-t">{e.subject}</span>
-                          {e.category ? <span className="agx-lev-c">{e.category}</span> : null}
+                          {e.category ? (
+                            <span className="agx-lev-c">
+                              <i
+                                className="agx-lev-dot"
+                                style={{ background: categoryOf(e.category).color }}
+                                aria-hidden="true"
+                              />
+                              {categoryOf(e.category).label}
+                            </span>
+                          ) : null}
                         </button>
                       </li>
                     );
@@ -172,6 +188,37 @@ export default function ListView({
               ) : (
                 <p className="agx-lvy">Sin reuniones</p>
               )}
+              {tasksByDay[i].length ? (
+                <ul className="agx-ltasks" aria-label="Tareas del día">
+                  {tasksByDay[i].map((t) => {
+                    const dueMin = t.due ? minutesOfDay(t.due) : 0;
+                    return (
+                      <li key={t.name}>
+                        <button
+                          type="button"
+                          className="agx-task"
+                          onClick={() => onCompleteTask(t)}
+                          title={`Tarea: ${t.subject} · ${fmtMin(dueMin)} · marcar como hecha`}
+                          aria-label={accessibleTaskName(
+                            dayLong(g.date),
+                            dueMin,
+                            t.subject,
+                            t.priority,
+                          )}
+                        >
+                          <IconCheck className="agx-task-ico" />
+                          <span className="agx-task-t" aria-hidden="true">
+                            {t.subject}
+                          </span>
+                          <span className="agx-task-h" aria-hidden="true">
+                            {fmtMin(dueMin)}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
             </div>
           </section>
         );

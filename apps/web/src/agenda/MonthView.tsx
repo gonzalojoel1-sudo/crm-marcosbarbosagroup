@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { accessibleName, addDays, dayLong, fmtMin, sameDay, startOfWeek, ymd } from "./date";
 import { eventMinutes } from "./geometry";
+import { categoryOf } from "./categories";
 import type { AgendaEvent } from "./types";
 
 const WEEKDAY_COLS = ["lunes", "martes", "miércoles", "jueves", "viernes"];
@@ -77,7 +78,11 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
                       const time = e.allDay ? "Todo el día" : fmtMin(startMin);
                       return (
                         <span className="agx-mev" key={e.name} title={`${e.subject} · ${time}`}>
-                          <span className="agx-mev-d" aria-hidden="true" />
+                          <span
+                            className="agx-mev-d"
+                            style={{ background: categoryOf(e.category).color }}
+                            aria-hidden="true"
+                          />
                           <span className="sr-only">
                             {accessibleName(dayLong(date), startMin, endMin, e.subject, e.allDay, e.category)}
                           </span>

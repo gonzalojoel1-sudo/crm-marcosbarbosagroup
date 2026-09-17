@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { api, type AgendaData, type EventDTO } from "./api";
+import { api, type AgendaData, type EventDTO, type TaskDTO } from "./api";
 import {
   MON_FULL,
   addDays,
@@ -16,7 +16,7 @@ import {
   ymd,
 } from "./agenda/date";
 import { END_H, START_H } from "./agenda/geometry";
-import { ZOOM_STEPS, type AgendaEvent, type DensityStep } from "./agenda/types";
+import { ZOOM_STEPS, type AgendaEvent, type AgendaTask, type DensityStep } from "./agenda/types";
 import { useViewParam } from "./agenda/useViewParam";
 import { announce } from "./agenda/announcer";
 import EventPanel, { type PanelContext, type SavedInfo } from "./agenda/EventPanel";
@@ -104,11 +104,30 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
         start: parseDT(e.starts_on),
         end: parseDT(e.ends_on),
         allDay: Boolean(e.all_day),
+        category: e.categoria,
       })),
     [data],
   );
 
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+
+  // Las tareas tienen vencimiento, no duración: no entran a la grilla temporal.
+  // `get_agenda` sólo devuelve las que tienen fecha, así que `due` nunca es null;
+  // el tipo lo permite y la agrupación lo filtra por las dudas.
+  const tasks = useMemo<AgendaTask[]>(
+    () =>
+      (data?.tasks ?? []).map((t: TaskDTO) => ({
+        name: t.name,
+        subject: t.subject,
+        due: t.due_datetime ? parseDT(t.due_datetime) : null,
+        priority: t.priority,
+      })),
+    [data],
+  );
+  const tasksByDay = useMemo(
+    () => days.map((date) => tasks.filter((t) => t.due && sameDay(t.due, date))),
+    [days, tasks],
+  );
 
   const weekLabel = `${days[0].getDate()} al ${days[4].getDate()} de ${MON_FULL[days[0].getMonth()]}`;
   const title =
@@ -118,9 +137,10 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
 
   const n = events.length;
   const allDayCount = events.filter((e) => e.allDay).length;
+  const taskCount = tasks.filter((t) => t.due).length;
   const count = `${n} ${n === 1 ? "reunión" : "reuniones"}${
     allDayCount ? ` · ${allDayCount} de todo el día` : ""
-  }`;
+  }${taskCount ? ` · ${taskCount} ${taskCount === 1 ? "tarea" : "tareas"}` : ""}`;
 
   function move(delta: number) {
     if (view === "mes") setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1));
@@ -461,6 +481,30 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
     }
   }
 
+  // Completar saca la tarea de la ventana (`get_agenda` filtra `status != Done`),
+  // así que el foco cae en OTRO objeto: igual que al eliminar, acá SÍ se anuncia
+  // además de mover el foco. La acción es real: no hay control que no haga nada.
+  async function completarTarea(task: AgendaTask) {
+    // El contenedor del día sobrevive al repintado (misma `key`): así el foco cae
+    // en la tarea siguiente DEL MISMO DÍA y no salta a otra parte del calendario.
+    const activo = document.activeElement as HTMLElement | null;
+    const contenedor = activo?.closest<HTMLElement>(".agx-tasks-cell, .agx-ldia-body") ?? null;
+    try {
+      await api.complete(task.name);
+      const d = await api.getAgenda(ymd(rangeStart), ymd(rangeEnd));
+      flushSync(() => setData(d));
+      const siguiente =
+        contenedor?.querySelector<HTMLElement>(".agx-task") ??
+        rootRef.current?.querySelector<HTMLElement>(".agx-task") ??
+        null;
+      if (siguiente) siguiente.focus();
+      else rootRef.current?.querySelector<HTMLElement>(".agx-gridwrap, .agx-lista")?.focus();
+      announce(`Tarea completada: ${task.subject}`);
+    } catch {
+      announce("No se pudo completar la tarea. Probá de nuevo.");
+    }
+  }
+
   // SC 2.1.4: los atajos de UNA tecla (N, E, M, D, Supr) valen sólo con el foco
   // DENTRO del componente (grilla, lista, menú o barra). Con el foco en `body`
   // no hay componente enfocado; con el foco en un campo del panel la tecla es
@@ -610,6 +654,8 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
               onResizeEvent={redimensionarConArrastre}
               onOpenMenu={openMenu}
               expandedName={menu?.event.name ?? null}
+              tasksByDay={tasksByDay}
+              onCompleteTask={completarTarea}
             />
           ) : view === "lista" ? (
             <ListView
@@ -619,6 +665,8 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
               onNewDay={crearEnDia}
               onOpenMenu={openMenu}
               expandedName={menu?.event.name ?? null}
+              tasksByDay={tasksByDay}
+              onCompleteTask={completarTarea}
             />
           ) : (
             <MonthView

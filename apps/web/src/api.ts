@@ -19,6 +19,7 @@ export interface EventDTO {
   starts_on: string;
   ends_on: string;
   all_day: boolean;
+  categoria: string;
   who?: string;
   email?: string;
 }
