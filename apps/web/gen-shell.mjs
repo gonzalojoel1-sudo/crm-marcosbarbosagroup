@@ -1,11 +1,14 @@
-// Genera el template Frappe (www/hoy.html) con el bundle embebido como base64.
+// Genera el template Frappe (www/hoy.html) con el JS y el CSS inline.
 //
-// Por qué base64 y no assets:
+// Por qué inline y no assets:
 //  - Los contenedores no comparten sites/assets (verificado), así que /assets
-//    no se puede usar de forma confiable.
-//  - Frappe rechaza templates que contengan ".__" ("Illegal template"), y el
-//    bundle minificado de React lo contiene. Base64 no tiene "." → pasa.
-//  - El bundle se ejecuta vía Blob + import() dinámico (ESM self-contained).
+//    no se puede usar de forma confiable: el HTML tiene que ser un archivo
+//    único y autocontenido.
+//  - Antes el bundle iba en base64 para esquivar el guard de Frappe contra
+//    ".__" ("Illegal template"). Ese guard se apaga con `safe_render = False`
+//    en www/hoy.py, así que el bundle puede ir crudo.
+//  - El template igual pasa por Jinja antes de servirse (hay un `{{ csrf }}`),
+//    así que el bundle no puede contener sintaxis de Jinja ni cierres de tag.
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,7 +19,20 @@ const outFile = resolve(here, "../crm_core/crm_core/www/hoy.html");
 
 const js = readFileSync(resolve(dist, "index.js"), "utf8");
 const css = readFileSync(resolve(dist, "index.css"), "utf8");
-const b64 = Buffer.from(js, "utf8").toString("base64");
+
+// Fallar en el build es mejor que romper la página en runtime: Jinja
+// interpretaría {{ / {% / {# y un cierre de tag terminaría el bloque antes.
+for (const seq of ["{{", "{%", "{#"]) {
+  if (js.includes(seq) || css.includes(seq)) {
+    throw new Error(`el bundle contiene sintaxis Jinja (${seq})`);
+  }
+}
+if (js.includes("</script")) {
+  throw new Error("el bundle contiene '</script'");
+}
+if (css.includes("</style")) {
+  throw new Error("el CSS contiene '</style'");
+}
 
 const shell = `<!DOCTYPE html>
 <html lang="es">
@@ -33,22 +49,10 @@ const shell = `<!DOCTYPE html>
 <body>
 <div id="root"></div>
 <script>window.CSRF = "{{ csrf }}";</script>
-<script>
-(function () {
-  var bin = atob("${b64}");
-  var bytes = new Uint8Array(bin.length);
-  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  var blob = new Blob([bytes], { type: "text/javascript" });
-  import(URL.createObjectURL(blob));
-})();
-</script>
+<script type="module">${js}</script>
 </body>
 </html>
 `;
-
-if (shell.includes(".__")) {
-  throw new Error("template contains '.__' -> Frappe would reject it as Illegal template");
-}
 
 writeFileSync(outFile, shell);
 console.log(`wrote ${outFile} (${shell.length} bytes)`);
