@@ -283,6 +283,9 @@ export const api = {
     }),
   updateMeeting: (name: string, starts_on: string, ends_on?: string) =>
     post<EventDTO>("crm_core.api.update_meeting", { name, starts_on, ends_on }),
+  duplicateMeeting: (name: string, starts_on?: string) =>
+    post<EventDTO>("crm_core.api.duplicate_meeting", { name, starts_on }),
+  deleteMeeting: (name: string) => post<{ ok: boolean }>("crm_core.api.delete_meeting", { name }),
   // `update_meeting` sólo escribe `starts_on`/`ends_on` y `create_event` sólo
   // `subject`: el título en edición y las notas (`Event.description`) no tienen
   // endpoint propio en F2. Se persisten con el API estándar de Frappe, que valida

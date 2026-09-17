@@ -8,7 +8,8 @@ interface ListViewProps {
   events: AgendaEvent[];
   now: Date;
   onNewDay: (dayIndex: number) => void;
-  onEdit: (event: AgendaEvent) => void;
+  onOpenMenu: (event: AgendaEvent, trigger: HTMLElement) => void;
+  expandedName: string | null;
 }
 
 function countLabel(n: number): string {
@@ -18,10 +19,18 @@ function countLabel(n: number): string {
 
 /**
  * La Lista es un compuesto APG: un único tab stop (roving tabindex), flechas
- * adentro y cada fila es un <button> real. El menú de acciones llega en otra
- * fase; acá no se promete ninguno.
+ * adentro y cada fila es un <button> real. Enter/Space y el click abren el
+ * MISMO menú que un bloque de la grilla (S3/S6): la Lista no tiene acciones
+ * propias ni reimplementa nada.
  */
-export default function ListView({ days, events, now, onNewDay, onEdit }: ListViewProps) {
+export default function ListView({
+  days,
+  events,
+  now,
+  onNewDay,
+  onOpenMenu,
+  expandedName,
+}: ListViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [roving, setRoving] = useState<string | null>(null);
 
@@ -135,7 +144,9 @@ export default function ListView({ days, events, now, onNewDay, onEdit }: ListVi
                           data-day={i}
                           tabIndex={effective === e.name ? 0 : -1}
                           onFocus={() => setRoving(e.name)}
-                          onClick={() => onEdit(e)}
+                          aria-haspopup="menu"
+                          aria-expanded={expandedName === e.name}
+                          onClick={(ev) => onOpenMenu(e, ev.currentTarget)}
                           title={`${e.subject} · ${time}`}
                           aria-label={accessibleName(
                             dayLong(g.date),

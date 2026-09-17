@@ -24,7 +24,8 @@ interface WeekViewProps {
   now: Date;
   weekLabel: string;
   onCreateSlot: (dayIndex: number, startMin: number) => void;
-  onEdit: (event: AgendaEvent) => void;
+  onOpenMenu: (event: AgendaEvent, trigger: HTMLElement) => void;
+  expandedName: string | null;
 }
 
 const DRAG_UMBRAL = 4; // menos de 4 px de movimiento es un click, no un arrastre
@@ -36,7 +37,8 @@ export default function WeekView({
   now,
   weekLabel,
   onCreateSlot,
-  onEdit,
+  onOpenMenu,
+  expandedName,
 }: WeekViewProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const headsRef = useRef<HTMLDivElement>(null);
@@ -210,7 +212,9 @@ export default function WeekView({
                       data-compact={density === "compact" ? "" : undefined}
                       data-tiny={density === "tiny" ? "" : undefined}
                       data-narrow={narrow ? "" : undefined}
-                      onClick={() => onEdit(p.event)}
+                      aria-haspopup="menu"
+                      aria-expanded={expandedName === p.event.name}
+                      onClick={(e) => onOpenMenu(p.event, e.currentTarget)}
                       style={
                         {
                           top,
