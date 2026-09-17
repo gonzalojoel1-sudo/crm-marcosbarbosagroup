@@ -8,6 +8,10 @@ Hoy agrega:
 - `Event.custom_crm_lead` (Link -> CRM Lead): el vínculo entre la reunión
   (`Event`) y el contacto (`CRM Lead`). Es lo que hace que una reunión sirva al
   CRM sin que la reunión *sea* el lead.
+- `Event.custom_crm_categoria` (Select): la categoría de la reunión (Trabajo,
+  Ministerial, Personal, Consultora, Software), que la agenda usa para el nombre
+  accesible y el color. Los cinco valores son una decisión de producto, no datos
+  del usuario, por eso es un `Select` fijo y no un Link a un DocType.
 
 **NO** se re-declara el DocType `Event` (vive en `frappe`): sólo se le agrega el
 Custom Field. Un intento previo de declarar un `Event` propio borró el de Frappe
@@ -46,6 +50,15 @@ CUSTOM_FIELDS = {
             "fieldtype": "Link",
             "options": "CRM Lead",
             "insert_after": "event_category",
+        },
+        {
+            # Debe coincidir con `CATEGORIAS` en `crm_core/api.py`.
+            "fieldname": "custom_crm_categoria",
+            "label": "Categoría",
+            "fieldtype": "Select",
+            "options": "Trabajo\nMinisterial\nPersonal\nConsultora\nSoftware",
+            "default": "Trabajo",
+            "insert_after": "custom_crm_lead",
         },
     ],
 }

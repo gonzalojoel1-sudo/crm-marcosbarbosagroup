@@ -6,3 +6,6 @@ crm_core.patches
 # F2: entrada propia para que la reconciliación del id de Google corra también en
 # los sitios donde el patch de F1 ya quedó en `Patch Log` (no se re-ejecuta).
 crm_core.patches_f2
+# Categoría de la reunión: crea `Event.custom_crm_categoria` y backfillea el
+# default en los `Event` existentes. Entrada propia por el mismo motivo que F2.
+crm_core.patches_categoria

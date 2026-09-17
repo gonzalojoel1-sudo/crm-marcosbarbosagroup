@@ -3,7 +3,9 @@
 Desde F1 la reunión es un `Event` de Frappe linkeado a su contacto por el Custom
 Field `Event.custom_crm_lead`. Desde F2 la agenda lee y escribe `Event`: la
 duración es `Event.ends_on` (no se fabrica) y el título es `Event.subject` (no se
-parsea de `notes`). `CRM Lead.custom_meeting_datetime` queda congelado.
+parsea de `notes`). `CRM Lead.custom_meeting_datetime` queda congelado. La
+categoría de la reunión viaja en el DTO como `categoria` (Custom Field
+`Event.custom_crm_categoria`, cinco valores fijos, default "Trabajo").
 Las tareas siguen en `CRM Task` (title, status, priority, due_date).
 Todos los métodos requieren login.
 """
@@ -16,8 +18,25 @@ from frappe.utils import add_days, add_to_date, cint, get_datetime, getdate, now
 from crm_core import billing
 
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
-# La reunión vive en `Event`; `custom_crm_lead` es el vínculo con el contacto.
-EVENT_FIELDS = ["name", "subject", "starts_on", "ends_on", "all_day", "custom_crm_lead"]
+# La reunión vive en `Event`; `custom_crm_lead` es el vínculo con el contacto y
+# `custom_crm_categoria` la categoría con la que la agenda la nombra y la pinta.
+EVENT_FIELDS = [
+    "name",
+    "subject",
+    "starts_on",
+    "ends_on",
+    "all_day",
+    "custom_crm_lead",
+    "custom_crm_categoria",
+]
+# Las cinco categorías de la agenda. Son una decisión de producto (la paleta y los
+# filtros del prototipo), no datos del usuario: por eso el Custom Field es un
+# `Select` fijo y no un Link a un DocType. Debe coincidir con las opciones del
+# campo en `crm_core/patches.py` y `scripts/setup_custom_fields.py`.
+CATEGORIAS = ("Trabajo", "Ministerial", "Personal", "Consultora", "Software")
+# Default para `Event` sin categoría (F1/F2 y los importados de Google): la reunión
+# de trabajo genérica es la más probable, así la UI nunca recibe "undefined".
+CATEGORIA_DEFAULT = "Trabajo"
 LEAD_FIELDS = ["name", "first_name", "last_name", "email"]
 
 # La línea "Fin: <datetime>" que el sync legacy escribía en `CRM Lead.notes` ya no
@@ -61,6 +80,31 @@ def _leads_por_nombre(rows):
     }
 
 
+def _categoria(valor):
+    """Normaliza la categoría de una ESCRITURA: vacío -> default; inválida -> error.
+
+    Una categoría fuera de la lista es un error del llamador, no un dato a corregir
+    en silencio. (Frappe ya la rechazaría al guardar el `Select`; el chequeo acá
+    da el error en español y antes de tocar el `Event`.)
+    """
+    cat = (valor or "").strip()
+    if not cat:
+        return CATEGORIA_DEFAULT
+    if cat not in CATEGORIAS:
+        frappe.throw(f"Categoría inválida: {cat}")
+    return cat
+
+
+def _categoria_del_dto(valor):
+    """Normaliza la categoría de una LECTURA: vacío o desconocida -> default.
+
+    Una lectura nunca puede tumbar la agenda entera por un valor raro en la base
+    (una opción del `Select` que se sacó después): cae al default y sigue.
+    """
+    cat = (valor or "").strip()
+    return cat if cat in CATEGORIAS else CATEGORIA_DEFAULT
+
+
 def _event_dto(r, lead=None):
     """DTO de una reunión sobre `Event`.
 
@@ -79,6 +123,7 @@ def _event_dto(r, lead=None):
         "who": who,
         "email": (lead or {}).get("email") or "",
         "all_day": bool(cint(r.get("all_day"))),
+        "categoria": _categoria_del_dto(r.get("custom_crm_categoria")),
         "starts_on": str(starts),
         "ends_on": str(ends),
     }
@@ -87,10 +132,13 @@ def _event_dto(r, lead=None):
 def _eventos_en_ventana(filters):
     """Lee los `Event` de la ventana y los convierte a DTO con su lead linkeado."""
     # Defensivo: si el Custom Field todavía no existe (deploy antes del `migrate`),
-    # la agenda igual responde; sin el link no puede haber `who`/`email`.
+    # la agenda igual responde; sin el link no puede haber `who`/`email` y sin la
+    # categoría el DTO cae al default.
     fields = list(EVENT_FIELDS)
     if not frappe.get_meta("Event").get_field("custom_crm_lead"):
         fields.remove("custom_crm_lead")
+    if not frappe.get_meta("Event").get_field("custom_crm_categoria"):
+        fields.remove("custom_crm_categoria")
     rows = frappe.get_all(
         "Event",
         filters=filters,
@@ -798,12 +846,13 @@ def update_lead(name, email=None, mobile_no=None, organization=None, status=None
 
 
 @frappe.whitelist()
-def create_event(subject, starts_on, ends_on=None, lead=None, all_day=0):
+def create_event(subject, starts_on, ends_on=None, lead=None, all_day=0, categoria=None):
     """Crea la reunión como `Event` (ya no como `CRM Lead`).
 
     Si se pasa `lead`, el `Event` queda linkeado por `custom_crm_lead`; el contacto
     no se toca. `all_day` viaja al `Event` (F4 lo necesita para crear todo-el-día);
-    sin fin explícito un todo-el-día dura el día entero, no una hora."""
+    sin fin explícito un todo-el-día dura el día entero, no una hora. `categoria`
+    es la vertical de la agenda; sin ella se usa el default (nunca queda vacía)."""
     subject = (subject or "").strip()
     if not subject:
         frappe.throw("El título no puede estar vacío")
@@ -829,6 +878,9 @@ def create_event(subject, starts_on, ends_on=None, lead=None, all_day=0):
     }
     if lead and frappe.db.exists("CRM Lead", lead):
         campos["custom_crm_lead"] = lead
+    # Defensivo pre-migrate: sin el campo, el DTO igual devuelve el default.
+    if frappe.get_meta("Event").get_field("custom_crm_categoria"):
+        campos["custom_crm_categoria"] = _categoria(categoria)
     ev = insertar_evento_sin_sync(campos)
     return {"name": ev.name, "subject": ev.subject}
 
@@ -952,11 +1004,13 @@ def get_meeting(name):
         meeting = str(evento.starts_on)
         ends_on = str(evento.ends_on) if evento.ends_on else None
         all_day = bool(cint(evento.all_day))
+        categoria = _categoria_del_dto(evento.get("custom_crm_categoria"))
         subject = (evento.subject or "").strip() or who or (lead.get("email") if lead else "") or "Reunión"
     else:
         meeting = str(lead.custom_meeting_datetime) if (lead and lead.get("custom_meeting_datetime")) else None
         ends_on = None
         all_day = False
+        categoria = CATEGORIA_DEFAULT
         subject = _summary_from_notes(lead.get("notes") if lead else "") or who or "Reunión"
     return {
         "name": lead.name if lead else (evento.name if evento else name),
@@ -973,6 +1027,7 @@ def get_meeting(name):
         "meeting": meeting,
         "ends_on": ends_on,
         "all_day": all_day,
+        "categoria": categoria,
         "notes": FIN_RE.sub("", lead.get("notes") or "").strip() if lead else "",
         "description": (lead.get("descripcion") if lead else "") or (evento.get("description") if evento else "") or "",
         "comments": [
@@ -993,11 +1048,12 @@ def get_meeting(name):
 
 
 @frappe.whitelist()
-def update_meeting(name, starts_on, ends_on=None):
-    """Mueve la reunión y/o le cambia la duración. `name` es el `Event`.
+def update_meeting(name, starts_on, ends_on=None, categoria=None):
+    """Mueve la reunión y/o le cambia la duración y la categoría. `name` es el `Event`.
 
     Sin fin explícito se **conserva la duración real** (`Event.ends_on`); si el
-    `Event` no tiene fin (legacy), se cae a una hora."""
+    `Event` no tiene fin (legacy), se cae a una hora. `categoria` es opcional:
+    `None` = no tocarla; vacío = volver al default (nunca queda vacía)."""
     if not frappe.has_permission("Event", "write", doc=name):
         frappe.throw("Sin permiso para modificar esta reunión", frappe.PermissionError)
 
@@ -1015,6 +1071,8 @@ def update_meeting(name, starts_on, ends_on=None):
 
     doc.starts_on = starts_on
     doc.ends_on = ends_on
+    if categoria is not None and frappe.get_meta("Event").get_field("custom_crm_categoria"):
+        doc.custom_crm_categoria = _categoria(categoria)
     _neutralizar_sync_evento(doc)
     doc.save(ignore_permissions=True)
     return _event_dto(doc, _lead_de(doc))
@@ -1062,6 +1120,9 @@ def duplicate_meeting(name, starts_on=None):
     }
     if src.get("custom_crm_lead"):
         campos["custom_crm_lead"] = src.custom_crm_lead
+    # La copia conserva la categoría (el prototipo lo exige: misma vertical).
+    if frappe.get_meta("Event").get_field("custom_crm_categoria"):
+        campos["custom_crm_categoria"] = _categoria(src.get("custom_crm_categoria"))
     copia = insertar_evento_sin_sync(campos)
     return _event_dto(copia, _lead_de(copia))
 

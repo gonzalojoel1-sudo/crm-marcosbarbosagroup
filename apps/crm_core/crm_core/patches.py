@@ -16,7 +16,7 @@ import frappe
 from frappe.utils import add_to_date, get_datetime
 
 # El campo que hace que la reunión sirva al CRM. `Event` vive en el app `frappe`
-# (Desk): NUNCA se re-declara el DocType, sólo se le agrega este Custom Field.
+# (Desk): NUNCA se re-declara el DocType, sólo se le agregan Custom Fields.
 CAMPOS_PERSONALIZADOS = {
     "Event": [
         {
@@ -25,6 +25,17 @@ CAMPOS_PERSONALIZADOS = {
             "fieldtype": "Link",
             "options": "CRM Lead",
             "insert_after": "event_category",
+        },
+        {
+            # Categoría de la agenda. Debe coincidir con `CATEGORIAS` en
+            # `crm_core/api.py`: son cinco valores fijos, decisión de producto
+            # (la paleta y los filtros del prototipo), no datos del usuario.
+            "fieldname": "custom_crm_categoria",
+            "label": "Categoría",
+            "fieldtype": "Select",
+            "options": "Trabajo\nMinisterial\nPersonal\nConsultora\nSoftware",
+            "default": "Trabajo",
+            "insert_after": "custom_crm_lead",
         },
     ],
 }
