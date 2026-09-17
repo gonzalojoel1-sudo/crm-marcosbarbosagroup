@@ -2,91 +2,145 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#100f0d">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prototipo · Grilla de agenda</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..600&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 /* ── Tokens reales del CRM (copiados de apps/web/src/styles.css) ───────── */
 :root {
-  --bg: #0c0c0e;
-  --surface: #141417;
-  --surface-2: #1a1a1f;
+  --bg: #100f0d;
+  --surface: #171614;
+  --surface-2: #1d1b18;
   --border: rgba(255, 255, 255, 0.08);
   --border-2: rgba(255, 255, 255, 0.15);
-  --fg: #f2f0eb;
+  --fg: #f4f1ea;
   --fg-dim: #8e8c94;
   --fg-faint: #5c5a62;
   --accent: #fe4100;
   --accent-2: #ff5c1f;
   --accent-soft: rgba(254, 65, 0, 0.12);
   --accent-line: rgba(254, 65, 0, 0.26);
-  --danger: #ff5a5a;
-  --ok: #34d399;
+  --danger: oklch(0.66 0.155 28);
+  --ok: #0d7c66;
   --r: 12px;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --ease: cubic-bezier(.23, 1, .32, 1);
 }
+html { color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body { height: 100%; }
+html,
+
+body { height: 100%; }
 body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
   font: 400 14px/1.45 Outfit, system-ui, sans-serif;
+  --display: Fraunces, Georgia, serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
   -webkit-font-smoothing: antialiased;
 }
-::selection { background: var(--accent-soft); }
+::selection { background: rgba(254, 65, 0, .22); color: #fff; }
+input, textarea { caret-color: var(--accent); }
+a { text-underline-offset: 2px; text-decoration-thickness: 1px; }
+:root { --focus: #fe4100; }        /* 5.45:1 sobre el fondo: cumple 1.4.11 */
+*:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, .85);   /* dos colores (C40): se ve sobre cualquier superficie */
+}
+button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.rangetitle, .grid-empty .ge-t { text-wrap: balance; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 999px; border: 3px solid var(--bg); }
 
-#stage { min-height: 100vh; }
+/* el picker es chrome: le reservo su franja. La app ocupa el alto exacto, sin scroll de pagina. */
+#stage { height: 100vh; box-sizing: border-box; padding-top: 62px; }
 
 /* ── Shell común a las tres variantes ─────────────────────────────────── */
-.shell { display: grid; grid-template-columns: 212px 1fr 208px; gap: 14px; padding: 16px 18px 96px; min-height: 100vh; }
-.side, .mini { display: flex; flex-direction: column; gap: 18px; }
+.shell { display: grid; grid-template-columns: 212px 1fr 208px; gap: 14px; padding: 14px 18px 16px; height: 100%; box-sizing: border-box; min-height: 0; }
+/* por debajo de 1560px el panel lateral se pliega: el ancho va a las columnas de dias */
+.shell[data-mini="off"] { grid-template-columns: 200px 1fr; }
+.shell[data-mini="off"] .mini { display: none; }
+.shell > main { display: flex; flex-direction: column; min-height: 0; }
+.side, .mini { display: flex; flex-direction: column; gap: 18px; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.side, .mini { background: var(--surface); border-radius: 14px; padding: 14px; }
+/* por debajo de 1560px el panel lateral se pliega: el ancho va a las columnas de dias */
+@media (max-width: 1559px) { .shell { grid-template-columns: 200px 1fr; } .shell .mini { display: none; } }
 .block-title {
-  font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
-  color: var(--fg-faint); margin: 0 0 7px;
+  font-size: 12.5px; font-weight: 600; letter-spacing: -.005em;
+  color: var(--fg); margin: 0 0 8px;
 }
-.cal { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 8px; cursor: pointer; transition: background 140ms ease-out; }
+.cal {
+  display: flex; align-items: center; gap: 8px; padding: 5px 6px;
+  width: 100%; border-radius: 8px; cursor: pointer;
+  background: none; border: 0; font: inherit; color: inherit; text-align: left;
+  transition: background 140ms ease-out;
+}
 .cal:hover { background: var(--surface); }
 .cal .dot { width: 9px; height: 9px; border-radius: 3px; flex: none; }
 .cal .name { font-size: 13px; color: var(--fg); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal .count { font-size: 11px; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.cal .count { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
 .cal[data-off] .name, .cal[data-off] .count { color: var(--fg-faint); }
 .cal[data-off] .dot { opacity: .3; }
 .chev { margin-left: auto; color: var(--fg-faint); }
 
-.topbar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
-.rangetitle { font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
-.rangecount { font-size: 12.5px; color: var(--fg-dim); }
-.topbar .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.topbar { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; flex-wrap: nowrap; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.skip {
+  position: fixed; top: 8px; left: 8px; z-index: 100;
+  transform: translateY(-200%); background: var(--accent); color: var(--bg);
+  font-size: 13px; font-weight: 600; padding: 8px 12px; border-radius: 8px;
+}
+.skip:focus { transform: none; }
+
+.rangetitle { margin: 0; font-family: var(--display); font-optical-sizing: auto; font-size: 23px; font-weight: 400; letter-spacing: -.015em; white-space: nowrap; flex: none; }
+.rangecount { font-size: 12.5px; color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-variant-numeric: tabular-nums; }
+.topbar .right { margin-left: auto; display: flex; gap: 6px; align-items: center; flex: none; }
 .btn {
   background: var(--surface); border: 1px solid var(--border); color: var(--fg);
   font: inherit; font-size: 12.5px; padding: 5px 11px; border-radius: 8px; cursor: pointer;
   transition: border-color 140ms ease-out, background 140ms ease-out;
 }
 .btn:hover { border-color: var(--border-2); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
 .btn.primary:hover { background: var(--accent-2); }
 .seg { display: inline-flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 2px; }
-.seg button { background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 12px; padding: 4px 9px; border-radius: 6px; cursor: pointer; }
+.seg button { background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 12px; padding: 4px 9px; border-radius: 6px; cursor: pointer; min-height: 24px; }
 .seg button.on { background: var(--surface-2); color: var(--fg); }
 
-.gridwrap { position: relative; }
-.heads { display: grid; gap: 0; }
-.days { display: grid; position: relative; }
-.gutter { position: relative; }
+.gridwrap {
+  position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+.heads {
+  display: grid; gap: 0; position: sticky; top: 0; z-index: 4;
+  background: var(--bg); border-bottom: 1px solid var(--border);
+  transition: box-shadow 160ms ease-out;
+}
+/* la sombra aparece solo cuando hay algo scrolleado debajo */
+.gridwrap[data-scrolled] .heads { box-shadow: 0 10px 14px -12px rgba(0,0,0,.85); }
+.days { display: grid; position: relative; flex: 1; min-height: 0; }
+.col.today-col { background: rgba(244,241,234,.022); }
+.gutter { position: relative; position: sticky; left: 0; z-index: 3; background: var(--bg); }
 .hourlab {
+  font-family: var(--mono); font-size: 11px; letter-spacing: -.02em; font-variant-numeric: tabular-nums;
   position: absolute; right: 8px; font-size: 11px; color: var(--fg-faint);
   font-variant-numeric: tabular-nums; letter-spacing: .01em;
 }
 .col { position: relative; }
 .colhead { display: flex; align-items: baseline; justify-content: center; gap: 5px; }
-.colhead .dow { font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--fg-faint); }
-.colhead .dom { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.colhead .dow { font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-faint); }
+.colhead .dom { font-size: 18px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
 .colhead.today .dom { color: var(--accent-2); }
 .hourline { position: absolute; left: 0; right: 0; pointer-events: none; }
 
@@ -94,122 +148,300 @@ body {
 .nowline .bar { height: 1.5px; background: var(--accent); }
 .nowline .knob { position: absolute; left: -4px; top: -3px; width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
 
-.ev { position: absolute; left: 4px; right: 4px; overflow: hidden; cursor: grab; text-align: left; font: inherit; color: var(--fg); }
+.ev {
+  position: absolute; overflow: visible; cursor: grab; text-align: left; font: inherit; color: var(--fg);
+  border: 0; appearance: none;
+  /* ancho = 1/carriles del grupo de solapamiento */
+  left: calc(var(--lane, 0) * (100% / var(--lanes, 1)) + 4px);
+  width: calc(100% / var(--lanes, 1) - 8px);
+}
 .ev:active { cursor: grabbing; }
 .ev .t { font-weight: 600; }
 .ev .m { font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
-.ev .grip { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; cursor: ns-resize; }
-.ev[data-compact] .grip { height: 5px; }
+/* El asa de redimensionar mide 24 px de alto y está centrada en el borde inferior:
+   12 px dentro del bloque y 12 fuera. Lo que crece es el ÁREA de puntero, no el glifo (SC 2.5.8). */
+.ev .grip { position: absolute; left: 0; right: 0; bottom: -12px; height: 24px; cursor: ns-resize; }
 .ev[data-busy] { cursor: default; }
 .ev .sync { width: 7px; height: 7px; border-radius: 999px; display: inline-block; margin-left: 5px; }
 .sync.ok { background: var(--ok); }
-.sync.pend { background: #f59e0b; }
+.sync.pend { background: oklch(0.76 0.115 72); }
 .sync.fail { background: var(--danger); }
 
 .droplab {
   position: fixed; z-index: 40; transform: translate(-50%, -124%);
-  background: rgba(10,10,10,.9); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-  border-radius: 8px; padding: 4px 9px; font-size: 12px; font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.1) inset, 0 6px 18px rgba(0,0,0,.4);
+  background: #1f1d19; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  border-radius: 10px; padding: 5px 10px; font-size: 12px; font-variant-numeric: tabular-nums;
+  font-family: var(--mono); letter-spacing: -.01em;
+  box-shadow: 0 8px 20px rgba(0,0,0,.45);
   pointer-events: none; white-space: nowrap;
 }
 .droplab b { font-weight: 600; }
 .droplab em { font-style: normal; color: var(--danger); }
 
 .mini .mgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.mini .mgrid span { font-size: 11.5px; text-align: center; color: var(--fg-dim); padding: 3px 0; border-radius: 6px; font-variant-numeric: tabular-nums; }
-.mini .mgrid span.h { color: var(--fg-faint); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
+.mini .mgrid span { font-family: var(--mono); font-size: 11px; text-align: center; color: var(--fg-dim); padding: 3px 0; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.mini .mgrid span.h { color: var(--fg-faint); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
 .mini .mgrid span.inrange { background: var(--surface); color: var(--fg); }
 .mini .mgrid span.today { background: var(--accent-soft); color: var(--accent-2); font-weight: 600; }
-.mini .mgrid span.ev::after { content: ""; display: block; width: 4px; height: 4px; border-radius: 999px; background: var(--fg-faint); margin: 2px auto 0; }
+.mini .mgrid span.has-ev::after { content: ""; display: block; width: 4px; height: 4px; border-radius: 999px; background: var(--fg-faint); margin: 2px auto 0; }
 .legend { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--fg-dim); }
 .legend div { display: flex; align-items: center; gap: 7px; }
 .legend i { width: 16px; height: 9px; border-radius: 3px; display: block; }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   VARIANTE 1 · PRECISO — la grilla es la protagonista
-   Hairlines al 9%, gutter monoespaciada, el evento es una línea etiquetada.
+   EL EJE QUE CAMBIA ENTRE LAS TRES ES CÓMO SE OCUPA EL VACÍO
+   Franja  = hundir las horas fuera de horario (BusyCal "shade the times")
+   Pliegue = colapsar las franjas vacías en una fila etiquetada (Google Labs)
+   Zoom    = control de densidad del alto de hora (Notion Calendar)
+   En las tres, el rango horario del evento está SIEMPRE visible.
    ═══════════════════════════════════════════════════════════════════════ */
-[data-variant="preciso"] .heads, [data-variant="preciso"] .days { grid-template-columns: 56px repeat(5, 1fr); }
-[data-variant="preciso"] .colhead { padding: 8px 0 9px; border-bottom: 1px solid rgba(255,255,255,.09); }
-[data-variant="preciso"] .hourline { border-top: 1px solid rgba(255,255,255,.085); }
-[data-variant="preciso"] .hourline.half { border-top: 1px dashed rgba(255,255,255,.045); }
-[data-variant="preciso"] .col { border-right: 1px solid rgba(255,255,255,.085); }
-[data-variant="preciso"] .col:last-child { border-right: 0; }
-[data-variant="preciso"] .ev {
-  border: 0; padding: 3px 7px; border-radius: 5px;
-  background: color-mix(in srgb, var(--c) 13%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 32%, transparent);
-}
-[data-variant="preciso"] .ev[data-compact] { padding: 2px 7px; }
-[data-variant="preciso"] .ev .t { font-size: 12.5px; display: block; line-height: 1.25; }
-[data-variant="preciso"] .ev .m { font-size: 11px; display: block; }
-[data-variant="preciso"] .ev .k { display: none; }
-[data-variant="preciso"] .ev[data-compact] .m { display: none; }
-[data-variant="bloque"] .ev[data-compact] { padding: 5px 9px; }
-[data-variant="bloque"] .ev[data-compact] .t { font-size: 12.5px; }
-[data-variant="preciso"] .slot:hover { background: rgba(255,255,255,.02); }
 
-/* ═══════════════════════════════════════════════════════════════════════
-   VARIANTE 2 · BLOQUE — el evento es la protagonista
-   Relleno suave con peso, la grilla como andamio casi invisible.
-   ═══════════════════════════════════════════════════════════════════════ */
-[data-variant="bloque"] .heads, [data-variant="bloque"] .days { grid-template-columns: 62px repeat(5, 1fr); }
-[data-variant="bloque"] .colhead { padding: 12px 0 12px; }
-[data-variant="bloque"] .hourline { border-top: 1px solid rgba(255,255,255,.035); }
-[data-variant="bloque"] .hourline.half { border-top: 0; }
-[data-variant="bloque"] .col { border-right: 1px solid rgba(255,255,255,.03); }
-[data-variant="bloque"] .col:last-child { border-right: 0; }
-[data-variant="bloque"] .ev {
-  background: color-mix(in srgb, var(--c) 22%, #141417);
-  border-radius: 10px; padding: 7px 9px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 34%, transparent), 0 1px 2px rgba(0,0,0,.3);
+.ev {
+  display: flex; flex-direction: column; gap: 1px;
+  background: var(--c);
+  border-radius: 12px; padding: 7px 10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 2px 6px rgba(0,0,0,.38);
+  transition: box-shadow 150ms ease-out, filter 150ms ease-out;
 }
-[data-variant="bloque"] .ev .t { font-size: 13px; letter-spacing: -.005em; display: block; }
-[data-variant="bloque"] .ev .m { display: block; margin-top: 1px; }
-[data-variant="bloque"] .ev .k { display: none; }
-[data-variant="bloque"] .ev[data-busy] {
-  background: repeating-linear-gradient(135deg, rgba(255,255,255,.035) 0 6px, transparent 6px 12px);
-  box-shadow: inset 0 0 0 1px var(--border);
+.ev:hover { filter: brightness(1.07); box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 5px 14px rgba(0,0,0,.45); }
+.ev .t { order: 1; font-weight: 500; font-size: 13px; line-height: 1.2; color: #fff; }
+/* el secundario se tine desde el propio bloque, nunca gris */
+.ev .m {
+  order: 2; font-family: var(--mono); font-size: 11px; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums; color: #fff; font-weight: 400;
 }
-[data-variant="bloque"] .ev[data-busy] .t { color: var(--fg-dim); font-weight: 500; }
-[data-variant="bloque"] .slot:hover { background: rgba(255,255,255,.018); }
+/* bajo: no se pierde el rango horario, se pone delante */
+.ev .t { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* en bloque bajo el titulo necesita el ancho: se muestra solo la hora de inicio */
+.ev[data-compact] { flex-direction: row; align-items: baseline; gap: 7px; padding: 5px 9px; border-radius: 9px; }
+.ev[data-compact] .m { order: 1; flex: none; }
+.ev[data-compact] .to { display: none; }
+.ev[data-compact] .t { order: 2; flex: 1; min-width: 0; -webkit-line-clamp: 1; font-size: 12.5px; white-space: nowrap; }
+/* mínimo: a esta altura solo entra una cosa, y esa cosa es el TITULO
+   (la hora ya la dicen la posición en la grilla, el gutter y el tooltip) */
+.ev[data-tiny] { flex-direction: row; align-items: center; padding: 3px 9px; }
+.ev[data-tiny] .m { display: none; }
+.ev[data-tiny] .t { display: -webkit-box; -webkit-line-clamp: 1; font-size: 12px; }
+/* comparte columna con otro evento: el titulo se queda con todo el ancho disponible */
+.ev[data-narrow] { padding: 6px 8px; }
+.ev[data-narrow] .m { display: none; }
+.ev[data-narrow] .t { display: -webkit-box; -webkit-line-clamp: 2; font-size: 12.5px; }
+.ev[data-busy] { background: #211f1b; box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.3); }
+.ev[data-busy] .t, .ev[data-busy] .m {
+  font-family: var(--mono); font-size: 11px; letter-spacing: .02em;
+  text-transform: uppercase; color: rgba(244,241,234,.55);
+}
 
-/* ═══════════════════════════════════════════════════════════════════════
-   VARIANTE 3 · FLUJO — la metáfora: el tiempo como cinta
-   Sin tabla. El alto ES la duración. El hueco libre es "disponible".
-   ═══════════════════════════════════════════════════════════════════════ */
-[data-variant="flujo"] .heads, [data-variant="flujo"] .days { grid-template-columns: 46px repeat(5, 1fr); }
-[data-variant="flujo"] .colhead { padding: 14px 0 16px; }
-[data-variant="flujo"] .hourline { border-top: 0; }
-[data-variant="flujo"] .col { border-right: 0; padding: 0 5px; }
-[data-variant="flujo"] .rail { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,.05); }
-[data-variant="flujo"] .free {
-  position: absolute; left: 5px; right: 5px;
-  background: radial-gradient(120% 80% at 50% 50%, rgba(255,255,255,.022), transparent 70%);
-  border-radius: 14px;
+/* Franja: la banda fuera de horario se hunde, no desaparece */
+.bandshade { position: absolute; left: 0; right: 0; background: rgba(0,0,0,.3); pointer-events: none; z-index: 1; }
+.bandlab {
+  position: absolute; left: 0; right: 0; text-align: center; transform: translateY(-50%);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--fg-faint); pointer-events: none; z-index: 2;
 }
-[data-variant="flujo"] .ev {
-  left: 0; right: 0;
-  background: color-mix(in srgb, var(--c) 26%, #0c0c0e);
-  border-radius: 999px; padding: 9px 13px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent), 0 4px 14px rgba(0,0,0,.35);
+
+/* Pliegue: la franja vacía se pliega a una fila fina, etiquetada y reversible */
+.bandfold {
+  position: absolute; left: 0; right: 0; display: flex; align-items: center;
+  justify-content: center; gap: 7px; cursor: pointer; font: inherit;
+  font-family: var(--mono); font-size: 11px; letter-spacing: .03em; color: var(--fg-dim);
+  background: rgba(244,241,234,.022); border: 0;
+  border-top: 1px solid rgba(244,241,234,.05);
+  border-bottom: 1px solid rgba(244,241,234,.05); z-index: 3;
 }
-[data-variant="flujo"] .ev .t { font-size: 13px; display: block; }
-[data-variant="flujo"] .ev .m { display: block; margin-top: 1px; font-size: 11px; }
-[data-variant="flujo"] .ev .k { display: none; }
-[data-variant="flujo"] .ev[data-compact] { padding: 7px 13px; }
-[data-variant="flujo"] .ev[data-compact] .m { display: none; }
-[data-variant="flujo"] .ev[data-busy] { background: rgba(255,255,255,.045); box-shadow: 0 0 0 1px var(--border); }
-[data-variant="flujo"] .hourlab { right: auto; left: 4px; background: var(--bg); padding: 0 4px; font-size: 10.5px; }
-[data-variant="flujo"] .inlinetime {
-  position: absolute; left: 50%; transform: translateX(-50%); z-index: 6;
-  font-size: 10.5px; font-weight: 500; color: var(--fg-faint);
-  background: var(--bg); padding: 1px 6px; border-radius: 999px; pointer-events: none;
-  font-variant-numeric: tabular-nums;
+.bandfold:hover { background: rgba(244,241,234,.055); color: var(--fg-dim); }
+.bandfold b { font-weight: 500; color: var(--fg-dim); }
+
+[data-variant="franja"] .heads, [data-variant="franja"] .days,
+[data-variant="pliegue"] .heads, [data-variant="pliegue"] .days,
+[data-variant="zoom"] .heads, [data-variant="zoom"] .days { grid-template-columns: 52px repeat(5, 1fr); }
+[data-variant="franja"] .colhead, [data-variant="pliegue"] .colhead, [data-variant="zoom"] .colhead { padding: 11px 0; }
+[data-variant="franja"] .hourline, [data-variant="pliegue"] .hourline, [data-variant="zoom"] .hourline { border-top: 1px solid rgba(244,241,234,.12); }
+[data-variant="franja"] .hourline.half, [data-variant="pliegue"] .hourline.half, [data-variant="zoom"] .hourline.half { border-top: 0; }
+[data-variant="franja"] .col, [data-variant="pliegue"] .col, [data-variant="zoom"] .col { border-right: 1px solid rgba(255,255,255,.09); }
+[data-variant="franja"] .col:last-child, [data-variant="pliegue"] .col:last-child, [data-variant="zoom"] .col:last-child { border-right: 0; }
+[data-variant="franja"] .slot:hover, [data-variant="pliegue"] .slot:hover, [data-variant="zoom"] .slot:hover { background: rgba(255,255,255,.018); }
+
+/* Zoom: el control de densidad */
+.zoomctl { display: flex; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; }
+.zoomctl button {
+  background: none; border: 0; color: var(--fg-dim); font: inherit; font-size: 11px;
+  padding: 3px 7px; border-radius: 6px; cursor: pointer; white-space: nowrap; min-height: 24px;
 }
+.zoomctl button.on { background: var(--surface); color: var(--fg); }
+.meswrap { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.mes { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.mes thead th {
+  text-align: left; font-family: var(--mono); font-size: 11px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--fg-faint);
+  padding: 0 8px 8px; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; background: var(--bg); z-index: 2;
+}
+.mcell { vertical-align: top; height: 104px; padding: 7px 8px; border-top: 1px solid var(--border); border-right: 1px solid rgba(255,255,255,.05); }
+.mcell:last-child { border-right: 0; }
+.mcell.hoy { background: rgba(254,65,0,.055); box-shadow: inset 0 2px 0 var(--accent); }
+.mnum { display: block; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg-dim); margin-bottom: 5px; }
+.mcell.hoy .mnum { color: var(--accent-2); }
+.mev {
+  display: flex; align-items: center; gap: 6px; width: 100%; text-align: left;
+  background: var(--surface); border: 0; border-radius: 5px;
+  padding: 3px 7px; margin-bottom: 3px; min-height: 24px;
+  font: inherit; color: var(--fg); cursor: pointer; overflow: hidden;
+  transition: background 140ms ease-out;
+}
+.mev:hover { background: var(--surface-2); }
+.mev-d { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.mev-h { font-family: var(--mono); font-size: 10.5px; color: var(--fg-dim); flex: none; }
+.mev-t { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mev.busy { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.mmas { background: none; border: 0; padding: 1px 6px; font: inherit; font-size: 11.5px; color: var(--fg-dim); cursor: pointer; text-align: left; width: 100%; border-radius: 5px; min-height: 24px; }
+.mmas:hover { background: var(--surface); color: var(--fg); }
+
+.lista { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 6px; }
+.ldia { display: grid; grid-template-columns: 168px 1fr; gap: 20px; padding: 16px 0; border-top: 1px solid var(--border); }
+.ldia:first-child { border-top: 0; padding-top: 4px; }
+.ldia-h { margin: 0; position: sticky; top: 0; align-self: start; display: flex; flex-direction: column; gap: 2px; }
+.ldia-n { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.ldia-c { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
+.ldia[data-today] .ldia-n { color: var(--accent-2); }
+.ldia-cuerpo { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; min-width: 0; }
+.ldia-nueva { min-height: 24px; }   /* objetivo de puntero >= 24x24 */
+.levs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.lev {
+  display: flex; align-items: baseline; gap: 12px; width: 100%; text-align: left;
+  background: var(--surface); border: 0; border-radius: 10px; padding: 9px 12px;
+  font: inherit; color: inherit; cursor: pointer; transition: background 140ms ease-out;
+}
+.lev:hover { background: var(--surface-2); }
+.lev-h { font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--fg-dim); flex: none; width: 122px; }
+.lev-t { flex: 1; min-width: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lev-c { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--fg-dim); flex: none; }
+.lev-c i { width: 8px; height: 8px; border-radius: 3px; display: block; }
+.lev.busy { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+/* verde legible: --ok sobre --surface da 3.5:1; este tono da 5.2:1 (texto normal) */
+.lev-p { font-family: var(--mono); font-size: 11px; color: #1f9a7e; flex: none; }
+.lvy { margin: 0; font-size: 13px; color: var(--fg-faint); }
+
+.grid-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; text-align: center; z-index: 5;
+}
+.grid-empty .ge-t { font-size: 14px; font-weight: 500; color: var(--fg); margin: 0; }
+.grid-empty .ge-s { font-size: 12.5px; color: var(--fg-dim); margin: 0 0 8px; max-width: 46ch; }
+
+.bandover { position: absolute; left: 52px; right: 0; top: 0; bottom: 0; pointer-events: none; z-index: 4; }
+.bandover .bandfold { pointer-events: auto; }
 
 .slot { position: absolute; left: 0; right: 0; cursor: crosshair; }
+
+/* ── Panel de reunión: 3ª columna del shell (no flota sobre los días) ────
+   Cuando está abierto reemplaza al panel del mes para no romper la grilla. */
+#panel {
+  grid-column: 3; align-self: start; background: var(--surface);
+  border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.shell[data-panel="on"] { grid-template-columns: 200px 1fr 320px; }
+.shell[data-panel="on"] .mini { display: none; }   /* el panel ocupa el lugar del mes */
+#panel h2 { margin: 0 0 4px; font-size: 14px; font-weight: 600; }
+#panel label { font-size: 12px; color: var(--fg-dim); }
+#panel input, #panel select, #panel textarea { background: var(--surface-2); border: 0; border-radius: 8px; padding: 8px 10px; font: inherit; color: var(--fg); width: 100%; min-height: 24px; }
+#panel textarea { resize: vertical; }
+#panel .p-hint { margin: -4px 0 0; font-size: 11px; color: var(--fg-dim); }
+#panel fieldset { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+#panel .p-dur { background: var(--surface-2); border: 0; border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 12px; color: var(--fg-dim); cursor: pointer; min-height: 24px; }
+#panel .p-dur.on { background: var(--accent); color: var(--bg); }
+#panel .p-acciones { display: flex; gap: 6px; margin-top: 6px; }
+
+/* ── Menú de la reunión: superficie de acciones sin arrastrar ─────────────
+   fixed (no empuja layout) por encima de la grilla (máx z 5) y del panel. */
+#menu {
+  position: fixed; z-index: 60;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: 10px; padding: 4px; min-width: 200px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+#menu [role="menuitem"] {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; min-height: 24px; padding: 4px 8px; text-align: left;
+  background: none; border: 0; border-radius: 7px; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--fg);
+}
+#menu [role="menuitem"]:hover,
+#menu [role="menuitem"]:focus-visible { background: var(--surface); }
+.m-tecla { font-family: var(--mono); font-size: 11px; color: var(--fg-dim); }
+
+/* Confirmación de "Eliminar": vive DENTRO del menú (no es un modal anidado).
+   El foco entra en "Sí, eliminar", así que un segundo Enter confirma; Escape
+   cancela sin escribir y devuelve el foco a la reunión. */
+#confirmar-eliminar { display: flex; flex-direction: column; gap: 6px; padding: 4px; min-width: 200px; }
+#confirmar-eliminar .cm-pregunta { margin: 0; font-size: 13px; color: var(--fg); }
+#confirmar-eliminar button {
+  min-height: 24px; padding: 4px 8px; text-align: left;
+  background: none; border: 0; border-radius: 7px; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--fg);
+}
+#confirmar-eliminar button:hover,
+#confirmar-eliminar button:focus-visible { background: var(--surface); }
+#confirmar-eliminar #eliminar-si { color: var(--danger); }
+
+/* ── "Mover a…": superficie de borrador, no un modo ──────────────────────
+   fixed como el menú (no empuja layout) y anclada al bloque que la abre.
+   Nada toca el evento hasta Aplicar; Escape no escribe. */
+#mover-dialog {
+  position: fixed; z-index: 61;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: 12px; padding: 10px; min-width: 250px; max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; gap: 7px;
+}
+#mover-dialog h2 { margin: 0; font-size: 13px; font-weight: 600; }
+#mover-dialog .mv-hora { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+#mover-dialog .mv-lab { display: block; font-size: 11px; color: var(--fg-dim); }
+#mover-dialog .mv-pasos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+#mover-dialog .mv-dias { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+/* pasos y destinos de día son <button>: el mismo control sirve al puntero y al teclado */
+#mover-dialog button[data-paso],
+#mover-dialog button[data-dia] {
+  min-width: 24px; min-height: 24px; padding: 3px 5px; line-height: 1.15;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--fg); font: inherit; font-size: 11.5px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+#mover-dialog button[data-paso]:hover:not(:disabled),
+#mover-dialog button[data-dia]:hover:not(:disabled) { border-color: var(--border-2); }
+#mover-dialog button[data-dia].on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+#mover-dialog button:disabled { opacity: .4; cursor: not-allowed; }
+#mover-dialog .mv-acciones { display: flex; gap: 6px; margin-top: 2px; }
+#mover-dialog .mv-acciones .btn { min-height: 24px; }
+
+/* ── "Cambiar duración…": mismo borrador que "Mover a…" ───────────────────
+   Presets y pasos son <button>: puntero y teclado usan los mismos controles.
+   El control que no puede cambiar la duración se deshabilita, no se recorta. */
+#dur-dialog {
+  position: fixed; z-index: 61;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: 12px; padding: 10px; min-width: 250px; max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; gap: 7px;
+}
+#dur-dialog h2 { margin: 0; font-size: 13px; font-weight: 600; }
+#dur-dialog .du-hora { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+#dur-dialog .du-lab { display: block; font-size: 11px; color: var(--fg-dim); }
+#dur-dialog .du-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+#dur-dialog .du-pasos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+#dur-dialog button[data-dpreset],
+#dur-dialog button[data-dpaso] {
+  min-width: 24px; min-height: 24px; padding: 3px 5px; line-height: 1.15;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+  color: var(--fg); font: inherit; font-size: 11.5px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+#dur-dialog button[data-dpreset]:hover:not(:disabled),
+#dur-dialog button[data-dpaso]:hover:not(:disabled) { border-color: var(--border-2); }
+#dur-dialog button[data-dpreset].on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+#dur-dialog button:disabled { opacity: .4; cursor: not-allowed; }
+#dur-dialog .du-acciones { display: flex; gap: 6px; margin-top: 2px; }
+#dur-dialog .du-acciones .btn { min-height: 24px; }
 
 /* ═══ Selector de variantes (verbatim de PICKER.md: es chrome, no diseño) ═══ */
 .proto-picker {
@@ -253,6 +485,7 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .proto-picker[data-ready] .proto-picker-highlight { transition: none; }
+  *, *::before, *::after { transition-duration: 1ms !important; animation-duration: 1ms !important; }
 }
 .proto-picker-item {
   position: relative;
@@ -279,12 +512,15 @@ body {
 </head>
 <body>
 <div id="stage"></div>
+<div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<a class="skip" href="#grilla">Saltar a la grilla</a>
 
 <nav class="proto-picker" data-position="top" aria-label="Prototype variants">
   <span class="proto-picker-highlight" aria-hidden="true"></span>
-  <button class="proto-picker-item" data-active aria-current="true">Preciso</button>
-  <button class="proto-picker-item">Bloque</button>
-  <button class="proto-picker-item">Flujo</button>
+  <button class="proto-picker-item" data-active aria-current="true">Franja</button>
+  <button class="proto-picker-item">Pliegue</button>
+  <button class="proto-picker-item">Zoom</button>
   <span class="proto-picker-divider" aria-hidden="true"></span>
   <button class="proto-picker-item proto-picker-replay" aria-label="Replay animation (R)">↻</button>
 </nav>
@@ -293,170 +529,1056 @@ body {
 /* ══════════════════════════════════════════════════════════════════════
    Datos realistas: las categorías y las verticales del grupo
    ══════════════════════════════════════════════════════════════════════ */
+/* Paleta: un solo croma (0,155) para que sea UNA familia; la luminosidad de cada
+   matiz la fija el contraste con texto blanco (>= 4.6:1). Bloques solidos, no tintes. */
 const CATS = {
-  trabajo:    { label: "Trabajo",    color: "#ff5a5a" },
-  ministerial:{ label: "Ministerial",color: "#4da3ff" },
-  personal:   { label: "Personal",   color: "#34d399" },
-  consultora: { label: "Consultora", color: "#fe4100" },
-  software:   { label: "Software",   color: "#8b5cf6" },
+  consultora: { label: "Consultora", color: "oklch(0.576 0.155 45)"  },
+  ministerial:{ label: "Ministerial",color: "oklch(0.558 0.155 245)" },
+  personal:   { label: "Personal",   color: "oklch(0.54 0.155 155)"  },
+  trabajo:    { label: "Trabajo",    color: "oklch(0.574 0.155 285)" },
+  software:   { label: "Software",   color: "oklch(0.58 0.155 330)"  },
 };
+// El mismo tinte que usan los bloques: la leyenda muestra lo que se ve, no el color crudo.
+const tint = (c) => c;   // los puntos muestran el color real del bloque
 const DAYS = ["Lun 15", "Mar 16", "Mié 17", "Jue 18", "Vie 19"];
-const START_H = 8, END_H = 21, SLOTS_PER_H = 4;
+const DIAS_LARGOS = ["lunes 15", "martes 16", "miércoles 17", "jueves 18", "viernes 19"];
+const START_H = 5, END_H = 21, SLOTS_PER_H = 4;
 
 let EVENTS = [
-  { day: 0, min: 8 * 60 + 30, dur: 45,  title: "Reunión de equipo",            cat: "trabajo",     origin: "CRM",     sync: "ok" },
-  { day: 0, min: 10 * 60,      dur: 60,  title: "Constructora Del Sur S.A.",  cat: "consultora",  origin: "CRM",     sync: "ok",   sub: "Diagnóstico 360°" },
-  { day: 0, min: 14 * 60 + 15, dur: 45,  title: "Revisión de propuesta",      cat: "software",    origin: "CRM",     sync: "pend", sub: "Cabral, Franco" },
-  { day: 0, min: 16 * 60,      dur: 90,  title: "Ocupado",                    cat: null,          origin: "Google",  sync: null,   busy: true },
-  { day: 1, min: 9 * 60,       dur: 30,  title: "Llamada: Oscar Vera",        cat: "consultora",  origin: "Reserva", sync: "ok",   sub: "Reservó por la web" },
-  { day: 1, min: 11 * 60 + 30, dur: 60,  title: "Ministerial · Cuerpo de Cristo", cat: "ministerial", origin: "CRM", sync: "ok" },
-  { day: 1, min: 15 * 60,      dur: 120, title: "Block: trabajo profundo",    cat: "personal",    origin: "CRM",     sync: "ok" },
-  { day: 2, min: 8 * 60,       dur: 60,  title: "Cuerpo de Cristo",           cat: "ministerial", origin: "Google",  sync: null,   busy: true },
-  { day: 2, min: 12 * 60 + 30, dur: 45,  title: "Almuerzo con Marcos",        cat: "personal",    origin: "Google",  sync: null,   busy: true },
-  { day: 2, min: 17 * 60,      dur: 60,  title: "Jonatan · Plan 3",           cat: "consultora",  origin: "Reserva", sync: "fail", sub: "Reintentando sincronizar" },
-  { day: 3, min: 10 * 60,      dur: 30,  title: "Seguimiento semanal",        cat: "trabajo",     origin: "CRM",     sync: "ok" },
-  { day: 3, min: 13 * 60 + 15, dur: 90,  title: "Taller: Software y Apps",    cat: "software",    origin: "CRM",     sync: "ok" },
-  { day: 4, min: 9 * 60 + 30,  dur: 45,  title: "Fernando Bustos · Plan 1",   cat: "consultora",  origin: "Reserva", sync: "ok" },
-  { day: 4, min: 12 * 60,      dur: 60,  title: "Ministerio · Los 1000 Socios",cat: "ministerial",origin: "CRM",     sync: "ok" },
-  { day: 4, min: 16 * 60 + 30, dur: 60,  title: "Legendarios · próximas fechas", cat: "ministerial", origin: "Google", sync: null, busy: true },
+  { day: 0, min: 8 * 60 + 30, dur: 45,  title: "Reunión de equipo",            cat: "trabajo",     origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 0, min: 10 * 60,      dur: 60,  title: "Constructora Del Sur S.A.",  cat: "consultora",  origin: "CRM",     sync: "ok",   notes: "", sub: "Diagnóstico 360°" },
+  { day: 0, min: 14 * 60 + 15, dur: 45,  title: "Revisión de propuesta",      cat: "software",    origin: "CRM",     sync: "pend", notes: "", sub: "Cabral, Franco" },
+  { day: 0, min: 16 * 60,      dur: 90,  title: "Ocupado",                    cat: null,          origin: "Google",  sync: null,   notes: "", busy: true },
+  { day: 1, min: 9 * 60,       dur: 30,  title: "Llamada: Oscar Vera",        cat: "consultora",  origin: "Reserva", sync: "ok",   notes: "", sub: "Reservó por la web" },
+  { day: 1, min: 11 * 60 + 30, dur: 60,  title: "Ministerial · Cuerpo de Cristo", cat: "ministerial", origin: "CRM", sync: "ok", notes: "" },
+  { day: 1, min: 15 * 60,      dur: 120, title: "Block: trabajo profundo",    cat: "personal",    origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 2, min: 8 * 60,       dur: 60,  title: "Cuerpo de Cristo",           cat: "ministerial", origin: "Google",  sync: null,   notes: "", busy: true },
+  { day: 2, min: 12 * 60 + 30, dur: 45,  title: "Almuerzo con Marcos",        cat: "personal",    origin: "Google",  sync: null,   notes: "", busy: true },
+  { day: 2, min: 17 * 60,      dur: 60,  title: "Jonatan · Plan 3",           cat: "consultora",  origin: "Reserva", sync: "fail", notes: "", sub: "Reintentando sincronizar" },
+  { day: 3, min: 10 * 60,      dur: 30,  title: "Seguimiento semanal",        cat: "trabajo",     origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 3, min: 13 * 60 + 15, dur: 90,  title: "Taller: Software y Apps",    cat: "software",    origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 1, min: 9 * 60,       dur: 60,  title: "Reunión de socios",          cat: "consultora", origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 1, min: 9 * 60 + 15,  dur: 45,  title: "Llamada: Estudio Norte",     cat: "ministerial",origin: "Reserva", sync: "ok",   notes: "" },
+  { day: 4, min: 9 * 60 + 30,  dur: 45,  title: "Fernando Bustos · Plan 1",   cat: "consultora",  origin: "Reserva", sync: "ok",   notes: "" },
+  { day: 4, min: 12 * 60,      dur: 60,  title: "Ministerio · Los 1000 Socios",cat: "ministerial",origin: "CRM",     sync: "ok",   notes: "" },
+  { day: 4, min: 16 * 60 + 30, dur: 60,  title: "Legendarios · próximas fechas", cat: "ministerial", origin: "Google", sync: null, notes: "", busy: true },
 ];
 
 const fmt = (min) => String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
 const snap = (min) => Math.round(min / 15) * 15;
 const cat = (k) => CATS[k] || { label: "", color: "#6b7280" };
 
+/* Anuncios: el nodo vive fuera del subarbol que se reemplaza, y se limpia
+   antes de escribir para que un mensaje identico repetido se vuelva a leer. */
+function announce(texto) {
+  const a = document.getElementById("announcer");
+  if (!a) return;
+  a.textContent = "";
+  requestAnimationFrame(() => { a.textContent = texto; });
+}
+
+/* SC 2.1.4: los atajos de UNA tecla del producto valen solo con el foco dentro de
+   un componente del producto (la grilla, su contenedor con scroll, el menú o la
+   barra de acciones/vistas). Sin ningún control enfocado (body) NO valen: "sin
+   foco" no es foco de componente. Con el foco en un campo u otro control, la tecla
+   es texto. El chrome del prototipo (1/2/3, r) queda global a propósito: no es UI
+   del producto. */
+const EN_GRILLA = () => {
+  const a = document.activeElement;
+  if (!a || a === document.body || a === document.documentElement) return false;
+  return !!a.closest("#grilla, .gridwrap, #menu, .hoy-btn, [data-view], [data-nueva]");
+};
+
 /* ══════════════════════════════════════════════════════════════════════
    Grilla + interacción (idéntica en las tres; cambia la presentación)
    ══════════════════════════════════════════════════════════════════════ */
-const HOUR_H = { preciso: 44, bloque: 52, flujo: 58 };
-let VARIANT = "preciso";
+const HOUR_H = { franja: 44, pliegue: 50, zoom: 44 };
+const ZOOM_STEPS = [ { m: 0.72, label: "Compacto" }, { m: 1, label: "Cómodo" }, { m: 1.32, label: "Amplio" } ];
+let ZOOM_MULT = 1.32;   // Amplio: la densidad elegida
+let PENDING_SCROLL = null;
+let FIRST_PAINT = true;   // la primera pintura abre en la hora actual
+const VIEWS = ["semana", "lista", "mes"];
+let VIEW = VIEWS.includes(new URLSearchParams(location.search).get("view"))
+  ? new URLSearchParams(location.search).get("view") : "semana";
+// El mes cuadra con la semana: el 15 es lunes, asi que el 1 tambien. Se muestran
+// solo los dias de semana (Lun a Vie), igual que la grilla: la semana de 15-19 es una fila.
+const MES = { dias: 30, hoy: 16, cols: ["lunes", "martes", "miércoles", "jueves", "viernes"] };
+const semanasDelMes = () => {
+  const filas = [];
+  for (let d = 1; d <= MES.dias; d++) {
+    const wd = (d - 1) % 7;
+    if (wd > 4) continue;                       // fin de semana: no se muestra
+    const w = Math.floor((d - 1) / 7);
+    (filas[w] = filas[w] || []).push(d);
+  }
+  return filas;
+};
+let OPEN = new Set();
+let HIDDEN = new Set();          // agendas (categorias) apagadas
+let HIDDEN_ORIGIN = new Set();   // origenes apagados (cubre los importados sin categoria)
+// Un evento se oculta por su agenda; si no tiene agenda (importado), por su origen.
+const oculto = (e) => (e.cat ? HIDDEN.has(e.cat) : HIDDEN_ORIGIN.has(e.origin));
+let VARIANT = "franja";
+
+const WORK_FROM = 9 * 60, WORK_TO = 18 * 60;   // horario del grupo (theme.ts)
+const NOW_MIN = 15 * 60 + 42;                  // "ahora" del prototipo: un solo lugar
+
+function bandsFrom() {
+  const busy = EVENTS.filter((e) => !e.busy);
+  if (!busy.length) return [];
+  const sorted = busy.slice().sort((a, b) => a.min - b.min);
+  const first = Math.floor(sorted[0].min / 30) * 30;
+  const last = Math.ceil(Math.max(...sorted.map((e) => e.min + e.dur)) / 30) * 30;
+  const from = Math.max(START_H * 60, first);
+  const to = Math.min(END_H * 60, last);
+  const out = [];
+  if (from - START_H * 60 > 30) out.push({ from: START_H * 60, to: from });
+  if (END_H * 60 - to > 30) out.push({ from: to, to: END_H * 60 });
+  return out;
+}
+
+const FOLD_H = 30;   // alto de una franja plegada
+let LAST_FIT = 0;    // alto de hora calculado para entrar en pantalla
+
+// El alto de hora se DERIVA del alto real disponible, no de una constante.
+function fitHourHeight() {
+  const wrap = document.querySelector(".gridwrap");
+  const heads = document.querySelector(".heads");
+  if (!wrap || !wrap.clientHeight) return 44;
+  const avail = wrap.clientHeight - (heads ? heads.getBoundingClientRect().height : 0) - 2;
+  const bands = VARIANT === "pliegue" ? bandsFrom() : [];
+  let foldPx = 0, foldHours = 0;
+  for (const b of bands) {
+    if (!OPEN.has(`${b.from}-${b.to}`)) { foldPx += FOLD_H; foldHours += (b.to - b.from) / 60; }
+  }
+  const freeHours = (END_H - START_H) - foldHours;
+  if (avail < 80 || freeHours <= 0) return 44;
+  return Math.max(22, (avail - foldPx) / freeHours);
+}
+
+// minuto que esta en el centro del area visible (para conservar el ancla al cambiar densidad)
+function centerTime() {
+  const wrap = document.querySelector(".gridwrap");
+  if (!wrap) return null;
+  const g = geom();
+  const midY = wrap.scrollTop + wrap.clientHeight / 2;
+  let lo = START_H * 60, hi = END_H * 60;
+  for (let i = 0; i < 26; i++) { const m = (lo + hi) / 2; if (g.yOf(m) < midY) lo = m; else hi = m; }
+  return Math.round((lo + hi) / 2);
+}
+function scrollToTime(min, smooth) {
+  const wrap = document.querySelector(".gridwrap");
+  if (!wrap || min == null) return;
+  const top = geom().yOf(min) - wrap.clientHeight / 2;
+  const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (smooth && !quieto) wrap.scrollTo({ top, behavior: "smooth" });
+  else wrap.scrollTop = top;
+}
+function jumpToNow() {
+  if (VIEW === "lista") {
+    const hoy = document.querySelector(".ldia[data-today]");
+    const quieto = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (hoy) hoy.scrollIntoView({ block: "start", behavior: quieto ? "auto" : "smooth" });
+    return;
+  }
+  scrollToTime(NOW_MIN, true);
+}
+
+// Teclado: la grilla scrollea sin mouse (el modelo Amplio vive de scrollear)
+function scrollKeys(ev) {
+  const wrap = document.querySelector(".gridwrap");
+  if (!wrap || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+  const g = geom();
+  const hora = g.hourH;
+  const paso = { ArrowDown: hora / 2, ArrowUp: -hora / 2, PageDown: wrap.clientHeight * 0.9, PageUp: -wrap.clientHeight * 0.9 };
+  if (ev.key in paso) { wrap.scrollTop += paso[ev.key]; ev.preventDefault(); }
+  else if (ev.key === "Home") { wrap.scrollTop = 0; ev.preventDefault(); }
+  else if (ev.key === "End") { wrap.scrollTop = wrap.scrollHeight; ev.preventDefault(); }
+  else if (ev.key === "h" || ev.key === "H") { jumpToNow(); ev.preventDefault(); }
+}
 
 function geom() {
-  const hourH = HOUR_H[VARIANT];
-  return {
-    hourH,
-    gridH: (END_H - START_H) * hourH,
-    yOf: (min) => ((min - START_H * 60) / 60) * hourH,
-    minOf: (y) => START_H * 60 + (y / hourH) * 60,
+  const fit = LAST_FIT || fitHourHeight();
+  const hourH = VARIANT === "zoom" ? fit * ZOOM_MULT : fit;
+  const bands = VARIANT === "pliegue" ? bandsFrom() : [];
+  const segs = [];
+  let cursor = START_H * 60;
+  for (const b of bands) {
+    if (b.from > cursor) segs.push({ from: cursor, to: b.from, h: ((b.from - cursor) / 60) * hourH });
+    const key = `${b.from}-${b.to}`;
+    segs.push({ from: b.from, to: b.to, collapsed: !OPEN.has(key), key,
+                h: OPEN.has(key) ? ((b.to - b.from) / 60) * hourH : FOLD_H });
+    cursor = b.to;
+  }
+  if (END_H * 60 > cursor) segs.push({ from: cursor, to: END_H * 60, h: ((END_H * 60 - cursor) / 60) * hourH });
+  const gridH = segs.reduce((a, s) => a + s.h, 0);
+  const yOf = (min) => {
+    let y = 0;
+    for (const s of segs) {
+      if (min < s.from) break;
+      if (min >= s.to) { y += s.h; continue; }
+      y += ((min - s.from) / (s.to - s.from)) * s.h;
+      break;
+    }
+    return y;
   };
+  // inversa de yOf: el click y el arrastre la necesitan (ya se llamaba g.minOf, faltaba acá)
+  const minOf = (y) => {
+    let acc = 0;
+    for (const s of segs) {
+      if (y <= acc + s.h) return s.from + ((y - acc) / s.h) * (s.to - s.from);
+      acc += s.h;
+    }
+    return END_H * 60;
+  };
+  return { hourH, gridH, segs, yOf, minOf };
 }
 
 const overlaps = (cand) => EVENTS.some((e) =>
   e.day === cand.day && !e.busy && e !== cand &&
   cand.min < e.min + e.dur && e.min < cand.min + cand.dur);
 
+/* Solapamiento: se agrupan los eventos que se tocan y se reparten en carriles.
+   El ancho de cada uno es 1/n del grupo, como Google Calendar y FullCalendar. */
+function layoutLanes(evs) {
+  const items = evs.slice().sort((a, b) => a.min - b.min || b.dur - a.dur);
+  const groups = [];
+  let group = [], groupEnd = -1;
+  for (const e of items) {
+    if (group.length && e.min >= groupEnd) { groups.push(group); group = []; groupEnd = -1; }
+    group.push(e);
+    groupEnd = Math.max(groupEnd, e.min + e.dur);
+  }
+  if (group.length) groups.push(group);
+  const out = new Map();
+  for (const g of groups) {
+    const laneEnds = [], assign = new Map();
+    for (const e of g) {
+      let l = 0;
+      while (l < laneEnds.length && laneEnds[l] > e.min) l++;
+      laneEnds[l] = e.min + e.dur;
+      assign.set(e, l);
+    }
+    for (const e of g) out.set(e, { lane: assign.get(e), lanes: laneEnds.length });
+  }
+  return out;
+}
+
 function renderEvent(e, g) {
   const c = cat(e.cat);
   const top = g.yOf(e.min), h = Math.max((e.dur / 60) * g.hourH - 2, 22);
-  const compact = h < 46;
-  const sync = e.sync ? `<span class="sync ${e.sync}" title="Sincronización"></span>` : "";
-  return `<button class="ev" data-i="${EVENTS.indexOf(e)}" data-compact
-    style="top:${top}px;height:${h}px;--c:${c.color}" ${e.busy ? "data-busy" : ""}>
+  const compact = h < 46, tiny = h < 26;
+  const narrow = e.laneCount > 1;
+  const sync = (e.sync && e.sync !== "ok")
+    ? `<span class="sync ${e.sync}" title="${e.sync === "pend" ? "Sin sincronizar con Google" : "Falló la sincronización"}"></span>`
+    : "";
+  const range = `${fmt(e.min)} – ${fmt(e.min + e.dur)}${e.origin === "Reserva" ? " · web" : ""}`;
+  const lane = e.lane == null ? 1 : e.lane;
+  const abierto = MENU && MENU.i === EVENTS.indexOf(e);
+  return `<button class="ev" data-i="${EVENTS.indexOf(e)}" ${compact ? "data-compact" : ""} ${tiny ? "data-tiny" : ""} ${h < 24 ? "data-densa" : ""} ${narrow ? "data-narrow" : ""}
+    style="top:${top}px;height:${h}px;--c:${c.color};--lane:${e.lane};--lanes:${e.laneCount}" ${e.busy ? "data-busy" : ""}
+    ${e.busy ? "" : `aria-haspopup="menu" aria-expanded="${abierto ? "true" : "false"}"`}
+    title="${e.title} · ${range}"
+    aria-label="${DIAS_LARGOS[e.day]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", ocupado, importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
     <span class="k"></span>
+    <span class="m">${fmt(e.min)}<span class="to"> – ${fmt(e.min + e.dur)}</span></span>
     <span class="t">${e.title}${sync}</span>
-    <span class="m">${fmt(e.min)} – ${fmt(e.min + e.dur)}${e.origin === "Reserva" ? " · web" : ""}</span>
     ${e.busy ? "" : '<span class="grip" title="Estirar para cambiar la duración"></span>'}
   </button>`;
 }
 
+function bandOverlay(g) {
+  if (VARIANT === "franja") {
+    return `<div class="bandover" aria-hidden="true">${[[START_H * 60, WORK_FROM], [WORK_TO, END_H * 60]]
+      .filter(([a, b]) => b - a >= 60)
+      .map(([a, b]) => `<div class="bandshade" style="top:${g.yOf(a)}px;height:${g.yOf(b) - g.yOf(a)}px"></div>
+        <span class="bandlab" style="top:${(g.yOf(a) + g.yOf(b)) / 2}px">fuera de horario</span>`)
+      .join("")}</div>`;
+  }
+  if (VARIANT === "pliegue") {
+    return `<div class="bandover" aria-hidden="true">${g.segs.filter((s) => s.collapsed)
+      .map((s) => `<button class="bandfold" data-band="${s.key}" style="top:${g.yOf(s.from)}px;height:${s.h}px" title="Mostrar las horas vacías">
+        <b>${fmt(s.from)} – ${fmt(s.to)}</b> sin eventos</button>`)
+      .join("")}</div>`;
+  }
+  return "";
+}
+
 function renderCol(day, g) {
-  const evs = EVENTS.filter((e) => e.day === day);
+  const evs = EVENTS.filter((e) => e.day === day && !oculto(e));
+  const lanes = layoutLanes(evs);
+  for (const e of evs) { const L = lanes.get(e); e.lane = L ? L.lane : 0; e.laneCount = L ? L.lanes : 1; }
   const lines = [];
-  for (let h = START_H; h <= END_H; h++) {
-    lines.push(`<div class="hourline" style="top:${g.yOf(h * 60)}px"></div>`);
-    if (h < END_H) lines.push(`<div class="hourline half" style="top:${g.yOf(h * 60 + 30)}px"></div>`);
-  }
-  // huecos libres (solo en Flujo, donde el vacío es información)
-  const free = [];
-  if (VARIANT === "flujo") {
-    let cursor = START_H * 60;
-    for (const e of evs.slice().sort((a, b) => a.min - b.min)) {
-      if (e.min - cursor > 30) free.push(`<div class="free" style="top:${g.yOf(cursor)}px;height:${((e.min - cursor) / 60) * g.hourH - 4}px"></div>`);
-      cursor = Math.max(cursor, e.min + e.dur);
+  for (const s of g.segs) {
+    if (s.collapsed) continue;
+    const h0 = Math.ceil(s.from / 60), h1 = Math.floor(s.to / 60);
+    for (let h = h0; h <= h1; h++) {
+      const m = h * 60;
+      lines.push(`<div class="hourline" aria-hidden="true" style="top:${g.yOf(m)}px"></div>`);
+      if (h < END_H) lines.push(`<div class="hourline half" aria-hidden="true" style="top:${g.yOf(m + 30)}px"></div>`);
     }
-    if (END_H * 60 - cursor > 30) free.push(`<div class="free" style="top:${g.yOf(cursor)}px;height:${((END_H * 60 - cursor) / 60) * g.hourH - 4}px"></div>`);
   }
-  return `<div class="col" data-day="${day}" style="height:${g.gridH}px">
-    ${VARIANT === "flujo" ? '<div class="rail"></div>' : ""}
-    ${free.join("")}${lines.join("")}
+  return `<div class="col${day === 1 ? " today-col" : ""}" data-day="${day}" style="height:${g.gridH}px">
+    ${lines.join("")}
     <div class="slots"></div>
     ${evs.map((e) => renderEvent(e, g)).join("")}
   </div>`;
 }
 
+/* Vista Mes: un mes ES dato tabular, asi que va una TABLA NATIVA
+   (semanas como filas, dias de semana como columnas). Nada de role=grid. */
+function renderMonth() {
+  const filas = semanasDelMes();
+  const evsDe = (d) => EVENTS.filter((e) => e.day === d - 15 && !oculto(e)).sort((a, b) => a.min - b.min);
+  return `<div class="meswrap" role="region" aria-label="Septiembre de 2026, de lunes a viernes">
+    <table class="mes">
+      <caption class="sr-only">Septiembre de 2026. Se muestran los días de lunes a viernes.</caption>
+      <thead><tr>${MES.cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
+      <tbody>${filas.map((semana) => `<tr>
+        ${semana.map((d) => {
+          const evs = evsDe(d);
+          const esHoy = d === MES.hoy;
+          return `<td class="mcell${esHoy ? " hoy" : ""}"${esHoy ? ' aria-current="date"' : ""}>
+            <span class="mnum">${d}</span>
+            ${evs.slice(0, 3).map((e) => `<button class="mev${e.busy ? " busy" : ""}"
+              title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"
+              aria-label="${MES.cols[(d - 1) % 7]} ${d} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}">
+              <span class="mev-d" style="background:${e.cat ? cat(e.cat).color : "var(--fg-faint)"}"></span>
+              <span class="mev-h">${fmt(e.min)}</span><span class="mev-t">${e.title}</span></button>`).join("")}
+            ${evs.length > 3 ? `<button class="mmas" data-ver-lista>+${evs.length - 3} más</button>` : ""}
+          </td>`;
+        }).join("")}
+        ${Array.from({ length: 5 - semana.length }, () => '<td class="mcell vacia" aria-hidden="true"></td>').join("")}
+      </tr>`).join("")}</tbody>
+    </table>
+  </div>`;
+}
+
+/* Vista Lista: la alternativa accesible. Una grilla 2D de tiempo es dificil de
+   recorrer con lector de pantalla; una lista de secciones por dia, no. Es un
+   compuesto APG: un solo tab stop (roving tabindex), flechas adentro y cada fila
+   abre el MISMO menú que un bloque de la grilla. */
+function renderList() {
+  const filas = DAYS.map((_, i) =>
+    EVENTS.filter((e) => e.day === i && !oculto(e)).sort((a, b) => a.min - b.min));
+  const plano = filas.flat();
+  // La fila tabbable es la que el usuario dejó enfocada; si desapareció (se ocultó
+  // su agenda, se borró), recae en la primera fila visible.
+  ROVING = ROVING && plano.includes(ROVING) ? ROVING : (plano[0] || null);
+  return `<div class="lista" id="grilla" role="region" aria-label="Lista de reuniones de la semana" tabindex="-1">${
+    DAYS.map((_, i) => {
+      const evs = filas[i];
+      const id = `ldia-${i}`;
+      return `<section class="ldia" aria-labelledby="${id}"${i === 1 ? ' data-today=""' : ""}>
+        <h3 class="ldia-h" id="${id}">
+          <span class="ldia-n">${DIAS_LARGOS[i]} de septiembre</span>
+          <span class="ldia-c">${evs.length ? `${evs.length} reunión${evs.length > 1 ? "es" : ""}` : "sin reuniones"}</span>
+        </h3>
+        <div class="ldia-cuerpo">
+          <button class="ldia-nueva btn" data-nueva-dia="${i}">Nueva reunión</button>
+          ${evs.length
+          ? `<ul class="levs">${evs.map((e) => {
+              const abierto = MENU && MENU.i === EVENTS.indexOf(e);
+              return `<li>
+              <button class="lev${e.busy ? " busy" : ""}" data-i="${EVENTS.indexOf(e)}" tabindex="${e === ROVING ? "0" : "-1"}"${e.busy ? " data-busy" : ""}
+                title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"${e.busy ? "" : ` aria-haspopup="menu" aria-expanded="${abierto ? "true" : "false"}"`}
+                aria-label="${DIAS_LARGOS[i]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
+                <span class="lev-h">${fmt(e.min)} – ${fmt(e.min + e.dur)}</span>
+                <span class="lev-t">${e.title}</span>
+                ${e.cat && !e.busy ? `<span class="lev-c"><i style="background:${cat(e.cat).color}"></i>${cat(e.cat).label}</span>` : ""}
+                ${e.busy ? '<span class="lev-c">de Google</span>' : ""}
+                ${e.sync && e.sync !== "ok" ? '<span class="lev-p">sin sincronizar</span>' : ""}
+              </button></li>`;
+            }).join("")}</ul>`
+          : '<p class="lvy">Sin reuniones</p>'}
+        </div>
+      </section>`;
+    }).join("")
+  }</div>`;
+}
+
+/* La reunión se pinta distinto según la vista (bloque en la grilla, fila en la
+   Lista), pero las dos formas llevan data-i y abren el MISMO menú. Este es el
+   único punto que conoce las dos: posicionamiento y acciones no se duplican. */
+function bloqueDe(i) {
+  return document.querySelector(`#grilla .ev[data-i="${i}"], #grilla .lev[data-i="${i}"]`);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Panel de creación/edición: NO es un modo. Se abre, hace una cosa y se
+   cierra; la grilla queda detrás, visible y operable (nunca lo tapa).
+   ══════════════════════════════════════════════════════════════════════ */
+let PANEL = null;   // { dia, min, dur, evento } | null
+
+function abrirPanel({ dia, min, dur, evento = null }) {
+  MENU = null;   // el panel y el menú nunca conviven: abrir el panel cierra el menú
+  PANEL = { dia, min, dur, evento };
+  mount(current);
+  // el panel recién existe tras el re-render de mount(): por eso el foco va en el siguiente frame.
+  // Mover el foco ES el anuncio (el nombre accesible trae día, hora y título): nunca se
+  // anuncia y se mueve el foco a la vez, son alternativas.
+  requestAnimationFrame(() => {
+    document.querySelector("#panel input, #panel textarea")?.focus();
+  });
+}
+
+function cerrarPanel({ volverFoco = true } = {}) {
+  PANEL = null;
+  mount(current);
+  if (volverFoco) requestAnimationFrame(() => {
+    // sin evento enfocable (Lista vacía/Mes o grilla vacía) cae en un control estable del stage
+    const destino = document.querySelector("#grilla .ev, #grilla .lev")
+      || document.querySelector("#stage button");
+    destino?.focus();
+  });
+}
+
+/* Guardar cierra el ciclo: crea o actualiza, re-renderiza y deja el foco en el
+   elemento afectado. Mover el foco ES el anuncio (su nombre accesible trae día,
+   hora y título): si el foco cambia no se anuncia; si el bloque no se pintó (por
+   ejemplo su agenda está oculta) no hay foco posible y entonces sí se anuncia. */
+function guardarPanel(datos) {
+  const { evento } = PANEL;   // leer antes de cerrar: cerrarPanel deja PANEL en null
+  if (evento) {
+    evento.title = datos.titulo; evento.min = datos.min; evento.dur = datos.dur;
+    evento.cat = datos.cat; evento.day = datos.dia; evento.notes = datos.notes;
+    cerrarPanel({ volverFoco: false });
+    requestAnimationFrame(() => {
+      const el = bloqueDe(EVENTS.indexOf(evento));
+      if (el) el.focus();
+      else announce(`Actualizada ${evento.title}, ${DIAS_LARGOS[evento.day]} de ${fmt(evento.min)} a ${fmt(evento.min + evento.dur)}`);
+    });
+    return;
+  }
+  const nuevo = { day: datos.dia, min: datos.min, dur: datos.dur, title: datos.titulo, cat: datos.cat, origin: "CRM", sync: "ok", notes: datos.notes };
+  EVENTS.push(nuevo);
+  cerrarPanel({ volverFoco: false });
+  requestAnimationFrame(() => {
+    const el = bloqueDe(EVENTS.indexOf(nuevo));
+    if (el) el.focus();
+    else announce(`Creada ${nuevo.title}, ${DIAS_LARGOS[nuevo.day]} de ${fmt(nuevo.min)} a ${fmt(nuevo.min + nuevo.dur)}`);
+  });
+}
+
+function renderPanel() {
+  if (!PANEL) return "";
+  const { dia, min, dur, evento } = PANEL;
+  const fin = min + dur;
+  const rango = `${fmt(min)} – ${fmt(fin)}`;
+  const titulo = evento ? `Editar · ${evento.title} · ${DIAS_LARGOS[dia]}, ${rango}` : `Nueva reunión · ${DIAS_LARGOS[dia]}, ${rango}`;
+  const catSel = evento ? evento.cat : "consultora";
+  return `<aside id="panel" role="dialog" aria-modal="false" aria-labelledby="panel-titulo">
+    <h2 id="panel-titulo">${titulo}</h2>
+    <form id="panel-form">
+      <label for="p-titulo">Título</label>
+      <input id="p-titulo" name="titulo" autocomplete="off" value="${evento ? evento.title : ""}">
+      <label for="p-cat">Agenda</label>
+      <select id="p-cat" name="cat">${Object.entries(CATS).map(([k, v]) => `<option value="${k}"${k === catSel ? " selected" : ""}>${v.label}</option>`).join("")}</select>
+      <label for="p-dia">Día</label>
+      <select id="p-dia" name="dia">${DAYS.map((d, i) => `<option value="${i}"${i === dia ? " selected" : ""}>${d}</option>`).join("")}</select>
+      <label for="p-inicio">Hora de inicio</label>
+      <p class="p-hint" id="p-inicio-ayuda">Formato 24 h, por ejemplo 09:30</p>
+      <input id="p-inicio" name="inicio" inputmode="numeric" value="${fmt(min)}" aria-describedby="p-inicio-ayuda">
+      <fieldset><legend>Duración</legend>
+        ${[15, 30, 45, 60, 90].map((d) => `<button type="button" class="p-dur${d === dur ? " on" : ""}" data-dur="${d}" aria-pressed="${d === dur}">${d} min</button>`).join("")}
+      </fieldset>
+      <label for="p-notas">Notas</label>
+      <textarea id="p-notas" name="notas" rows="3">${evento ? (evento.notes || "") : ""}</textarea>
+      <div class="p-acciones">
+        <button type="submit" class="btn primary">Guardar</button>
+        <button type="button" class="btn" data-cerrar-panel>Cancelar</button>
+      </div>
+    </form>
+  </aside>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Menú de la reunión: la superficie que vuelve alcanzables sin arrastrar
+   las acciones sobre una reunión. `Enter` sobre un bloque enfocado abre el
+   menú (un solo significado en todo el prototipo); "Editar" abre el panel.
+   Solo se renderizan las acciones YA implementadas: un ítem que no hace
+   nada es un defecto. Las tareas 6/7/8 suman su id a ACCIONES_HECHAS.
+   ══════════════════════════════════════════════════════════════════════ */
+let MENU = null;    // { i, x, y } | null
+let ROVING = null;  // evento cuya fila es el único tab stop de la Lista (roving tabindex)
+
+const ACCIONES = [
+  { id: "editar",   label: "Editar",            tecla: "E" },
+  { id: "mover",    label: "Mover a…",          tecla: "M" },
+  { id: "duracion", label: "Cambiar duración…", tecla: "D" },
+  { id: "duplicar", label: "Duplicar",          tecla: "" },
+  { id: "eliminar", label: "Eliminar",          tecla: "Supr" },
+];
+const ACCIONES_HECHAS = new Set(["editar", "mover", "duracion", "duplicar", "eliminar"]);
+
+// La tecla que muestra cada ítem tiene que hacer algo (si no, es una promesa falsa):
+// los atajos de una letra se comparan directo; "Supr" es multitecla y el navegador
+// lo entrega como "Delete" (otros motores, como "Del").
+function teclaDeAccion(a, key) {
+  const t = (a.tecla || "").toLowerCase();
+  if (!t) return false;
+  if (t.length === 1) return t === key.toLowerCase();
+  return t === "supr" && (key === "Delete" || key === "Del");
+}
+
+function abrirMenu(i) {
+  const el = bloqueDe(i);
+  if (!el || el.hasAttribute("data-busy")) return;   // los importados de Google son de solo lectura
+  const r = el.getBoundingClientRect();
+  MENU = { i, x: r.left, y: r.bottom + 4 };
+  // Se inserta el menú directo en el DOM, sin re-renderizar la grilla: así no se
+  // pierde el scroll ni el control bajo el puntero, y el ancla no se corre.
+  document.getElementById("menu")?.remove();
+  document.querySelectorAll('#grilla .ev[aria-expanded="true"], #grilla .lev[aria-expanded="true"]')
+    .forEach((x) => x.setAttribute("aria-expanded", "false"));
+  document.getElementById("stage").insertAdjacentHTML("beforeend", renderMenu());
+  el.setAttribute("aria-expanded", "true");
+  // El foco entra al menú YA: si una flecha llegara en el mismo frame, el menú ya
+  // tiene el foco y no se lo trata como huérfano. Mover el foco ES el anuncio:
+  // abrir nunca anuncia. El posicionamiento sí espera al layout.
+  document.querySelector('#menu [role="menuitem"]')?.focus();
+  requestAnimationFrame(posicionarMenu);
+}
+
+// Cierra el menú sin re-renderizar ni mover el foco: el control que recibió el
+// pointerdown tiene que sobrevivir para que su click llegue.
+function desmontarMenu() {
+  MENU = null;
+  document.getElementById("menu")?.remove();
+  document.querySelectorAll('#grilla .ev[aria-expanded="true"], #grilla .lev[aria-expanded="true"]')
+    .forEach((x) => x.setAttribute("aria-expanded", "false"));
+}
+
+function cerrarMenu({ volverFoco = true } = {}) {
+  const i = MENU?.i;
+  desmontarMenu();
+  // Devolver el foco a la reunión también es el anuncio: cerrar nunca anuncia.
+  if (volverFoco) requestAnimationFrame(() => {
+    bloqueDe(i)?.focus();
+  });
+}
+
+// El menú es fixed pero se ancla al bloque: si se saldría de la ventana, se da vuelta.
+function posicionarMenu() {
+  const m = document.getElementById("menu");
+  if (!m || !MENU) return;
+  const b = m.getBoundingClientRect();
+  const x = Math.max(4, Math.min(MENU.x, innerWidth - b.width - 4));
+  let y = MENU.y;
+  if (y + b.height > innerHeight - 4) y = MENU.y - b.height - 8;
+  y = Math.max(4, Math.min(y, innerHeight - b.height - 4));
+  m.style.left = `${x}px`;
+  m.style.top = `${y}px`;
+}
+
+function renderMenu() {
+  if (!MENU) return "";
+  const e = EVENTS[MENU.i];
+  const acciones = ACCIONES.filter((a) => ACCIONES_HECHAS.has(a.id));
+  return `<div id="menu" role="menu" aria-label="Acciones para ${e.title}"
+      style="left:${MENU.x}px;top:${MENU.y}px">
+    ${acciones.map((a) => `<button type="button" role="menuitem" data-accion="${a.id}" aria-label="${a.label}">${a.label}${a.tecla ? `<span class="m-tecla" aria-hidden="true">${a.tecla}</span>` : ""}</button>`).join("")}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   "Duplicar" y "Eliminar": acciones del menú. Duplicar es inmediato (una copia
+   en el mismo día/hora, y el foco pasa a la copia); Eliminar pide confirmación
+   EN LÍNEA dentro del propio menú, no en un modal anidado. Ninguna usa mount():
+   paint() recrea la grilla y el scroll se conserva, como en "Mover a…".
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Duplicar NO anuncia: el foco pasa a la copia y su nombre accesible ya trae
+   día, hora, título y categoría, así que mover el foco ES el anuncio. El bloque
+   que abre el menú está renderizado (su agenda está visible), así que la copia
+   —misma categoría y origen— también lo está: el foco siempre tiene destino. */
+function duplicarEvento(i) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const copia = { day: e.day, min: e.min, dur: e.dur, title: `${e.title} (copia)`, cat: e.cat, origin: e.origin, sync: e.sync, notes: e.notes || "" };
+  if (e.sub) copia.sub = e.sub;   // lane/laneCount los recalcula renderCol
+  EVENTS.push(copia);
+  cerrarMenu({ volverFoco: false });
+  paintConservandoScroll();
+  bloqueDe(EVENTS.indexOf(copia))?.focus();
+}
+
+/* La confirmación reemplaza a la lista de acciones DENTRO del mismo #menu.
+   El foco entra en "Sí, eliminar", cuyo nombre accesible trae el título: mover
+   el foco ES el anuncio de la pregunta (no se anuncia aparte, por alternancia). */
+function abrirConfirmarEliminar() {
+  if (!MENU) return;
+  MENU.confirm = true;
+  const m = document.getElementById("menu");
+  if (!m) return;
+  m.innerHTML = renderConfirmar(MENU.i);
+  requestAnimationFrame(() => { posicionarMenu(); document.querySelector("#eliminar-si")?.focus(); });
+}
+
+function renderConfirmar(i) {
+  const e = EVENTS[i];
+  if (!e) return "";
+  return `<div id="confirmar-eliminar" role="group" aria-label="Confirmar eliminación de ${e.title}">
+    <p class="cm-pregunta">¿Eliminar ${e.title}?</p>
+    <button type="button" id="eliminar-si" aria-label="Sí, eliminar ${e.title}">Sí, eliminar</button>
+    <button type="button" id="eliminar-no">Cancelar</button>
+  </div>`;
+}
+
+/* Al borrar, el elemento deja de existir y el foco cae forzosamente en OTRO
+   objeto (un vecino o la grilla): el lector leería al vecino, no la eliminación.
+   Por eso acá SÍ se anuncia, además de mover el foco.
+   Grilla: vecino = bloque más cercano en el mismo día; si el día quedó vacío, va a #grilla.
+   Lista (APG): vecino = la fila siguiente en orden de DOM; si era la última, la
+   anterior; si el día quedó vacío, la siguiente fila es el primer evento del día
+   siguiente; sin filas, el contenedor. MUI tuvo que escribir esto a mano: por eso
+   se resuelve explícitamente y se mide. */
+function eliminarEvento(i) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const esLista = !!document.getElementById("grilla")?.classList.contains("lista");
+  let objetivoLista = null;
+  if (esLista) {
+    const filas = [...document.querySelectorAll("#grilla .lev")];
+    const pos = filas.findIndex((el) => Number(el.dataset.i) === i);
+    const vecino = filas[pos + 1] || filas[pos - 1];
+    objetivoLista = vecino ? EVENTS[Number(vecino.dataset.i)] : null;
+    ROVING = objetivoLista;   // la fila vecina pasa a ser el único tab stop
+  }
+  MENU = null;
+  document.getElementById("menu")?.remove();
+  EVENTS.splice(i, 1);
+  paintConservandoScroll();
+  announce(`Eliminada ${e.title}, ${DIAS_LARGOS[e.day]} a las ${fmt(e.min)}`);
+  if (esLista) {
+    const destino = objetivoLista ? bloqueDe(EVENTS.indexOf(objetivoLista)) : null;
+    if (destino) { destino.focus(); destino.scrollIntoView({ block: "nearest" }); return; }
+    document.getElementById("grilla")?.focus();
+    return;
+  }
+  const vecino = vecinoDe(e.day, e.min);
+  if (vecino) { vecino.focus(); return; }
+  const g = document.getElementById("grilla");
+  if (g && g.hasAttribute("tabindex")) { g.focus(); return; }
+  document.querySelector("#stage button")?.focus();
+}
+
+function vecinoDe(day, min) {
+  let mejor = null, dist = Infinity;
+  for (const el of document.querySelectorAll("#grilla .ev")) {
+    const ev = EVENTS[Number(el.dataset.i)];
+    if (!ev || ev.day !== day) continue;
+    const d = Math.abs(ev.min - min);
+    if (d < dist) { dist = d; mejor = el; }
+  }
+  return mejor;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Nudge por teclado: mover y redimensionar la reunión ENFOCADA sin puntero
+   (SC 2.1.1: todo es operable por teclado). No usa mount() —que reinicia el
+   scroll de la grilla—: repinta conservando el scroll y re-enfoca el bloque.
+   Repintar crea un nodo NUEVO cuyo nombre accesible ya trae el día/hora/
+   duración nuevos, así que ENFOCARLO ES EL ANUNCIO (alternancia): acá no se
+   llama a announce(). El rechazo contra un borde SÍ se anuncia: ahí no hay
+   repintado ni cambio de foco y sin mensaje no habría ninguna señal.
+   ══════════════════════════════════════════════════════════════════════ */
+function nudgeEvento(i) {
+  const wrap = document.querySelector(".gridwrap");
+  const st = wrap ? wrap.scrollTop : 0;
+  paint();
+  const wrap2 = document.querySelector(".gridwrap");
+  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
+  const el = bloqueDe(i);   // el nudge también corre desde una fila de la Lista (.lev)
+  if (el) { el.focus(); el.scrollIntoView({ block: "nearest" }); }
+}
+
+// Ctrl+Alt+↑/↓: ±15 min. Contra el borde visible no se mueve y se dice por qué.
+function moverEvento(i, deltaMin) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const nuevo = e.min + deltaMin;
+  if (nuevo < START_H * 60 || nuevo + e.dur > END_H * 60) {
+    announce(`${e.title} no entra en el horario visible`);
+    return;
+  }
+  e.min = nuevo;
+  nudgeEvento(i);
+}
+
+// Ctrl+Alt+←/→: ±1 día, acotado a la ventana Lun–Vie.
+function moverEventoDia(i, deltaDias) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const dia = e.day + deltaDias;
+  if (dia < 0 || dia >= DAYS.length) {
+    announce(`${e.title} ya está en el borde de la semana`);
+    return;
+  }
+  e.day = dia;
+  nudgeEvento(i);
+}
+
+// Shift+↑/↓: ±15 min de duración, sin pasar el fin del rango ni bajar de 15.
+function cambiarDuracion(i, deltaMin) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const dur = e.dur + deltaMin;
+  if (dur < DUR_MIN || e.min + dur > END_H * 60) {
+    announce(`${e.title} no puede tener esa duración en el horario visible`);
+    return;
+  }
+  e.dur = dur;
+  nudgeEvento(i);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   "Mover a…": mover una reunión sin arrastrar (SC 2.5.7). Es una superficie
+   con BORRADOR: nada toca el evento hasta Aplicar y Escape no escribe. Igual
+   que el menú se inserta directo en #stage; NO se usa mount(), que resetea el
+   scroll de la grilla. Los controles son <button>, así el camino de puntero y
+   el de teclado son el mismo.
+   ══════════════════════════════════════════════════════════════════════ */
+let MOVER = null;                  // { i, dia, min } — borrador, no el evento
+let MOVER_ANCHOR = { x: 0, y: 0 }; // rect del bloque que lo abrió
+
+function abrirMover(i) {
+  const el = bloqueDe(i);
+  if (!el || !EVENTS[i]) return;
+  const e = EVENTS[i];
+  MOVER = { i, dia: e.day, min: e.min };
+  const r = el.getBoundingClientRect();
+  MOVER_ANCHOR = { x: r.left, y: r.bottom + 4 };
+  desmontarMenu();   // el diálogo reemplaza al menú; el foco pasa adentro, por eso abrir nunca anuncia
+  document.getElementById("mover-dialog")?.remove();
+  document.getElementById("stage").insertAdjacentHTML("beforeend", renderMover());
+  requestAnimationFrame(() => {
+    posicionarMover();
+    // Mover el foco ES el anuncio: abrir no anuncia.
+    const primero = document.querySelector("#mover-dialog [data-paso]:not(:disabled)")
+      || document.querySelector("#mover-dialog button");
+    primero?.focus();
+  });
+}
+
+function cerrarMover({ volverFoco = true } = {}) {
+  const i = MOVER?.i;
+  MOVER = null;
+  document.getElementById("mover-dialog")?.remove();
+  // Devolver el foco a la reunión también es el anuncio: cerrar no anuncia.
+  if (volverFoco) requestAnimationFrame(() => {
+    bloqueDe(i)?.focus();
+  });
+}
+
+/* Aplicar es el único punto que escribe. Al terminar, el foco vuelve al evento
+   afectado y su nombre accesible ya trae el día y la hora nuevos: mover el foco
+   ES el anuncio, así que no se escribe además la región viva (alternancia). */
+function aplicarMover() {
+  if (!MOVER) return;
+  const m = MOVER;
+  const e = EVENTS[m.i];
+  e.day = m.dia;
+  e.min = m.min;
+  cerrarMover({ volverFoco: false });
+  paintConservandoScroll();
+  bloqueDe(m.i)?.focus();
+}
+
+// El borde del rango se corta con disabled: el control que no puede mover no se
+// ofrece, en vez de aceptar y recortar en silencio.
+function pasoPermitido(delta) {
+  const e = EVENTS[MOVER.i];
+  return MOVER.min + delta >= START_H * 60 && MOVER.min + delta + e.dur <= END_H * 60;
+}
+
+function pintarMover() {
+  const d = document.getElementById("mover-dialog");
+  if (!d || !MOVER) return;
+  const e = EVENTS[MOVER.i];
+  d.querySelector("#mover-hora").textContent =
+    `${DIAS_LARGOS[MOVER.dia]} de septiembre, ${fmt(MOVER.min)} – ${fmt(MOVER.min + e.dur)}`;
+  d.querySelectorAll("[data-paso]").forEach((b) => {
+    const ok = pasoPermitido(Number(b.dataset.paso));
+    b.disabled = !ok;
+    b.setAttribute("aria-disabled", String(!ok));
+  });
+  d.querySelectorAll("[data-dia]").forEach((b) => {
+    const on = Number(b.dataset.dia) === MOVER.dia;
+    b.setAttribute("aria-pressed", String(on));
+    b.classList.toggle("on", on);
+  });
+}
+
+// Misma estrategia que el menú: fixed, anclada al bloque y clameada a la ventana.
+function posicionarMover() {
+  const d = document.getElementById("mover-dialog");
+  if (!d || !MOVER) return;
+  const b = d.getBoundingClientRect();
+  const x = Math.max(4, Math.min(MOVER_ANCHOR.x, innerWidth - b.width - 4));
+  let y = MOVER_ANCHOR.y;
+  if (y + b.height > innerHeight - 4) y = MOVER_ANCHOR.y - b.height - 8;
+  y = Math.max(4, Math.min(y, innerHeight - b.height - 4));
+  d.style.left = `${x}px`;
+  d.style.top = `${y}px`;
+}
+
+function renderMover() {
+  if (!MOVER) return "";
+  const e = EVENTS[MOVER.i];
+  const pasos = ["-60", "-15", "+15", "+60"].map((p) => {
+    const label = p === "-60" ? "−1 h" : p === "-15" ? "−15 min" : p === "+60" ? "+1 h" : "+15 min";
+    const ok = pasoPermitido(Number(p));
+    return `<button type="button" data-paso="${p}" aria-label="${label}" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${label}</button>`;
+  }).join("");
+  // Los cinco destinos SON la ventana Lun-Vie: no hay destino fuera de rango que deshabilitar.
+  const dias = DAYS.map((d, i) => {
+    const on = i === MOVER.dia;
+    return `<button type="button" data-dia="${i}" class="${on ? "on" : ""}" aria-pressed="${on}" aria-disabled="false" aria-label="${DIAS_LARGOS[i]} de septiembre">${d}</button>`;
+  }).join("");
+  return `<div id="mover-dialog" role="dialog" aria-modal="false" aria-labelledby="mover-titulo"
+      style="left:${MOVER_ANCHOR.x}px;top:${MOVER_ANCHOR.y}px">
+    <h2 id="mover-titulo">Mover · ${e.title}</h2>
+    <p class="mv-hora" id="mover-hora">${DIAS_LARGOS[MOVER.dia]} de septiembre, ${fmt(MOVER.min)} – ${fmt(MOVER.min + e.dur)}</p>
+    <span class="mv-lab" id="mover-pasos-lab">Ajustar hora</span>
+    <div class="mv-pasos" role="group" aria-labelledby="mover-pasos-lab">${pasos}</div>
+    <span class="mv-lab" id="mover-dia-lab">Mover al día</span>
+    <div class="mv-dias" role="group" aria-labelledby="mover-dia-lab">${dias}</div>
+    <div class="mv-acciones">
+      <button type="button" class="btn primary" id="mover-aplicar">Aplicar</button>
+      <button type="button" class="btn" id="mover-cancelar">Cancelar</button>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   "Cambiar duración…": redimensionar sin arrastrar (SC 2.5.7). Espeja
+   "Mover a…": borrador + Aplicar, Escape no escribe, sin mount() y con los
+   presets/pasos como <button>, así el puntero y el teclado usan lo mismo.
+   ══════════════════════════════════════════════════════════════════════ */
+let DUR = null;                    // { i, dur } — borrador, no el evento
+let DUR_ANCHOR = { x: 0, y: 0 };   // rect del bloque que lo abrió
+const DUR_PRESETS = [15, 30, 45, 60, 90, 120];
+const DUR_MIN = 15;
+
+function abrirDur(i) {
+  const el = bloqueDe(i);
+  if (!el || !EVENTS[i]) return;
+  const e = EVENTS[i];
+  DUR = { i, dur: e.dur };   // releer la duración actual: nunca confiar en estado viejo entre aperturas
+  const r = el.getBoundingClientRect();
+  DUR_ANCHOR = { x: r.left, y: r.bottom + 4 };
+  desmontarMenu();   // el diálogo reemplaza al menú; el foco pasa adentro, por eso abrir nunca anuncia
+  document.getElementById("dur-dialog")?.remove();
+  document.getElementById("stage").insertAdjacentHTML("beforeend", renderDur());
+  requestAnimationFrame(() => {
+    posicionarDur();
+    // Mover el foco ES el anuncio: abrir no anuncia.
+    document.querySelector("#dur-dialog button:not(:disabled)")?.focus();
+  });
+}
+
+function cerrarDur({ volverFoco = true } = {}) {
+  const i = DUR?.i;
+  DUR = null;
+  document.getElementById("dur-dialog")?.remove();
+  // Devolver el foco a la reunión también es el anuncio: cerrar no anuncia.
+  if (volverFoco) requestAnimationFrame(() => {
+    bloqueDe(i)?.focus();
+  });
+}
+
+/* Aplicar es el único punto que escribe. Al terminar, el foco vuelve al evento
+   afectado y su nombre accesible ya trae la duración nueva (hora de fin incluida):
+   mover el foco ES el anuncio, así que no se escribe además la región viva. */
+function aplicarDur() {
+  if (!DUR) return;
+  const d = DUR;
+  const e = EVENTS[d.i];
+  e.dur = d.dur;
+  cerrarDur({ volverFoco: false });
+  paintConservandoScroll();
+  bloqueDe(d.i)?.focus();
+}
+
+// El control que no puede cambiar la duración no se ofrece, en vez de recortar
+// en silencio: ni por debajo de 15 min ni pasando el fin del rango visible.
+function presetPermitido(dur) {
+  return EVENTS[DUR.i].min + dur <= END_H * 60;
+}
+function pasoDurPermitido(delta) {
+  return DUR.dur + delta >= DUR_MIN && presetPermitido(DUR.dur + delta);
+}
+
+function pintarDur() {
+  const d = document.getElementById("dur-dialog");
+  if (!d || !DUR) return;
+  const e = EVENTS[DUR.i];
+  d.querySelector("#dur-hora").textContent =
+    `${DIAS_LARGOS[e.day]} de septiembre, ${fmt(e.min)} – ${fmt(e.min + DUR.dur)}`;
+  d.querySelectorAll("[data-dpreset]").forEach((b) => {
+    const v = Number(b.dataset.dpreset);
+    const ok = presetPermitido(v);
+    b.disabled = !ok;
+    b.setAttribute("aria-disabled", String(!ok));
+    const on = v === DUR.dur;
+    b.setAttribute("aria-pressed", String(on));
+    b.classList.toggle("on", on);
+  });
+  d.querySelectorAll("[data-dpaso]").forEach((b) => {
+    const ok = pasoDurPermitido(Number(b.dataset.dpaso));
+    b.disabled = !ok;
+    b.setAttribute("aria-disabled", String(!ok));
+  });
+}
+
+// Misma estrategia que el menú y "Mover a…": fixed, anclada al bloque y clameada.
+function posicionarDur() {
+  const d = document.getElementById("dur-dialog");
+  if (!d || !DUR) return;
+  const b = d.getBoundingClientRect();
+  const x = Math.max(4, Math.min(DUR_ANCHOR.x, innerWidth - b.width - 4));
+  let y = DUR_ANCHOR.y;
+  if (y + b.height > innerHeight - 4) y = DUR_ANCHOR.y - b.height - 8;
+  y = Math.max(4, Math.min(y, innerHeight - b.height - 4));
+  d.style.left = `${x}px`;
+  d.style.top = `${y}px`;
+}
+
+function renderDur() {
+  if (!DUR) return "";
+  const e = EVENTS[DUR.i];
+  const presets = DUR_PRESETS.map((v) => {
+    const ok = presetPermitido(v);
+    const on = v === DUR.dur;
+    return `<button type="button" data-dpreset="${v}" class="${on ? "on" : ""}" aria-pressed="${on}" aria-label="${v} minutos" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${v} min</button>`;
+  }).join("");
+  const pasos = ["-15", "+15"].map((p) => {
+    const ok = pasoDurPermitido(Number(p));
+    const label = p === "-15" ? "−15 min" : "+15 min";
+    return `<button type="button" data-dpaso="${p}" aria-label="${label}" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${label}</button>`;
+  }).join("");
+  return `<div id="dur-dialog" role="dialog" aria-modal="false" aria-labelledby="dur-titulo"
+      style="left:${DUR_ANCHOR.x}px;top:${DUR_ANCHOR.y}px">
+    <h2 id="dur-titulo">Cambiar duración · ${e.title}</h2>
+    <p class="du-hora" id="dur-hora">${DIAS_LARGOS[e.day]} de septiembre, ${fmt(e.min)} – ${fmt(e.min + DUR.dur)}</p>
+    <span class="du-lab" id="dur-presets-lab">Duración</span>
+    <div class="du-presets" role="group" aria-labelledby="dur-presets-lab">${presets}</div>
+    <span class="du-lab" id="dur-pasos-lab">Ajustar</span>
+    <div class="du-pasos" role="group" aria-labelledby="dur-pasos-lab">${pasos}</div>
+    <div class="du-acciones">
+      <button type="button" class="btn primary" id="dur-aplicar">Aplicar</button>
+      <button type="button" class="btn" id="dur-cancelar">Cancelar</button>
+    </div>
+  </div>`;
+}
+
 function render() {
   const g = geom();
-  const total = EVENTS.filter((e) => !e.busy).length;
+  const visibles = EVENTS.filter((e) => !oculto(e));
+  const shown = EVENTS.filter((e) => !e.busy && !oculto(e));
+  const total = shown.length;
+  const pendientes = shown.filter((e) => e.sync && e.sync !== "ok").length;
   const now = 15 * 60 + 42;
-  const gutter = `<div class="gutter" style="height:${g.gridH}px">${
-    Array.from({ length: END_H - START_H + 1 }, (_, i) => {
-      const h = START_H + i;
-      return `<span class="hourlab" style="top:${g.yOf(h * 60)}px;transform:translateY(-50%)">${fmt(h * 60)}</span>`;
-    }).join("")}</div>`;
+  const inFold = (m) => g.segs.some((s) => s.collapsed && m > s.from && m < s.to);
+  const gutter = `<div class="gutter" aria-hidden="true" style="height:${g.gridH}px">${
+    Array.from({ length: END_H - START_H + 1 }, (_, i) => START_H + i)
+      .filter((h) => !inFold(h * 60))
+      .map((h) => {
+        const ty = h === START_H ? "translateY(0)" : h === END_H ? "translateY(-100%)" : "translateY(-50%)";
+        return `<span class="hourlab" style="top:${g.yOf(h * 60)}px;transform:${ty}">${fmt(h * 60)}</span>`;
+      })
+      .join("")
+  }</div>`;
+  // la ventana visible se dice explícitamente, y cuánto se plegó
+  const vis = g.segs.filter((s) => !s.collapsed);
+  const visFrom = vis.length ? vis[0].from : START_H * 60;
+  const visTo = vis.length ? vis[vis.length - 1].to : END_H * 60;
+  const folded = g.segs.filter((s) => s.collapsed).reduce((a, s) => a + (s.to - s.from), 0);
+  const windowChip = `${fmt(visFrom)} – ${fmt(visTo)}${folded ? ` · ${Math.round(folded / 60)} h plegadas` : ""}`;
 
-  return `<div class="shell" data-variant="${VARIANT}">
+  return `<div class="shell" data-variant="${VARIANT}" data-panel="${PANEL ? "on" : "off"}">
     <aside class="side">
       <div>
-        <p class="block-title">Agendas</p>
-        ${Object.entries(CATS).map(([k, v], i) => `<div class="cal" ${i > 2 ? "data-off" : ""}>
-          <span class="dot" style="background:${v.color}"></span>
+        <h2 class="block-title">Agendas</h2>
+        ${Object.entries(CATS).map(([k, v]) => `<button class="cal" data-cat="${k}" ${HIDDEN.has(k) ? "data-off" : ""} aria-pressed="${!HIDDEN.has(k)}">
+          <span class="dot" style="background:${tint(v.color)}"></span>
           <span class="name">${v.label}</span>
           <span class="count">${EVENTS.filter((e) => e.cat === k).length}</span>
-        </div>`).join("")}
+        </button>`).join("")}
       </div>
       <div>
-        <p class="block-title">Origen</p>
-        ${["CRM", "Reserva web", "Google"].map((o) => `<div class="cal">
+        <h2 class="block-title">Origen</h2>
+        ${["CRM", "Reserva web", "Google"].map((o) => `<button class="cal" data-origin="${o}" ${HIDDEN_ORIGIN.has(o) ? "data-off" : ""} aria-pressed="${!HIDDEN_ORIGIN.has(o)}">
           <span class="dot" style="background:var(--fg-faint)"></span><span class="name">${o}</span>
           <span class="count">${EVENTS.filter((e) => (e.origin || "").startsWith(o.split(" ")[0])).length}</span>
-        </div>`).join("")}
+        </button>`).join("")}
       </div>
       <div>
-        <p class="block-title">Buscador</p>
-        <input class="btn" style="width:100%;text-align:left;color:var(--fg-faint)" value="Buscar…  ⌘K" readonly>
+        <h2 class="block-title">Buscador</h2>
+        <input class="btn" style="width:100%;text-align:left;color:var(--fg-dim)" value="Buscar…  ⌘\u00a0K" readonly aria-label="Buscar reuniones" name="q" autocomplete="off">
       </div>
     </aside>
 
     <main>
       <div class="topbar">
-        <span class="rangetitle">15 – 19 de septiembre</span>
-        <span class="rangecount">${total} reuniones · 3 sin sincronizar</span>
+        <h1 class="rangetitle">${VIEW === "mes" ? "Septiembre" : "15 – 19 de septiembre"}</h1>
+        <span class="rangecount">${VIEW === "mes" ? `${MES.dias} días` : windowChip} · ${total} reuniones${pendientes ? ` · ${pendientes} sin sincronizar` : ""}</span>
         <span class="right">
-          <div class="seg"><button class="on">Semana</button><button>Día</button><button>Mes</button></div>
-          <button class="btn">Hoy</button>
-          <button class="btn primary">Nueva reunión</button>
+          <div class="seg" role="group" aria-label="Vista">
+            <button data-view="semana" class="${VIEW === "semana" ? "on" : ""}" aria-pressed="${VIEW === "semana"}">Semana</button>
+            <button data-view="lista" class="${VIEW === "lista" ? "on" : ""}" aria-pressed="${VIEW === "lista"}">Lista</button>
+            <button data-view="mes" class="${VIEW === "mes" ? "on" : ""}" aria-pressed="${VIEW === "mes"}">Mes</button>
+          </div>
+          ${VIEW === "semana" ? `<button class="btn mini-toggle" title="Mostrar u ocultar el panel del mes" aria-pressed="false" aria-label="Panel del mes">Panel</button>` : ""}
+          ${VIEW === "semana" && VARIANT === "zoom"
+            ? `<div class="zoomctl" role="group" aria-label="Densidad del calendario">${ZOOM_STEPS
+                .map(({ m, label }) => `<button data-z="${m}" class="${m === ZOOM_MULT ? "on" : ""}" aria-pressed="${m === ZOOM_MULT}">${label}</button>`)
+                .join("")}</div>`
+            : ""}
+          <button class="btn hoy-btn" data-now title="Ir a la hora actual (H)">Hoy · ${fmt(NOW_MIN)}</button>
+          <button class="btn primary" data-nueva title="Nueva reunión en la hora actual (N)">Nueva reunión</button>
         </span>
       </div>
-      <div class="gridwrap">
+      ${VIEW === "mes" ? renderMonth() : VIEW === "lista" ? renderList() : `<div class="gridwrap" tabindex="0" role="region" aria-label="Agenda de la semana del 15 al 19 de septiembre">
         <div class="heads">
           ${VARIANT === "flujo" ? '<div class="colhead"></div>' : '<div class="colhead"></div>'}
           ${DAYS.map((d, i) => `<div class="colhead${i === 1 ? " today" : ""}">
             <span class="dow">${d.split(" ")[0]}</span><span class="dom">${d.split(" ")[1]}</span></div>`).join("")}
         </div>
-        <div class="days">
+        <div class="days" id="grilla" tabindex="-1">
           ${gutter}
           ${DAYS.map((_, i) => renderCol(i, g)).join("")}
+          ${bandOverlay(g)}
+          ${visibles.length === 0 ? `<div class="grid-empty">
+            <p class="ge-t">No hay reuniones para mostrar</p>
+            <p class="ge-s">Activá una agenda en la barra de la izquierda, o creá la primera reunión de la semana.</p>
+            <button class="btn primary" data-nueva title="Nueva reunión en la hora actual (N)">Nueva reunión</button>
+          </div>` : ""}
         </div>
-      </div>
+      </div>`}
     </main>
+
+    ${renderPanel()}
+    ${renderMenu()}
 
     <aside class="mini">
       <div>
-        <p class="block-title">Septiembre</p>
+        <h2 class="block-title">Septiembre</h2>
         <div class="mgrid">
           ${["L", "M", "M", "J", "V", "S", "D"].map((x) => `<span class="h">${x}</span>`).join("")}
           ${Array.from({ length: 35 }, (_, i) => {
             const d = i - 0;
             const isRange = d >= 15 && d <= 19, isToday = d === 16, hasEv = d >= 15 && d <= 19 && d % 2 === 0;
-            return `<span class="${isRange ? "inrange " : ""}${isToday ? "today " : ""}${hasEv ? "ev" : ""}">${d < 1 || d > 30 ? "" : d}</span>`;
+            return `<span class="${isRange ? "inrange " : ""}${isToday ? "today " : ""}${hasEv ? "has-ev" : ""}">${d < 1 || d > 30 ? "" : d}</span>`;
           }).join("")}
         </div>
       </div>
       <div>
-        <p class="block-title">Cómo se lee</p>
+        <h2 class="block-title">Cómo se lee</h2>
         <div class="legend">
-          ${Object.entries(CATS).slice(0, 3).map(([, v]) => `<div><i style="background:${v.color}"></i>${v.label}</div>`).join("")}
-          <div><i style="background:repeating-linear-gradient(135deg,rgba(255,255,255,.2) 0 4px,transparent 4px 8px)"></i>Ocupado (de Google)</div>
+          ${Object.values(CATS).map((v) => `<div><i style="background:${tint(v.color)}"></i>${v.label}</div>`).join("")}
+          <div><i style="background:#211f1b;box-shadow:inset 0 0 0 1px rgba(244,241,234,.07)"></i>Ocupado (de Google)</div>
         </div>
       </div>
     </aside>
@@ -467,6 +1589,17 @@ function render() {
    Interacción: crear arrastrando · mover · estirar · snap 15 (1:1, springs)
    ══════════════════════════════════════════════════════════════════════ */
 let drag = null, lab = null;
+const DRAG_UMBRAL = 4;   // menos de esto es un click, no un arrastre
+let downEn = null;       // dónde empezó el puntero, para medir el desplazamiento
+
+/* Un solo puntero, sin arrastrar: click en el hueco abre el panel con ese día y hora.
+   Si hubo desplazamiento (> 4 px) se trata como arrastre y el panel no se abre. */
+function slotDesdeClick(ev, col) {
+  const r = col.getBoundingClientRect();
+  const g = geom();
+  const min = Math.round(g.minOf(ev.clientY - r.top) / 30) * 30;
+  return { dia: Number(col.dataset.day), min: Math.max(START_H * 60, Math.min(END_H * 60 - 30, min)) };
+}
 
 function ensureLab() {
   if (!lab) { lab = document.createElement("div"); lab.className = "droplab"; document.body.appendChild(lab); }
@@ -474,8 +1607,11 @@ function ensureLab() {
 }
 
 function onDown(ev) {
+  downEn = null;
+  if (ev.target.closest(".bandfold, .zoomctl")) return;
   const col = ev.target.closest(".col");
   if (!col) return;
+  downEn = { x: ev.clientX, y: ev.clientY };
   const g = geom();
   const day = Number(col.dataset.day);
   const y = ev.clientY - col.getBoundingClientRect().top;
@@ -554,14 +1690,45 @@ function showLab(ev, text, clash) {
   l.style.display = "block";
 }
 
-function onUp() {
+/* SC 2.5.2: cancelar es una salida de primera clase. El gesto confirma recién en
+   pointerup (nunca en down); Escape a mitad del arrastre, soltar fuera de la
+   grilla y un pointercancel del sistema no escriben. Move/resize ya mutaron el
+   evento y repintaron durante el gesto, así que se restauran min0/dur0. */
+function cancelDrag() {
   if (!drag) return;
+  const d = drag; drag = null;
+  downEn = null;
+  if (lab) lab.style.display = "none";
+  document.getElementById("ghost")?.remove();
+  if (d.kind === "resize" && d.e) d.e.dur = d.dur0;
+  if (d.kind === "move" && d.e) d.e.min = d.min0;
+  if (d.kind !== "create") paint();
+}
+
+function onUp(ev) {
+  if (!drag) return;
+  // soltar fuera de la grilla cancela (SC 2.5.2): no se crea ni se mueve nada
+  if (!ev || !ev.target || !ev.target.closest || !ev.target.closest("#grilla")) { cancelDrag(); return; }
   const d = drag; drag = null;
   if (lab) lab.style.display = "none";
   document.getElementById("ghost")?.remove();
 
+  // click quieto (menos de 4 px): el arrastre crea como siempre, el click en un
+  // hueco abre el panel y el click sobre una reunión abre su menú.
+  const quieto = !!downEn && !!ev &&
+    Math.abs(ev.clientX - downEn.x) < DRAG_UMBRAL && Math.abs(ev.clientY - downEn.y) < DRAG_UMBRAL;
+  downEn = null;
+  if (quieto && d.kind === "move") { abrirMenu(EVENTS.indexOf(d.e)); return; }
+  if (quieto && d.kind === "create") {
+    const col = document.querySelector(`.col[data-day="${d.day}"]`);
+    if (col) {
+      const { dia, min } = slotDesdeClick(ev, col);
+      abrirPanel({ dia, min, dur: 45 });   // 45 min por defecto (spec S2)
+      return;
+    }
+  }
   if (d.moved && d.kind === "create") {
-    EVENTS.push({ day: d.day, min: d.min0, dur: d.dur || 30, title: "Nueva reunión", cat: "trabajo", origin: "CRM", sync: "pend" });
+    EVENTS.push({ day: d.day, min: d.min0, dur: d.dur || 30, title: "Nueva reunión", cat: "trabajo", origin: "CRM", sync: "pend", notes: "" });
   }
   paint();
 }
@@ -579,14 +1746,23 @@ function paint() {
   needle();
 }
 
+/* Acciones y diálogos repintan sin usar mount() para no resetear el scroll del
+   contenedor activo. En Semana es .gridwrap; en Lista, .lista. */
+function paintConservandoScroll() {
+  const w = document.querySelector(".gridwrap") || document.querySelector(".lista");
+  const st = w ? w.scrollTop : 0;
+  paint();
+  const w2 = document.querySelector(".gridwrap") || document.querySelector(".lista");
+  if (w2) w2.scrollTop = st;
+}
+
 function needle() {
   document.querySelector(".nowline")?.remove();
   document.querySelectorAll(".inlinetime").forEach((n) => n.remove());
   const g = geom();
-  const now = 15 * 60 + 42;
   const line = document.createElement("div");
   line.className = "nowline";
-  line.style.top = g.yOf(now) + "px";
+  line.style.top = g.yOf(NOW_MIN) + "px";
   line.innerHTML = '<div class="knob"></div><div class="bar"></div>';
   document.querySelector('.col[data-day="1"]')?.appendChild(line);
 }
@@ -594,7 +1770,7 @@ function needle() {
 /* ══════════════════════════════════════════════════════════════════════
    Picker (verbatim del spec)
    ══════════════════════════════════════════════════════════════════════ */
-const VARIANTS = ["preciso", "bloque", "flujo"];
+const VARIANTS = ["franja", "pliegue", "zoom"];
 const stage = document.getElementById("stage");
 const picker = document.querySelector(".proto-picker");
 const highlight = picker.querySelector(".proto-picker-highlight");
@@ -610,7 +1786,28 @@ function moveHighlight() {
 function mount(i) {
   VARIANT = VARIANTS[i];
   stage.innerHTML = "";
-  requestAnimationFrame(() => { stage.innerHTML = render(); needle(); });
+  requestAnimationFrame(() => {
+    stage.innerHTML = render();
+    needle();
+    const h = fitHourHeight();
+    if (Math.abs(h - LAST_FIT) > 0.5) { LAST_FIT = h; stage.innerHTML = render(); needle(); }
+    if (FIRST_PAINT) { FIRST_PAINT = false; requestAnimationFrame(jumpToNow); }
+    else if (PENDING_SCROLL != null) { scrollToTime(PENDING_SCROLL); PENDING_SCROLL = null; }
+  });
+}
+// la costura del encabezado aparece cuando hay contenido scrolleado debajo
+document.addEventListener("scroll", (e) => {
+  const w = e.target.closest ? e.target.closest(".gridwrap") : null;
+  if (!w) return;
+  w.toggleAttribute("data-scrolled", w.scrollTop > 2);
+}, true);
+
+// ResizeObserver en vez de leer layout en cada render + listener de resize
+if (typeof ResizeObserver !== "undefined") {
+  new ResizeObserver(() => {
+    const h = fitHourHeight();
+    if (Math.abs(h - LAST_FIT) > 0.5) { LAST_FIT = h; stage.innerHTML = render(); needle(); }
+  }).observe(document.documentElement);
 }
 function setActive(i) {
   if (i < 0 || i >= VARIANTS.length) return;
@@ -627,14 +1824,302 @@ function setActive(i) {
   mount(i);
 }
 items.forEach((el, i) => el.addEventListener("click", () => setActive(i)));
+
+stage.addEventListener("click", (ev) => {
+  const acc = ev.target.closest("#menu [data-accion]");
+  if (acc) {
+    if (acc.dataset.accion === "editar" && MENU) {
+      const e2 = EVENTS[MENU.i];
+      MENU = null;   // el panel reemplaza al menú en el mismo render y se lleva el foco
+      abrirPanel({ dia: e2.day, min: e2.min, dur: e2.dur, evento: e2 });
+    } else if (acc.dataset.accion === "mover" && MENU) {
+      abrirMover(MENU.i);
+    } else if (acc.dataset.accion === "duracion" && MENU) {
+      abrirDur(MENU.i);
+    } else if (acc.dataset.accion === "duplicar" && MENU) {
+      duplicarEvento(MENU.i);
+    } else if (acc.dataset.accion === "eliminar" && MENU) {
+      abrirConfirmarEliminar();
+    }
+    return;
+  }
+  if (ev.target.closest("#eliminar-si")) { eliminarEvento(MENU?.i); return; }
+  if (ev.target.closest("#eliminar-no")) { cerrarMenu(); return; }
+  // Lista: cada fila es un botón que ABRE el mismo menú que un bloque de la grilla.
+  const lev = ev.target.closest("#grilla .lev");
+  if (lev) {
+    if (!lev.hasAttribute("data-busy")) abrirMenu(Number(lev.dataset.i));
+    return;
+  }
+  const paso = ev.target.closest("#mover-dialog [data-paso]");
+  if (paso) {
+    // un paso deshabilitado no llega acá (el navegador no dispara click), pero se revalida
+    if (MOVER && !paso.disabled) { MOVER.min += Number(paso.dataset.paso); pintarMover(); posicionarMover(); }
+    return;
+  }
+  const diaDestino = ev.target.closest("#mover-dialog [data-dia]");
+  if (diaDestino) {
+    if (MOVER && !diaDestino.disabled) { MOVER.dia = Number(diaDestino.dataset.dia); pintarMover(); }
+    return;
+  }
+  if (ev.target.closest("#mover-aplicar")) { aplicarMover(); return; }
+  if (ev.target.closest("#mover-cancelar")) { cerrarMover(); return; }
+  const presetDur = ev.target.closest("#dur-dialog [data-dpreset]");
+  if (presetDur) {
+    // un preset deshabilitado no llega acá (el navegador no dispara click), pero se revalida
+    if (DUR && !presetDur.disabled) { DUR.dur = Number(presetDur.dataset.dpreset); pintarDur(); }
+    return;
+  }
+  const pasoDur = ev.target.closest("#dur-dialog [data-dpaso]");
+  if (pasoDur) {
+    if (DUR && !pasoDur.disabled) { DUR.dur += Number(pasoDur.dataset.dpaso); pintarDur(); posicionarDur(); }
+    return;
+  }
+  if (ev.target.closest("#dur-aplicar")) { aplicarDur(); return; }
+  if (ev.target.closest("#dur-cancelar")) { cerrarDur(); return; }
+  if (ev.target.closest("[data-cerrar-panel]")) { cerrarPanel(); return; }
+  const dur = ev.target.closest(".p-dur");
+  if (dur) {
+    if (PANEL) PANEL.dur = Number(dur.dataset.dur);   // sobrevive a un re-render sin re-montar
+    document.querySelectorAll("#panel .p-dur").forEach((b) => {
+      const on = b === dur;
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    return;
+  }
+  const fold = ev.target.closest(".bandfold");
+  if (fold) {
+    const k = fold.dataset.band;
+    OPEN.has(k) ? OPEN.delete(k) : OPEN.add(k);
+    mount(current);
+    return;
+  }
+  const z = ev.target.closest(".zoomctl button");
+  if (z) { PENDING_SCROLL = centerTime(); ZOOM_MULT = Number(z.dataset.z); mount(current); return; }
+  const vw = ev.target.closest("[data-view]");
+  if (vw) {
+    VIEW = vw.dataset.view;
+    const url = new URL(location);
+    url.searchParams.set("view", VIEW);
+    history.replaceState(null, "", url);
+    FIRST_PAINT = VIEW !== "semana";
+    mount(current);
+    return;
+  }
+  if (ev.target.closest("[data-ver-lista]")) {
+    VIEW = "lista";
+    const u2 = new URL(location);
+    u2.searchParams.set("view", "lista");
+    history.replaceState(null, "", u2);
+    stage.querySelectorAll("[data-view]").forEach((b) => {
+      const on = b.dataset.view === "lista";
+      b.classList.toggle("on", on);
+      b.setAttribute("aria-pressed", String(on));
+    });
+    mount(current);
+    return;
+  }
+  if (ev.target.closest("[data-nueva]")) {
+    abrirPanel({ dia: 1, min: NOW_MIN - (NOW_MIN % 30), dur: 45 });   // hoy, a la media hora en curso
+    return;
+  }
+  const nd = ev.target.closest("[data-nueva-dia]");
+  if (nd) { abrirPanel({ dia: Number(nd.dataset.nuevaDia), min: 9 * 60, dur: 45 }); return; }
+  if (ev.target.closest(".hoy-btn")) { jumpToNow(); return; }
+  const mt = ev.target.closest(".mini-toggle");
+  if (mt) {
+    const on = document.querySelector(".shell").getAttribute("data-mini") === "off";
+    document.querySelector(".shell").setAttribute("data-mini", on ? "on" : "off");
+    mt.setAttribute("aria-pressed", String(!on));
+    LAST_FIT = 0;
+    mount(current);
+    return;
+  }
+  const cal = ev.target.closest(".cal[data-cat], .cal[data-origin]");
+  if (cal) {
+    const set = cal.dataset.cat ? HIDDEN : HIDDEN_ORIGIN;
+    const k = cal.dataset.cat || cal.dataset.origin;
+    set.has(k) ? set.delete(k) : set.add(k);
+    LAST_FIT = 0;
+    mount(current);
+  }
+});
 replay?.addEventListener("click", () => mount(current));
+stage.addEventListener("submit", (ev) => {
+  const form = ev.target.closest("#panel-form");
+  if (!form) return;
+  ev.preventDefault();
+  if (!PANEL) return;
+  const titulo = form.titulo.value.trim() || "Reunión sin título";
+  const m = /^(\d{1,2})[:.](\d{2})$/.exec(form.inicio.value.trim());
+  // sin parseo válido se conserva el minuto con el que se abrió el panel
+  const min = m ? Math.max(0, Math.min(23 * 60 + 59, Number(m[1]) * 60 + Number(m[2]))) : PANEL.min;
+  const dur = Number(document.querySelector("#panel .p-dur.on")?.dataset.dur || PANEL.dur);
+  const categoria = form.cat.value;
+  const dia = Number(form.dia.value);
+  const notas = form.notas.value;
+  guardarPanel({ titulo, min, dur, cat: categoria, dia, notes: notas });
+});
 window.addEventListener("resize", moveHighlight);
+// Roving tabindex de la Lista: la fila que recibe el foco (teclado o click) pasa a
+// ser la única tabbable, incluso si el foco llegó sin pasar por las flechas.
+document.addEventListener("focusin", (e) => {
+  const f = e.target.closest?.("#grilla .lev");
+  if (!f) return;
+  ROVING = EVENTS[Number(f.dataset.i)] || ROVING;
+  document.querySelectorAll("#grilla .lev").forEach((r) => r.setAttribute("tabindex", r === f ? "0" : "-1"));
+});
 window.addEventListener("pointerdown", onDown, true);
+// un pointerdown fuera del menú lo cierra sin re-renderizar, para que el control
+// bajo el puntero sobreviva y su click llegue
+document.addEventListener("pointerdown", (ev) => {
+  if (MENU && !ev.target.closest("#menu")) desmontarMenu();
+  // cancelar el borrador con un click afuera no escribe: es la misma salida que Escape
+  if (MOVER && !ev.target.closest("#mover-dialog")) cerrarMover({ volverFoco: false });
+  if (DUR && !ev.target.closest("#dur-dialog")) cerrarDur({ volverFoco: false });
+}, true);
 window.addEventListener("pointermove", onMove);
 window.addEventListener("pointerup", onUp);
+window.addEventListener("pointercancel", cancelDrag);
 
 document.addEventListener("keydown", (e) => {
+  // SC 2.5.2: Escape a mitad de un arrastre lo cancela y no crea ni mueve nada
+  if (drag && e.key === "Escape") { cancelDrag(); e.preventDefault(); return; }
+  // El menú abierto se maneja ANTES que el panel: Escape no debe cerrar lo de atrás.
+  // Y solo mientras el foco esté ADENTRO: si se fue, el menú es un huérfano que se limpia.
+  const menu = document.getElementById("menu");
+  if (MENU && menu?.contains(document.activeElement)) {
+    // Confirmación de borrado: Tab cicla DENTRO de sus dos controles (no debe
+    // escaparse dejando la confirmación a medias); Escape cancela y no escribe.
+    if (MENU.confirm) {
+      const ctr = [...menu.querySelectorAll("#confirmar-eliminar button")];
+      const ci = ctr.indexOf(document.activeElement);
+      const dir = e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey) ? -1 : 1;
+      if (e.key === "Escape") { cerrarMenu(); e.preventDefault(); return; }
+      if (e.key === "Tab" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+        ctr[(ci + dir + ctr.length) % ctr.length]?.focus();
+        e.preventDefault(); return;
+      }
+      if (e.key === "Enter" || e.key === " ") { document.activeElement?.click(); e.preventDefault(); return; }
+      return;
+    }
+    const items = [...menu.querySelectorAll('[role="menuitem"]')];
+    const idx = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); return; }
+    if (e.key === "ArrowUp") { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); return; }
+    // Tab también cierra: si no, el foco saldría y el menú se quedaría comiéndose las teclas
+    if (e.key === "Escape" || e.key === "Tab") { cerrarMenu(); e.preventDefault(); return; }
+    if (e.key === "Enter" || e.key === " ") { document.activeElement?.click(); e.preventDefault(); return; }
+    // La tecla que muestra cada ítem tiene que hacer algo: si no, es una promesa falsa.
+    const atajo = ACCIONES.find((a) => ACCIONES_HECHAS.has(a.id) && teclaDeAccion(a, e.key));
+    if (atajo) { menu.querySelector(`[data-accion="${atajo.id}"]`)?.click(); e.preventDefault(); return; }
+    return;   // con el menú abierto ninguna otra tecla debe llegar al resto
+  }
+  if (MENU) desmontarMenu();   // foco huérfano: limpiar antes de seguir con la página
+  // El diálogo Mover se maneja antes que el panel: Escape no debe cerrar lo de atrás.
+  const moverEl = document.getElementById("mover-dialog");
+  if (MOVER && moverEl?.contains(document.activeElement)) {
+    if (e.key === "Escape") { cerrarMover(); e.preventDefault(); return; }
+    // Es un diálogo, no un menú: Tab recorre SUS controles y cicla en los extremos,
+    // así el borrador no se pierde tabulando hacia la página de atrás.
+    if (e.key === "Tab") {
+      const ctr = [...moverEl.querySelectorAll("button:not(:disabled)")];
+      const idx = ctr.indexOf(document.activeElement);
+      const dir = e.shiftKey ? -1 : 1;
+      ctr[(idx + dir + ctr.length) % ctr.length]?.focus();
+      e.preventDefault(); return;
+    }
+    // Enter/Space los activa el propio <button>; el resto de teclas no pasa al fondo.
+    return;
+  }
+  if (MOVER) cerrarMover({ volverFoco: false });   // foco huérfano: limpiar
+  // El diálogo Cambiar duración se maneja antes que el panel: Escape no debe cerrar lo de atrás.
+  const durEl = document.getElementById("dur-dialog");
+  if (DUR && durEl?.contains(document.activeElement)) {
+    if (e.key === "Escape") { cerrarDur(); e.preventDefault(); return; }
+    // Igual que "Mover a…": Tab recorre SUS controles y cicla, saltando los deshabilitados.
+    if (e.key === "Tab") {
+      const ctr = [...durEl.querySelectorAll("button:not(:disabled)")];
+      const idx = ctr.indexOf(document.activeElement);
+      const dir = e.shiftKey ? -1 : 1;
+      ctr[(idx + dir + ctr.length) % ctr.length]?.focus();
+      e.preventDefault(); return;
+    }
+    // Enter/Space los activa el propio <button>; el resto de teclas no pasa al fondo.
+    return;
+  }
+  if (DUR) cerrarDur({ volverFoco: false });   // foco huérfano: limpiar
+  // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
+  if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
+  // Lista = compuesto APG: un único tab stop con roving tabindex y flechas adentro.
+  // ↑/↓ recorren fila por fila (y cruzan de día al terminar el grupo); ←/→ saltan al
+  // primer evento del día anterior/siguiente —dos velocidades, para no caminar fila
+  // por fila un día largo—; Home/End van a los extremos. Enter/Space y Supr abren el
+  // MISMO menú que un bloque de la grilla (no hay acciones propias de la Lista).
+  const filaFoco = document.activeElement?.closest?.("#grilla .lev");
+  if (filaFoco && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+    const filas = [...document.querySelectorAll("#grilla .lev")];
+    const ir = (el) => { if (el) { el.focus(); el.scrollIntoView({ block: "nearest" }); } };
+    if (e.key === "ArrowDown") { ir(filas[filas.indexOf(filaFoco) + 1]); e.preventDefault(); return; }
+    if (e.key === "ArrowUp") { ir(filas[filas.indexOf(filaFoco) - 1]); e.preventDefault(); return; }
+    if (e.key === "Home") { ir(filas[0]); e.preventDefault(); return; }
+    if (e.key === "End") { ir(filas[filas.length - 1]); e.preventDefault(); return; }
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const d = EVENTS[Number(filaFoco.dataset.i)]?.day;
+      const dir = e.key === "ArrowRight" ? 1 : -1;
+      // El destino es el día inmediatamente anterior/siguiente, aunque esté vacío: un find
+      // lineal hacia atrás devolvía el primer día de la semana, no el previo (desde el día 3,
+      // ← caía en el día 0). El primer evento de ese día es el destino, igual que con →.
+      const dias = filas.map((el) => EVENTS[Number(el.dataset.i)]?.day).filter((x) => dir > 0 ? x > d : x < d);
+      const destino = dir > 0 ? Math.min(...dias) : Math.max(...dias);
+      ir(filas.find((el) => EVENTS[Number(el.dataset.i)]?.day === destino));
+      e.preventDefault(); return;
+    }
+    if (e.key === "Delete" || e.key === "Del") {
+      if (!filaFoco.hasAttribute("data-busy")) { abrirMenu(Number(filaFoco.dataset.i)); abrirConfirmarEliminar(); }
+      e.preventDefault(); return;
+    }
+    if (e.key === "Enter" || e.key === " ") {
+      if (!filaFoco.hasAttribute("data-busy")) abrirMenu(Number(filaFoco.dataset.i));
+      e.preventDefault(); return;
+    }
+  }
+  // Nudge: con una reunión enfocada, Ctrl+Alt+flechas mueve (15 min o 1 día) y
+  // Shift+flechas cambia la duración. El foco no cambia, así que se anuncia.
+  // Se usa Ctrl+Alt (no Alt solo): en Windows/Linux Alt+←/→ es Atrás/Adelante y el
+  // W3C documenta que el navegador puede ignorar preventDefault en combinaciones reservadas.
+  const elFoco = document.activeElement;
+  const esReunion = elFoco?.classList?.contains("ev") || elFoco?.classList?.contains("lev");
+  const iFoco = esReunion && !elFoco.hasAttribute("data-busy")
+    ? Number(elFoco.dataset.i) : -1;
+  if (iFoco >= 0) {
+    if (e.ctrlKey && e.altKey && e.key === "ArrowDown") { moverEvento(iFoco, 15); e.preventDefault(); return; }
+    if (e.ctrlKey && e.altKey && e.key === "ArrowUp") { moverEvento(iFoco, -15); e.preventDefault(); return; }
+    if (e.ctrlKey && e.altKey && e.key === "ArrowRight") { moverEventoDia(iFoco, 1); e.preventDefault(); return; }
+    if (e.ctrlKey && e.altKey && e.key === "ArrowLeft") { moverEventoDia(iFoco, -1); e.preventDefault(); return; }
+    if (e.shiftKey && !e.altKey && e.key === "ArrowDown") { cambiarDuracion(iFoco, 15); e.preventDefault(); return; }
+    if (e.shiftKey && !e.altKey && e.key === "ArrowUp") { cambiarDuracion(iFoco, -15); e.preventDefault(); return; }
+    // Supr sobre la reunión enfocada: abre su menú y entra directo a la confirmación.
+    if (e.key === "Delete" || e.key === "Del") {
+      abrirMenu(iFoco); abrirConfirmarEliminar(); e.preventDefault(); return;
+    }
+  }
+  if ((e.key === "n" || e.key === "N") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (!EN_GRILLA()) return;   // SC 2.1.4: fuera del producto, "n" es texto
+    abrirPanel({ dia: 1, min: NOW_MIN - (NOW_MIN % 30), dur: 45 });   // el atajo no consume las flechas que scrollean
+    e.preventDefault();
+    return;
+  }
+  // Enter/Space sobre una reunión enfocada abre el menú (no el panel: editar es un ítem)
+  if ((e.key === "Enter" || e.key === " ") && e.target.closest(".gridwrap") && e.target.classList.contains("ev")) {
+    e.preventDefault();
+    // los bloques ocupados de Google se importan de solo lectura: no se editan
+    if (!e.target.hasAttribute("data-busy")) abrirMenu(Number(e.target.dataset.i));
+    return;
+  }
+  if (e.target.closest(".gridwrap")) { scrollKeys(e); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const num = parseInt(e.key, 10);
   if (num >= 1 && num <= VARIANTS.length) setActive(num - 1);
