@@ -1189,7 +1189,7 @@ function nudgeEvento(i) {
   paint();
   const wrap2 = document.querySelector(".gridwrap");
   if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
-  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  const el = bloqueDe(i);   // el nudge también corre desde una fila de la Lista (.lev)
   if (el) { el.focus(); el.scrollIntoView({ block: "nearest" }); }
 }
 
@@ -2069,7 +2069,12 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       const d = EVENTS[Number(filaFoco.dataset.i)]?.day;
       const dir = e.key === "ArrowRight" ? 1 : -1;
-      ir(filas.find((el) => { const dd = EVENTS[Number(el.dataset.i)]?.day; return dir > 0 ? dd > d : dd < d; }));
+      // El destino es el día inmediatamente anterior/siguiente, aunque esté vacío: un find
+      // lineal hacia atrás devolvía el primer día de la semana, no el previo (desde el día 3,
+      // ← caía en el día 0). El primer evento de ese día es el destino, igual que con →.
+      const dias = filas.map((el) => EVENTS[Number(el.dataset.i)]?.day).filter((x) => dir > 0 ? x > d : x < d);
+      const destino = dir > 0 ? Math.min(...dias) : Math.max(...dias);
+      ir(filas.find((el) => EVENTS[Number(el.dataset.i)]?.day === destino));
       e.preventDefault(); return;
     }
     if (e.key === "Delete" || e.key === "Del") {
@@ -2086,7 +2091,8 @@ document.addEventListener("keydown", (e) => {
   // Se usa Ctrl+Alt (no Alt solo): en Windows/Linux Alt+←/→ es Atrás/Adelante y el
   // W3C documenta que el navegador puede ignorar preventDefault en combinaciones reservadas.
   const elFoco = document.activeElement;
-  const iFoco = elFoco?.classList?.contains("ev") && !elFoco.hasAttribute("data-busy")
+  const esReunion = elFoco?.classList?.contains("ev") || elFoco?.classList?.contains("lev");
+  const iFoco = esReunion && !elFoco.hasAttribute("data-busy")
     ? Number(elFoco.dataset.i) : -1;
   if (iFoco >= 0) {
     if (e.ctrlKey && e.altKey && e.key === "ArrowDown") { moverEvento(iFoco, 15); e.preventDefault(); return; }

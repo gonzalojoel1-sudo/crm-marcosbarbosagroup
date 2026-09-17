@@ -142,7 +142,11 @@ distintos para crear y para editar.
 - **Encabezado que dice qué se está haciendo**: "Nueva reunión · martes 16, 09:00–09:45" o
   "Editar · Reunión de socios". El contexto temporal se ve, no se adivina.
 - Campos: título, agenda (categoría), día, hora de inicio, duración (o hora de fin), notas.
-- **Fecha**: campo de texto + botón "elegir" que abre la grilla de fechas del APG (no `<input type="date">`).
+- **Fecha**: **desvío deliberado (implementado)**: un `<select>` nativo con los cinco días hábiles,
+  no la grilla de fechas del APG que este spec pedía. La semana es fija Lun–Vie: no hay "otro día"
+  que una grilla resolvería, y el `<select>` nativo ya es operable por teclado y lector de pantalla
+  sin los problemas de `<input type="date">` que este mismo spec señala. Si la ventana pasara a
+  incluir fin de semana u "otro día", esta decisión hay que revisarla.
 - **Hora**: campo de texto con validación (`09:00`, `9:00`, `9.30`) + pasos de ±15 min.
 - **Duración**: botones de paso (15/30/45/60/90) además del campo; es el camino sin arrastre de A3.
 - Guardar / Cancelar. **Escape cierra sin guardar y devuelve el foco a donde estaba.**
@@ -391,7 +395,13 @@ declaran como trabajo de fase.
 
 ### Huecos que la auditoría abrió y este spec declara fuera de alcance
 
-Eventos **multi-día** y fila de **todo-el-día**; operaciones en la vista **Mes** y en la **Lista**
-más allá de crear/editar; **multi-día al arrastrar**; alcance de `⌘Z` (profundidad, si deshace
-borrados, si cruza vistas); ambigüedad del parseo de hora (`9.30` vs `9:30`); si mover una reunión
-puede **cambiarle el carril** y si eso se anuncia.
+Eventos **multi-día** y fila de **todo-el-día**; operaciones en la vista **Mes**; **multi-día al
+arrastrar**; alcance de `⌘Z` (profundidad, si deshace borrados, si cruza vistas); ambigüedad del
+parseo de hora (`9.30` vs `9:30`); si mover una reunión puede **cambiarle el carril** y si eso se
+anuncia.
+
+> **Actualización (implementado): la Lista dejó de estar fuera de alcance.** La versión original
+> listaba "operaciones en la Lista más allá de crear/editar". Hoy la Lista es un compuesto APG con el
+> MISMO menú que la grilla (Editar · Mover a… · Cambiar duración… · Duplicar · Eliminar), cerrado por
+> `1ea51bd`: reusa el menú, no reimplementa acciones. Se mantiene la intención original de no
+> duplicar la superficie de acciones.

@@ -2256,6 +2256,28 @@ await lc.keyboard.press("ArrowRight"); await lc.waitForTimeout(90);
 const kRight = await lc.evaluate(() => ({ i: Number(document.activeElement?.dataset?.i), day: EVENTS[Number(document.activeElement?.dataset?.i)]?.day }));
 await lc.keyboard.press("ArrowLeft"); await lc.waitForTimeout(90);
 const kLeft = await lc.evaluate(() => Number(document.activeElement?.dataset?.i));
+// ← desde un día NO adyacente (día 3): debe ir al PRIMER evento del día inmediatamente
+// anterior, no al primero de la semana. El find hacia adelante devolvía el día 0.
+const esperadoIzq = await lc.evaluate(() => {
+  const f = [...document.querySelectorAll("#grilla .lev")];
+  const dd = (el) => EVENTS[Number(el.dataset.i)]?.day;
+  const menor = Math.max(...f.map(dd).filter((x) => x < 3));
+  const destino = f.find((el) => dd(el) === menor);
+  const origen = f.find((el) => dd(el) === 3);
+  if (origen) origen.focus();
+  return { day: menor, i: Number(destino?.dataset?.i) };
+});
+await lc.waitForTimeout(90);
+const antesIzq = await lc.evaluate(() => ({
+  day: EVENTS[Number(document.activeElement?.dataset?.i)]?.day,
+  i: Number(document.activeElement?.dataset?.i),
+}));
+await lc.keyboard.press("ArrowLeft"); await lc.waitForTimeout(90);
+const trasIzq = await lc.evaluate(() => ({
+  day: EVENTS[Number(document.activeElement?.dataset?.i)]?.day,
+  i: Number(document.activeElement?.dataset?.i),
+}));
+await focoFila(lc, comp.filaPrimera);   // devuelve el roving al primer día para el test de Tab
 // un solo tab stop: Nueva reunión (día 0) → Tab → fila roving → Tab → control siguiente
 await lc.evaluate(() => document.querySelector('[data-nueva-dia="0"]')?.focus());
 await lc.waitForTimeout(60);
@@ -2279,6 +2301,36 @@ const menuAncla = await lc.evaluate(() => {
   };
 });
 await lc.close();
+
+// 1b) Nudge desde una fila de la Lista: Ctrl+Alt+→ mueve de día y Shift+↓ cambia la
+// duración, con el foco de vuelta en la MISMA fila (antes iFoco solo aceptaba .ev).
+const ln = await abrirLista();
+const iNudge = await ln.evaluate(() => {
+  const el = [...document.querySelectorAll("#grilla .lev")].find((x) => {
+    const e = EVENTS[Number(x.dataset.i)];
+    return e && !e.busy && e.day < 4 && e.min + e.dur + 15 <= END_H * 60;
+  });
+  if (el) el.focus();
+  const e = EVENTS[Number(el?.dataset?.i)];
+  return { i: Number(el?.dataset?.i), day: e?.day, dur: e?.dur };
+});
+await ln.waitForTimeout(90);
+await ln.keyboard.down("Control"); await ln.keyboard.down("Alt");
+await ln.keyboard.press("ArrowRight");
+await ln.keyboard.up("Alt"); await ln.keyboard.up("Control");
+await ln.waitForTimeout(250);
+const trasNudgeDia = await ln.evaluate((i) => ({
+  day: EVENTS[i]?.day,
+  focoFila: !!document.activeElement?.classList?.contains("lev"),
+  focoI: Number(document.activeElement?.dataset?.i),
+}), iNudge.i);
+await ln.keyboard.press("Shift+ArrowDown"); await ln.waitForTimeout(250);
+const trasNudgeDur = await ln.evaluate((i) => ({
+  dur: EVENTS[i]?.dur,
+  focoFila: !!document.activeElement?.classList?.contains("lev"),
+  focoI: Number(document.activeElement?.dataset?.i),
+}), iNudge.i);
+await ln.close();
 
 // 2) Mover desde la Lista: el diálogo existente cambia día y minuto
 const lm = await abrirLista();
@@ -2459,6 +2511,17 @@ await lz.close();
   if (kHome !== comp.filaPrimera) v.push(`Home no fue a la primera fila (${kHome} != ${comp.filaPrimera})`);
   if (!(kRight.day > 0)) v.push(`ArrowRight no salto de dia (dia ${kRight.day})`);
   if (kLeft !== kHome) v.push(`ArrowLeft no volvio al primer evento del dia anterior (${kLeft})`);
+  if (antesIzq.day !== 3) v.push(`no se pudo enfocar una fila del dia 3: ${antesIzq.day}`);
+  if (!(trasIzq.day < 3 && trasIzq.day > 0)) v.push(`ArrowLeft desde el dia 3 no fue al dia previo mas cercano (dia ${trasIzq.day})`);
+  else if (trasIzq.i !== esperadoIzq.i) v.push(`ArrowLeft desde el dia 3 no fue al PRIMER evento del dia ${esperadoIzq.day}: i ${trasIzq.i} != ${esperadoIzq.i}`);
+  // nudge desde la Lista
+  if (!Number.isInteger(iNudge.i)) v.push("no se encontro una fila de la Lista para probar el nudge");
+  else {
+    if (trasNudgeDia.day !== iNudge.day + 1) v.push(`Ctrl+Alt+ArrowRight desde la Lista no movio 1 dia: ${iNudge.day} -> ${trasNudgeDia.day}`);
+    if (!trasNudgeDia.focoFila || trasNudgeDia.focoI !== iNudge.i) v.push(`el nudge de dia desde la Lista perdio el foco (fila ${trasNudgeDia.focoI})`);
+    if (trasNudgeDur.dur !== iNudge.dur + 15) v.push(`Shift+ArrowDown desde la Lista no cambio 15 min: ${iNudge.dur} -> ${trasNudgeDur.dur}`);
+    if (!trasNudgeDur.focoFila || trasNudgeDur.focoI !== iNudge.i) v.push(`el nudge de duracion desde la Lista perdio el foco (fila ${trasNudgeDur.focoI})`);
+  }
   if (!tab1.esFila) v.push("Tab tras Nueva reunion no cayo en la fila roving");
   if (tab1.i !== comp.filaTabbable) v.push(`Tab cayo en la fila ${tab1.i}, no en la tabbable ${comp.filaTabbable}`);
   if (tab2.esFila) v.push("un segundo Tab siguio dentro de las filas: la Lista no es un solo tab stop");
@@ -2513,7 +2576,7 @@ await lz.close();
   if (trasZ.n !== 0 || trasZ.filas !== 0) v.push(`la lista no quedo sin filas (${trasZ.n} eventos, ${trasZ.filas} filas)`);
   if (!trasZ.focoGrilla) v.push("sin filas el foco no quedo en el contenedor de la Lista");
   if (!/Eliminada/.test(trasZ.anuncio)) v.push(`el borrado que vacia la Lista no anuncio: "${trasZ.anuncio}"`);
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `A10 Lista operable (compuesto APG) · filas ${comp.filas} con data-i ${comp.conIndice} · tab stops ${comp.tabbables} (roving ${comp.filaTabbable}) · flechas ${k0}→↓${kDown}→↑${kUp}→End ${kEnd}→Home ${kHome}→→dia ${kRight.day}→←${kLeft} · Tab Nueva→fila ${tab1.esFila}(${tab1.i})→fuera ${!tab2.esFila} · menú anclado a fila ${menuAncla.fila}=${menuAncla.indice} dentro ${menuAncla.dentro} sin anuncio ${!menuAncla.anuncio} · Mover ${antesMvL.min}→${trasMvL.min} dia ${trasMvL.day} foco fila ${trasMvL.focoI} · Duración ${antesDurL.dur}→${trasDurL.dur} foco fila ${trasDurL.focoI} · Duplicar ${nDupL}→${trasDupL.n} foco copia ${trasDupL.focoI} sin anuncio ${!trasDupL.anuncio} · Eliminar ${delInfo.n}→${trasDelL.n} foco siguiente "${trasDelL.focoTitulo}" anuncio "${trasDelL.anuncio}" · última→anterior "${trasLast.focoTitulo}" · día vacío→día ${finDia?.focoDia} "${finDia?.focoTitulo}" · lista vacía→contenedor ${trasZ.focoGrilla}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A10 Lista operable (compuesto APG) · filas ${comp.filas} con data-i ${comp.conIndice} · tab stops ${comp.tabbables} (roving ${comp.filaTabbable}) · flechas ${k0}→↓${kDown}→↑${kUp}→End ${kEnd}→Home ${kHome}→→dia ${kRight.day}→←${kLeft}→←dia3 ${trasIzq.day}(i ${trasIzq.i}) · nudge Lista día ${iNudge.day}→${trasNudgeDia.day} dur ${iNudge.dur}→${trasNudgeDur.dur} foco ${trasNudgeDur.focoI} · Tab Nueva→fila ${tab1.esFila}(${tab1.i})→fuera ${!tab2.esFila} · menú anclado a fila ${menuAncla.fila}=${menuAncla.indice} dentro ${menuAncla.dentro} sin anuncio ${!menuAncla.anuncio} · Mover ${antesMvL.min}→${trasMvL.min} dia ${trasMvL.day} foco fila ${trasMvL.focoI} · Duración ${antesDurL.dur}→${trasDurL.dur} foco fila ${trasDurL.focoI} · Duplicar ${nDupL}→${trasDupL.n} foco copia ${trasDupL.focoI} sin anuncio ${!trasDupL.anuncio} · Eliminar ${delInfo.n}→${trasDelL.n} foco siguiente "${trasDelL.focoTitulo}" anuncio "${trasDelL.anuncio}" · última→anterior "${trasLast.focoTitulo}" · día vacío→día ${finDia?.focoDia} "${finDia?.focoTitulo}" · lista vacía→contenedor ${trasZ.focoGrilla}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 
