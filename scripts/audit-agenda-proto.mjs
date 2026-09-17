@@ -1673,15 +1673,25 @@ const nudgeKey = async (mod, key) => {
 await nudgeKey("Alt", "ArrowDown");
 const nMin = await nudge.evaluate((idx) => ({
   min: EVENTS[idx].min,
+  aria: document.activeElement?.getAttribute("aria-label") || "",
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   foco: document.activeElement === document.querySelector(`#grilla .ev[data-i="${idx}"]`),
   scroll: document.querySelector(".gridwrap").scrollTop,
 }), nudgeIdx);
 await nudgeKey("Alt", "ArrowRight");
-const nDia = await nudge.evaluate((idx) => ({ day: EVENTS[idx].day, min: EVENTS[idx].min, anuncio: (document.querySelector("#announcer")?.textContent || "").trim() }), nudgeIdx);
+const nDia = await nudge.evaluate((idx) => ({
+  day: EVENTS[idx].day,
+  min: EVENTS[idx].min,
+  diaLargo: DIAS_LARGOS[EVENTS[idx].day],
+  aria: document.activeElement?.getAttribute("aria-label") || "",
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}), nudgeIdx);
 await nudgeKey("Shift", "ArrowDown");
 const nDur = await nudge.evaluate((idx) => ({
   dur: EVENTS[idx].dur,
+  min: EVENTS[idx].min,
+  fin: EVENTS[idx].min + EVENTS[idx].dur,
+  aria: document.activeElement?.getAttribute("aria-label") || "",
   anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
   foco: document.activeElement === document.querySelector(`#grilla .ev[data-i="${idx}"]`),
 }), nudgeIdx);
@@ -1776,16 +1786,22 @@ await supr.close();
   const v = [];
   // nudge
   if (nMin.min !== nudgeAntes.min + 15) v.push(`Alt+ArrowDown no movio 15 min: ${nudgeAntes.min} -> ${nMin.min}`);
-  if (!nMin.anuncio.includes(`a las ${fmt2(nudgeAntes.min + 15)}`)) v.push(`Alt+ArrowDown no anuncio la hora: "${nMin.anuncio}"`);
+  // el repintado reemplaza el nodo y su nombre accesible ya trae la hora nueva:
+  // enfocar ESO es el anuncio, así que la live region debe quedar vacía (alternancia).
+  if (!nMin.aria.includes(fmt2(nudgeAntes.min + 15))) v.push(`el nombre accesible enfocado no trae la hora nueva: "${nMin.aria}"`);
+  if (nMin.anuncio) v.push(`el nudge anuncio ademas de re-enfocar (doble lectura): "${nMin.anuncio}"`);
   if (!nMin.foco) v.push("tras el nudge el foco no sigue en la reunion");
   if (!(nudgeAntes.scroll > 0)) v.push(`no se pudo fijar un scroll no nulo para probar (${nudgeAntes.scroll})`);
   if (nMin.scroll !== nudgeAntes.scroll) v.push(`el nudge reseteo el scroll: ${nudgeAntes.scroll} -> ${nMin.scroll}`);
   if (nDia.day !== nudgeAntes.day + 1) v.push(`Alt+ArrowRight no movio 1 dia: ${nudgeAntes.day} -> ${nDia.day}`);
   if (nDia.min !== nMin.min) v.push(`el nudge de dia cambio la hora: ${nMin.min} -> ${nDia.min}`);
-  if (!/Movida .+ a (lunes|martes|miércoles|jueves|viernes)/.test(nDia.anuncio)) v.push(`el nudge de dia no anuncio el dia: "${nDia.anuncio}"`);
+  if (!nDia.aria.includes(nDia.diaLargo)) v.push(`el nombre accesible enfocado no trae el dia nuevo (${nDia.diaLargo}): "${nDia.aria}"`);
+  if (nDia.anuncio) v.push(`el nudge de dia anuncio ademas de re-enfocar: "${nDia.anuncio}"`);
   if (nDur.dur !== nudgeAntes.dur + 15) v.push(`Shift+ArrowDown no cambio 15 min de duracion: ${nudgeAntes.dur} -> ${nDur.dur}`);
-  if (!nDur.anuncio.includes(`ahora ${nudgeAntes.dur + 15} minutos`)) v.push(`Shift+ArrowDown no anuncio la duracion: "${nDur.anuncio}"`);
+  if (!nDur.aria.includes(`a ${fmt2(nDur.fin)}`)) v.push(`el nombre accesible enfocado no trae el fin nuevo (${fmt2(nDur.fin)}): "${nDur.aria}"`);
+  if (nDur.anuncio) v.push(`el nudge de duracion anuncio ademas de re-enfocar: "${nDur.anuncio}"`);
   if (!nDur.foco) v.push("tras el nudge de duracion el foco no sigue en la reunion");
+  // contra un borde NO hay repintado ni cambio de foco: ahi sí debe anunciarse el rechazo
   if (nPiso.min !== nPiso.piso) v.push(`contra el piso el nudge movio la reunion: ${nPiso.min}`);
   if (!nPiso.anuncio) v.push("contra el piso el nudge no dijo nada");
   if (nTope.dur !== 60 || nTope.min + nTope.dur !== nTope.tope) v.push(`contra el tope el nudge estiro la reunion: dur ${nTope.dur} (min+tope ${nTope.min + nTope.dur} vs ${nTope.tope})`);
@@ -1806,7 +1822,7 @@ await supr.close();
   if (!suprConfirm.vivo || suprConfirm.n !== suprInfo.n) v.push("Supr borro antes de confirmar");
   if (!suprDirecto.confirm) v.push("Supr sobre la reunion enfocada no abrio la confirmacion");
   if (!suprDirecto.vivo || suprDirecto.n !== suprInfo.n) v.push("Supr directo borro antes de confirmar");
-  console.log((v.length ? "  ✗ " : "  ✓ ") + `A6 nudge por teclado · Alt+↓ ${nudgeAntes.min}->${nMin.min} "${nMin.anuncio}" scroll ${nudgeAntes.scroll}->${nMin.scroll} · Alt+→ dia ${nudgeAntes.day}->${nDia.day} · Shift+↓ dur ${nudgeAntes.dur}->${nDur.dur} "${nDur.anuncio}" · piso ${nPiso.min} tope dur ${nTope.dur} · 2.1.4 campo "${tras214.valor}" eventos ${tras214.n} vista ${tras214.view} · ajeno panel ${trasAjeno.panel} · Supr hint "${suprHint.hint}" confirm ${suprConfirm.confirm} foco ${suprConfirm.foco} · directo ${suprDirecto.confirm} foco ${suprDirecto.foco}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A6 nudge por teclado · Alt+↓ ${nudgeAntes.min}->${nMin.min} nombre "${nMin.aria}" live "${nMin.anuncio || "(vacia)"}" scroll ${nudgeAntes.scroll}->${nMin.scroll} · Alt+→ dia ${nudgeAntes.day}->${nDia.day} nombre trae "${nDia.diaLargo}" live "${nDia.anuncio || "(vacia)"}" · Shift+↓ dur ${nudgeAntes.dur}->${nDur.dur} fin ${fmt2(nDur.fin)} live "${nDur.anuncio || "(vacia)"}" · piso ${nPiso.min} anuncio "${nPiso.anuncio}" · tope dur ${nTope.dur} anuncio "${nTope.anuncio}" · 2.1.4 campo "${tras214.valor}" eventos ${tras214.n} vista ${tras214.view} · ajeno panel ${trasAjeno.panel} · Supr hint "${suprHint.hint}" confirm ${suprConfirm.confirm} foco ${suprConfirm.foco} · directo ${suprDirecto.confirm} foco ${suprDirecto.foco}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 await browser.close();
