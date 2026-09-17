@@ -1388,4 +1388,261 @@ await zdur.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A3 "Cambiar duración…" · preset 45 -> ${trasPreset.dur} · anuncio "${trasPreset.anuncio}" · sin anuncio al abrir ${!enMenuDur.anuncio && !durAbierto.anuncio} · Escape no escribe ${trasEscapeDur.objeto === antesEscapeDur} · borde +15 disabled ${bordeDur.p15} en ${bordeDur.draft} (+15 del preset ok ${!bordeDur.preset15}) · teclado foco ${kbdDurAbierto.focoPreset}→preset ${kbdDurFocoPreset}→paso ${kbdFocoPasoDur}→Aplicar ${kbdFocoDur} · dur ${durKbdAntes.dur} -> ${trasKbdDur.dur} · scroll ${scrollAntesDur} -> ${trasScrollDur.scrollTop}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+
+// ── "Duplicar" y "Eliminar" (S6 · A5 + borrado): acciones del menú, por puntero y teclado ──
+// Duplicar es inmediato y NO anuncia (el foco pasa a la copia, cuyo nombre accesible
+// ES el anuncio; alternancia). Eliminar pide confirmación EN LÍNEA dentro del menú: el
+// primer Enter no borra, Cancelar/Escape no escriben y no anuncian (el foco vuelve al
+// MISMO evento), y recién "Sí, eliminar" quita el evento y SÍ anuncia (el foco cae en
+// otro objeto: un vecino o la grilla). Ambos viajes de teclado corren en la variante
+// zoom con scroll no nulo para probar que no se usa mount().
+const setScroll = async (page, i) => page.evaluate((idx) => {
+  const w = document.querySelector(".gridwrap");
+  const heads = document.querySelector(".heads").getBoundingClientRect().height;
+  const el = document.querySelector(`#grilla .ev[data-i="${idx}"]`);
+  w.scrollTop = Math.max(0, Math.round(heads + parseFloat(el.style.top) + parseFloat(el.style.height) / 2 - w.clientHeight / 2));
+  return w.scrollTop;
+}, i);
+
+// 1) Duplicar por puntero
+const pDup = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await pDup.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await pDup.waitForTimeout(400);
+const pDupAntes = await pDup.evaluate(() => ({ n: EVENTS.length, e: { ...EVENTS[0] } }));
+await pDup.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await pDup.locator('#grilla .ev[data-i="0"]').click();
+await pDup.waitForTimeout(250);
+const pDupMenu = await pDup.evaluate(() => ({
+  menu: !!document.querySelector("#menu"),
+  hayDuplicar: !!document.querySelector('[data-accion="duplicar"]'),
+  hayEliminar: !!document.querySelector('[data-accion="eliminar"]'),
+  tamano: [...document.querySelectorAll('#menu [role="menuitem"]')].every((b) => { const r = b.getBoundingClientRect(); return r.width >= 24 && r.height >= 24; }),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}));
+await pDup.locator('[data-accion="duplicar"]').click();
+await pDup.waitForTimeout(350);
+const pDupTras = await pDup.evaluate((n) => {
+  const c = EVENTS[n];
+  return {
+    n: EVENTS.length,
+    copia: { day: c?.day, min: c?.min, dur: c?.dur, title: c?.title, cat: c?.cat, origin: c?.origin, sync: c?.sync },
+    focoEnCopia: document.activeElement === document.querySelector(`#grilla .ev[data-i="${n}"]`),
+    menu: !!document.querySelector("#menu"),
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+}, pDupAntes.n);
+await pDup.close();
+
+// 2) Eliminar por puntero: confirmación, Cancelar (no escribe) y "Sí, eliminar"
+const pDel = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await pDel.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await pDel.waitForTimeout(400);
+const pDelIdx = await pDel.evaluate(() => EVENTS.findIndex((e) => e.title === "Revisión de propuesta"));
+const pDelInfo = await pDel.evaluate((i) => ({ n: EVENTS.length, objeto: JSON.stringify(EVENTS[i]), titulo: EVENTS[i].title, dia: EVENTS[i].day, min: EVENTS[i].min }), pDelIdx);
+await pDel.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await pDel.locator(`#grilla .ev[data-i="${pDelIdx}"]`).click();
+await pDel.waitForTimeout(250);
+await pDel.locator('[data-accion="eliminar"]').click();
+await pDel.waitForTimeout(250);
+const pDelConfirm = await pDel.evaluate((i) => {
+  const g = document.querySelector("#confirmar-eliminar");
+  const ctr = g ? [...g.querySelectorAll("button")] : [];
+  return {
+    confirm: !!g,
+    rol: g?.getAttribute("role"),
+    nombre: g?.getAttribute("aria-label") || "",
+    botones: ctr.map((b) => (b.textContent || "").trim()),
+    tamano: ctr.every((b) => { const r = b.getBoundingClientRect(); return r.width >= 24 && r.height >= 24; }),
+    focoEnSi: document.activeElement?.id || null,
+    prohibido: !!g?.querySelector('[role="grid"], [aria-grabbed], [aria-dropeffect]'),
+    vivo: !!EVENTS[i],
+    n: EVENTS.length,
+  };
+}, pDelIdx);
+await pDel.locator("#eliminar-no").click();
+await pDel.waitForTimeout(300);
+const pDelCancel = await pDel.evaluate((i) => ({
+  objeto: JSON.stringify(EVENTS[i]),
+  n: EVENTS.length,
+  confirm: !!document.querySelector("#confirmar-eliminar"),
+  focoEnEvento: document.activeElement === document.querySelector(`#grilla .ev[data-i="${i}"]`),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}), pDelIdx);
+await pDel.locator(`#grilla .ev[data-i="${pDelIdx}"]`).click();
+await pDel.waitForTimeout(200);
+await pDel.locator('[data-accion="eliminar"]').click();
+await pDel.waitForTimeout(200);
+await pDel.locator("#eliminar-si").click();
+await pDel.waitForTimeout(350);
+const pDelTras = await pDel.evaluate(({ titulo, dia, min }) => {
+  const idx = document.activeElement?.dataset?.i;
+  const ev = idx != null ? EVENTS[Number(idx)] : null;
+  const anuncio = (document.querySelector("#announcer")?.textContent || "").trim();
+  return {
+    n: EVENTS.length,
+    existe: EVENTS.some((e) => e.title === titulo),
+    focoEsEvento: !!document.activeElement?.classList?.contains("ev"),
+    vecinoDia: ev ? ev.day : null,
+    focoEnGrilla: document.activeElement?.id === "grilla",
+    anuncio,
+    esperado: `Eliminada ${titulo}, ${DIAS_LARGOS[dia]} a las ${fmt(min)}`,
+  };
+}, { titulo: pDelInfo.titulo, dia: pDelInfo.dia, min: pDelInfo.min });
+await pDel.close();
+
+// 3) Duplicar por teclado (zoom, scroll no nulo): Enter → ArrowDown×3 → Enter
+const kDup = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await kDup.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await kDup.waitForTimeout(500);
+const kDupIdx = await kDup.evaluate(() => EVENTS.findIndex((e) => e.title === "Block: trabajo profundo"));
+const kDupAntes = await kDup.evaluate((i) => ({ n: EVENTS.length, e: { ...EVENTS[i] } }), kDupIdx);
+const kDupScroll = await setScroll(kDup, kDupIdx);
+await kDup.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await kDup.evaluate((i) => document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus(), kDupIdx);
+await kDup.waitForTimeout(80);
+await kDup.keyboard.press("Enter");        // menú → foco en "Editar"
+await kDup.keyboard.press("ArrowDown");    // "Mover a…"
+await kDup.keyboard.press("ArrowDown");    // "Cambiar duración…"
+await kDup.keyboard.press("ArrowDown");    // "Duplicar"
+await kDup.waitForTimeout(100);
+const kDupFoco = await kDup.evaluate(() => document.activeElement?.dataset?.accion || null);
+await kDup.keyboard.press("Enter");        // duplicar
+await kDup.waitForTimeout(350);
+const kDupTras = await kDup.evaluate((n) => {
+  const c = EVENTS[n];
+  return {
+    n: EVENTS.length,
+    copia: { day: c?.day, min: c?.min, dur: c?.dur, title: c?.title, cat: c?.cat, origin: c?.origin, sync: c?.sync },
+    focoEnCopia: document.activeElement === document.querySelector(`#grilla .ev[data-i="${n}"]`),
+    menu: !!document.querySelector("#menu"),
+    scrollTop: document.querySelector(".gridwrap").scrollTop,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+}, kDupAntes.n);
+await kDup.close();
+
+// 4) Eliminar por teclado (zoom, scroll no nulo): confirmar sin borrar → Escape → confirmar
+const kDel = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await kDel.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await kDel.waitForTimeout(500);
+const kDelIdx = await kDel.evaluate(() => EVENTS.findIndex((e) => e.title === "Revisión de propuesta"));
+const kDelAntes = await kDel.evaluate((i) => ({ n: EVENTS.length, objeto: JSON.stringify(EVENTS[i]), titulo: EVENTS[i].title, dia: EVENTS[i].day, min: EVENTS[i].min }), kDelIdx);
+const kDelScroll = await setScroll(kDel, kDelIdx);
+await kDel.evaluate(() => { const a = document.querySelector("#announcer"); if (a) a.textContent = ""; });
+await kDel.evaluate((i) => document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus(), kDelIdx);
+await kDel.waitForTimeout(80);
+const abrirEliminarKbd = async () => {
+  await kDel.keyboard.press("Enter");        // menú
+  await kDel.keyboard.press("ArrowDown");    // "Mover a…"
+  await kDel.keyboard.press("ArrowDown");    // "Cambiar duración…"
+  await kDel.keyboard.press("ArrowDown");    // "Duplicar"
+  await kDel.keyboard.press("ArrowDown");    // "Eliminar"
+  await kDel.keyboard.press("Enter");        // abre la confirmación
+  await kDel.waitForTimeout(150);
+};
+await abrirEliminarKbd();
+const kDelConfirm = await kDel.evaluate((i) => ({
+  confirm: !!document.querySelector("#confirmar-eliminar"),
+  foco: document.activeElement?.id || null,
+  n: EVENTS.length,
+  vivo: !!EVENTS[i],
+}), kDelIdx);
+await kDel.keyboard.press("Escape");
+await kDel.waitForTimeout(250);
+const kDelEscape = await kDel.evaluate((i) => ({
+  objeto: JSON.stringify(EVENTS[i]),
+  confirm: !!document.querySelector("#confirmar-eliminar"),
+  menu: !!document.querySelector("#menu"),
+  focoEnEvento: document.activeElement === document.querySelector(`#grilla .ev[data-i="${i}"]`),
+  anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+}), kDelIdx);
+await abrirEliminarKbd();                    // reabrir: foco vuelve al evento tras Escape
+await kDel.keyboard.press("Enter");          // "Sí, eliminar" ya tiene el foco → segundo Enter borra
+await kDel.waitForTimeout(400);
+const kDelTras = await kDel.evaluate(({ titulo, dia, min }) => {
+  const idx = document.activeElement?.dataset?.i;
+  const ev = idx != null ? EVENTS[Number(idx)] : null;
+  const anuncio = (document.querySelector("#announcer")?.textContent || "").trim();
+  return {
+    n: EVENTS.length,
+    existe: EVENTS.some((e) => e.title === titulo),
+    focoEsEvento: !!document.activeElement?.classList?.contains("ev"),
+    vecinoDia: ev ? ev.day : null,
+    focoEnGrilla: document.activeElement?.id === "grilla",
+    scrollTop: document.querySelector(".gridwrap").scrollTop,
+    anuncio,
+    esperado: `Eliminada ${titulo}, ${DIAS_LARGOS[dia]} a las ${fmt(min)}`,
+  };
+}, { titulo: kDelAntes.titulo, dia: kDelAntes.dia, min: kDelAntes.min });
+await kDel.close();
+
+{
+  const v = [];
+  const orig = pDupAntes.e;
+  const tituloCopia = `${orig.title} (copia)`;
+  if (!pDupMenu.menu) v.push("el click en la reunion no abrio el menu (duplicar)");
+  if (!pDupMenu.hayDuplicar) v.push('el menu no ofrece "Duplicar"');
+  if (!pDupMenu.hayEliminar) v.push('el menu no ofrece "Eliminar"');
+  if (!pDupMenu.tamano) v.push("hay items de menu menores a 24x24");
+  if (pDupMenu.anuncio) v.push(`se anuncio al abrir el menu (duplicar): "${pDupMenu.anuncio}"`);
+  if (pDupTras.n !== pDupAntes.n + 1) v.push(`duplicar por puntero no agrego 1 (${pDupAntes.n} -> ${pDupTras.n})`);
+  if (pDupTras.copia.day !== orig.day || pDupTras.copia.min !== orig.min || pDupTras.copia.dur !== orig.dur) v.push("la copia no quedo en el mismo dia/hora/duracion");
+  if (pDupTras.copia.cat !== orig.cat || pDupTras.copia.origin !== orig.origin || pDupTras.copia.sync !== orig.sync) v.push("la copia no conserva categoria/origen/sync");
+  if (pDupTras.copia.title !== tituloCopia) v.push(`titulo de la copia "${pDupTras.copia.title}" (esperado "${tituloCopia}")`);
+  if (!pDupTras.focoEnCopia) v.push("duplicar por puntero no dejo el foco en la copia");
+  if (pDupTras.menu) v.push("duplicar dejo el menu abierto");
+  if (pDupTras.anuncio) v.push(`duplicar anuncio: "${pDupTras.anuncio}" (debe ser vacio)`);
+  const copiaKbd = `${kDupAntes.e.title} (copia)`;
+  if (kDupFoco !== "duplicar") v.push(`ArrowDown×3 no llego a "Duplicar": ${kDupFoco}`);
+  if (kDupTras.n !== kDupAntes.n + 1) v.push(`duplicar por teclado no agrego 1 (${kDupAntes.n} -> ${kDupTras.n})`);
+  if (kDupTras.copia.title !== copiaKbd) v.push(`copia de teclado "${kDupTras.copia.title}" (esperado "${copiaKbd}")`);
+  if (kDupTras.copia.day !== kDupAntes.e.day || kDupTras.copia.min !== kDupAntes.e.min || kDupTras.copia.dur !== kDupAntes.e.dur) v.push("la copia de teclado no quedo en el mismo dia/hora");
+  if (!kDupTras.focoEnCopia) v.push("el viaje de teclado no dejo el foco en la copia");
+  if (kDupTras.anuncio) v.push(`duplicar por teclado anuncio: "${kDupTras.anuncio}" (debe ser vacio)`);
+  if (!(kDupScroll > 0)) v.push(`no se pudo fijar scroll de zoom para duplicar (${kDupScroll})`);
+  if (kDupTras.scrollTop !== kDupScroll) v.push(`duplicar reseteo el scroll: ${kDupScroll} -> ${kDupTras.scrollTop}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A4 "Duplicar" · puntero ${pDupAntes.n} -> ${pDupTras.n} copia "${pDupTras.copia.title}" misma hora ${pDupTras.copia.day === orig.day && pDupTras.copia.min === orig.min} foco ${pDupTras.focoEnCopia} sin anuncio ${!pDupTras.anuncio} · teclado ${kDupAntes.n} -> ${kDupTras.n} foco ${kDupTras.focoEnCopia} sin anuncio ${!kDupTras.anuncio} · scroll ${kDupScroll} -> ${kDupTras.scrollTop}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+
+{
+  const v = [];
+  if (!pDelConfirm.confirm) v.push("el primer click en Eliminar no abrio #confirmar-eliminar");
+  else {
+    if (pDelConfirm.rol !== "group") v.push(`role de la confirmacion ${pDelConfirm.rol}`);
+    if (!/Confirmar eliminación/.test(pDelConfirm.nombre)) v.push(`la confirmacion no tiene rotulo: "${pDelConfirm.nombre}"`);
+    if (JSON.stringify(pDelConfirm.botones) !== JSON.stringify(["Sí, eliminar", "Cancelar"])) v.push(`botones ${pDelConfirm.botones.join(",")}`);
+    if (!pDelConfirm.tamano) v.push("hay controles de confirmacion menores a 24x24");
+    if (pDelConfirm.prohibido) v.push("usa role=grid/aria-grabbed/aria-dropeffect");
+    if (pDelConfirm.focoEnSi !== "eliminar-si") v.push(`el foco al confirmar no quedo en "Sí, eliminar": ${pDelConfirm.focoEnSi}`);
+  }
+  if (!pDelConfirm.vivo) v.push("el primer click en Eliminar ya borro el evento");
+  if (pDelConfirm.n !== pDelInfo.n) v.push(`el primer click en Eliminar cambio EVENTS.length: ${pDelInfo.n} -> ${pDelConfirm.n}`);
+  if (pDelCancel.objeto !== pDelInfo.objeto) v.push("Cancelar si escribio el evento (objeto distinto)");
+  if (pDelCancel.confirm) v.push("Cancelar no cerro la confirmacion");
+  if (!pDelCancel.focoEnEvento) v.push("Cancelar no devolvio el foco a la reunion");
+  if (pDelCancel.anuncio) v.push(`Cancelar anuncio: "${pDelCancel.anuncio}"`);
+  if (pDelTras.n !== pDelInfo.n - 1) v.push(`confirmar no quito 1 evento: ${pDelInfo.n} -> ${pDelTras.n}`);
+  if (pDelTras.existe) v.push("confirmar no borro el evento");
+  if (!pDelTras.focoEsEvento && !pDelTras.focoEnGrilla) v.push("tras borrar el foco no quedo en un vecino ni en #grilla");
+  if (pDelTras.focoEsEvento && pDelTras.vecinoDia !== pDelInfo.dia) v.push(`el vecino enfocado no es del mismo dia (${pDelTras.vecinoDia})`);
+  if (pDelTras.anuncio !== pDelTras.esperado) v.push(`anuncio de borrado "${pDelTras.anuncio}" (esperado "${pDelTras.esperado}")`);
+  if (!kDelConfirm.confirm) v.push("ArrowDown×4/Enter no abrio la confirmacion por teclado");
+  if (!kDelConfirm.vivo) v.push("la confirmacion por teclado ya borro el evento");
+  if (kDelConfirm.n !== kDelAntes.n) v.push(`la confirmacion cambio EVENTS.length: ${kDelAntes.n} -> ${kDelConfirm.n}`);
+  if (kDelConfirm.foco !== "eliminar-si") v.push(`el foco de la confirmacion por teclado no quedo en "Sí, eliminar": ${kDelConfirm.foco}`);
+  if (kDelEscape.objeto !== kDelAntes.objeto) v.push("Escape en la confirmacion escribio el evento");
+  if (kDelEscape.confirm || kDelEscape.menu) v.push("Escape no cerro la confirmacion");
+  if (!kDelEscape.focoEnEvento) v.push("Escape no devolvio el foco a la reunion");
+  if (kDelEscape.anuncio) v.push(`Escape en la confirmacion anuncio: "${kDelEscape.anuncio}"`);
+  if (kDelTras.n !== kDelAntes.n - 1) v.push(`el segundo Enter no borro: ${kDelAntes.n} -> ${kDelTras.n}`);
+  if (kDelTras.existe) v.push("el segundo Enter no borro el evento");
+  if (!kDelTras.focoEsEvento && !kDelTras.focoEnGrilla) v.push("tras borrar por teclado el foco no quedo en un vecino ni en #grilla");
+  if (kDelTras.focoEsEvento && kDelTras.vecinoDia !== kDelAntes.dia) v.push(`el vecino enfocado no es del mismo dia (${kDelTras.vecinoDia})`);
+  if (kDelTras.anuncio !== kDelTras.esperado) v.push(`anuncio de borrado por teclado "${kDelTras.anuncio}" (esperado "${kDelTras.esperado}")`);
+  if (!(kDelScroll > 0)) v.push(`no se pudo fijar scroll de zoom para eliminar (${kDelScroll})`);
+  if (kDelTras.scrollTop !== kDelScroll) v.push(`eliminar reseteo el scroll: ${kDelScroll} -> ${kDelTras.scrollTop}`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `A5 "Eliminar" · confirmacion ${pDelConfirm.confirm} sin borrar ${pDelConfirm.vivo} foco ${pDelConfirm.focoEnSi} · Cancelar no escribe ${pDelCancel.objeto === pDelInfo.objeto} foco vuelve ${pDelCancel.focoEnEvento} sin anuncio ${!pDelCancel.anuncio} · confirmar ${pDelInfo.n} -> ${pDelTras.n} vecino dia ${pDelTras.vecinoDia} anuncio "${pDelTras.anuncio}" · teclado confirm ${kDelConfirm.confirm} Escape no escribe ${kDelEscape.objeto === kDelAntes.objeto} foco vuelve ${kDelEscape.focoEnEvento} sin anuncio ${!kDelEscape.anuncio} · segundo Enter ${kDelAntes.n} -> ${kDelTras.n} vecino dia ${kDelTras.vecinoDia} anuncio "${kDelTras.anuncio}" · scroll ${kDelScroll} -> ${kDelTras.scrollTop}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();

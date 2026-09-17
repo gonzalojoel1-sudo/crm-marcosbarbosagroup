@@ -367,6 +367,20 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 #menu [role="menuitem"]:focus-visible { background: var(--surface); }
 .m-tecla { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
 
+/* Confirmación de "Eliminar": vive DENTRO del menú (no es un modal anidado).
+   El foco entra en "Sí, eliminar", así que un segundo Enter confirma; Escape
+   cancela sin escribir y devuelve el foco a la reunión. */
+#confirmar-eliminar { display: flex; flex-direction: column; gap: 6px; padding: 4px; min-width: 200px; }
+#confirmar-eliminar .cm-pregunta { margin: 0; font-size: 13px; color: var(--fg); }
+#confirmar-eliminar button {
+  min-height: 24px; padding: 4px 8px; text-align: left;
+  background: none; border: 0; border-radius: 7px; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--fg);
+}
+#confirmar-eliminar button:hover,
+#confirmar-eliminar button:focus-visible { background: var(--surface); }
+#confirmar-eliminar #eliminar-si { color: var(--danger); }
+
 /* ── "Mover a…": superficie de borrador, no un modo ──────────────────────
    fixed como el menú (no empuja layout) y anclada al bloque que la abre.
    Nada toca el evento hasta Aplicar; Escape no escribe. */
@@ -953,7 +967,7 @@ const ACCIONES = [
   { id: "duplicar", label: "Duplicar",          tecla: "" },
   { id: "eliminar", label: "Eliminar",          tecla: "Supr" },
 ];
-const ACCIONES_HECHAS = new Set(["editar", "mover", "duracion"]);
+const ACCIONES_HECHAS = new Set(["editar", "mover", "duracion", "duplicar", "eliminar"]);
 
 function abrirMenu(i) {
   const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
@@ -1011,6 +1025,88 @@ function renderMenu() {
       style="left:${MENU.x}px;top:${MENU.y}px">
     ${acciones.map((a) => `<button type="button" role="menuitem" data-accion="${a.id}" aria-label="${a.label}">${a.label}${a.tecla ? `<span class="m-tecla" aria-hidden="true">${a.tecla}</span>` : ""}</button>`).join("")}
   </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   "Duplicar" y "Eliminar": acciones del menú. Duplicar es inmediato (una copia
+   en el mismo día/hora, y el foco pasa a la copia); Eliminar pide confirmación
+   EN LÍNEA dentro del propio menú, no en un modal anidado. Ninguna usa mount():
+   paint() recrea la grilla y el scroll se conserva, como en "Mover a…".
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Duplicar NO anuncia: el foco pasa a la copia y su nombre accesible ya trae
+   día, hora, título y categoría, así que mover el foco ES el anuncio. El bloque
+   que abre el menú está renderizado (su agenda está visible), así que la copia
+   —misma categoría y origen— también lo está: el foco siempre tiene destino. */
+function duplicarEvento(i) {
+  const e = EVENTS[i];
+  if (!e) return;
+  const copia = { day: e.day, min: e.min, dur: e.dur, title: `${e.title} (copia)`, cat: e.cat, origin: e.origin, sync: e.sync };
+  if (e.sub) copia.sub = e.sub;   // lane/laneCount los recalcula renderCol
+  EVENTS.push(copia);
+  cerrarMenu({ volverFoco: false });
+  const wrap = document.querySelector(".gridwrap");
+  const st = wrap ? wrap.scrollTop : 0;
+  paint();
+  const wrap2 = document.querySelector(".gridwrap");
+  if (wrap2) wrap2.scrollTop = st;   // paint() recrea la grilla: se conserva el scroll
+  document.querySelector(`#grilla .ev[data-i="${EVENTS.indexOf(copia)}"]`)?.focus();
+}
+
+/* La confirmación reemplaza a la lista de acciones DENTRO del mismo #menu.
+   El foco entra en "Sí, eliminar", cuyo nombre accesible trae el título: mover
+   el foco ES el anuncio de la pregunta (no se anuncia aparte, por alternancia). */
+function abrirConfirmarEliminar() {
+  if (!MENU) return;
+  MENU.confirm = true;
+  const m = document.getElementById("menu");
+  if (!m) return;
+  m.innerHTML = renderConfirmar(MENU.i);
+  requestAnimationFrame(() => { posicionarMenu(); document.querySelector("#eliminar-si")?.focus(); });
+}
+
+function renderConfirmar(i) {
+  const e = EVENTS[i];
+  if (!e) return "";
+  return `<div id="confirmar-eliminar" role="group" aria-label="Confirmar eliminación de ${e.title}">
+    <p class="cm-pregunta">¿Eliminar ${e.title}?</p>
+    <button type="button" id="eliminar-si" aria-label="Sí, eliminar ${e.title}">Sí, eliminar</button>
+    <button type="button" id="eliminar-no">Cancelar</button>
+  </div>`;
+}
+
+/* Al borrar, el elemento deja de existir y el foco cae forzosamente en OTRO
+   objeto (un vecino o la grilla): el lector leería al vecino, no la eliminación.
+   Por eso acá SÍ se anuncia, además de mover el foco. Vecino = bloque más
+   cercano en el mismo día; si el día quedó vacío, el foco va a #grilla. */
+function eliminarEvento(i) {
+  const e = EVENTS[i];
+  if (!e) return;
+  MENU = null;
+  document.getElementById("menu")?.remove();
+  EVENTS.splice(i, 1);
+  const wrap = document.querySelector(".gridwrap");
+  const st = wrap ? wrap.scrollTop : 0;
+  paint();
+  const wrap2 = document.querySelector(".gridwrap");
+  if (wrap2) wrap2.scrollTop = st;
+  announce(`Eliminada ${e.title}, ${DIAS_LARGOS[e.day]} a las ${fmt(e.min)}`);
+  const vecino = vecinoDe(e.day, e.min);
+  if (vecino) { vecino.focus(); return; }
+  const g = document.getElementById("grilla");
+  if (g && g.hasAttribute("tabindex")) { g.focus(); return; }
+  document.querySelector("#stage button")?.focus();
+}
+
+function vecinoDe(day, min) {
+  let mejor = null, dist = Infinity;
+  for (const el of document.querySelectorAll("#grilla .ev")) {
+    const ev = EVENTS[Number(el.dataset.i)];
+    if (!ev || ev.day !== day) continue;
+    const d = Math.abs(ev.min - min);
+    if (d < dist) { dist = d; mejor = el; }
+  }
+  return mejor;
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1598,9 +1694,15 @@ stage.addEventListener("click", (ev) => {
       abrirMover(MENU.i);
     } else if (acc.dataset.accion === "duracion" && MENU) {
       abrirDur(MENU.i);
+    } else if (acc.dataset.accion === "duplicar" && MENU) {
+      duplicarEvento(MENU.i);
+    } else if (acc.dataset.accion === "eliminar" && MENU) {
+      abrirConfirmarEliminar();
     }
     return;
   }
+  if (ev.target.closest("#eliminar-si")) { eliminarEvento(MENU?.i); return; }
+  if (ev.target.closest("#eliminar-no")) { cerrarMenu(); return; }
   const paso = ev.target.closest("#mover-dialog [data-paso]");
   if (paso) {
     // un paso deshabilitado no llega acá (el navegador no dispara click), pero se revalida
@@ -1726,6 +1828,20 @@ document.addEventListener("keydown", (e) => {
   // Y solo mientras el foco esté ADENTRO: si se fue, el menú es un huérfano que se limpia.
   const menu = document.getElementById("menu");
   if (MENU && menu?.contains(document.activeElement)) {
+    // Confirmación de borrado: Tab cicla DENTRO de sus dos controles (no debe
+    // escaparse dejando la confirmación a medias); Escape cancela y no escribe.
+    if (MENU.confirm) {
+      const ctr = [...menu.querySelectorAll("#confirmar-eliminar button")];
+      const ci = ctr.indexOf(document.activeElement);
+      const dir = e.key === "ArrowUp" || (e.key === "Tab" && e.shiftKey) ? -1 : 1;
+      if (e.key === "Escape") { cerrarMenu(); e.preventDefault(); return; }
+      if (e.key === "Tab" || e.key === "ArrowDown" || e.key === "ArrowUp") {
+        ctr[(ci + dir + ctr.length) % ctr.length]?.focus();
+        e.preventDefault(); return;
+      }
+      if (e.key === "Enter" || e.key === " ") { document.activeElement?.click(); e.preventDefault(); return; }
+      return;
+    }
     const items = [...menu.querySelectorAll('[role="menuitem"]')];
     const idx = items.indexOf(document.activeElement);
     if (e.key === "ArrowDown") { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); return; }
