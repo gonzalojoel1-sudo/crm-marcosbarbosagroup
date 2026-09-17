@@ -663,4 +663,96 @@ await sp.close();
   console.log((v.length ? "  ✗ " : "  ✓ ") + `guardar sin foco · creado ${sinFoco.creado} · anuncio "${sinFoco.anuncio}"`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
+// ── Menú de la reunión (S3): Enter lo abre, el foco entra, Escape cierra y vuelve, sin anunciar ──
+const mu = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await mu.goto(`${FILE}?v=1`, { waitUntil: "networkidle" });
+await mu.waitForTimeout(400);
+const iEv = await mu.evaluate(() => {
+  const e = document.querySelector("#grilla .ev");
+  e.focus();
+  document.querySelector("#announcer").textContent = "";
+  return Number(e.dataset.i);
+});
+await mu.keyboard.press("Enter");
+await mu.waitForTimeout(300);
+const porEnter = await mu.evaluate(() => {
+  const m = document.querySelector("#menu");
+  if (!m) return { falta: true };
+  const items = [...m.querySelectorAll('[role="menuitem"]')];
+  const b = m.getBoundingClientRect();
+  return {
+    rol: m.getAttribute("role"),
+    nombre: (m.getAttribute("aria-label") || m.getAttribute("aria-labelledby") || "").trim(),
+    items: items.map((i) => i.getAttribute("aria-label")),
+    focoEnPrimero: document.activeElement === items[0],
+    tamano: items.every((i) => { const r = i.getBoundingClientRect(); return r.width >= 24 && r.height >= 24; }),
+    dentro: b.left >= -1 && b.top >= -1 && b.right <= innerWidth + 1 && b.bottom <= innerHeight + 1,
+    contTabStop: m.tabIndex >= 0,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+await mu.keyboard.press("ArrowDown");
+await mu.waitForTimeout(80);
+const focoCicla = await mu.evaluate(() => document.activeElement?.getAttribute("role") === "menuitem");
+await mu.keyboard.press("Escape");
+await mu.waitForTimeout(300);
+const porEscape = await mu.evaluate((i) => {
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  return {
+    hayMenu: !!document.querySelector("#menu"),
+    focoVuelve: el ? document.activeElement === el : false,
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+}, iEv);
+// click sin movimiento sobre una reunión: también abre el menú, sin anunciar
+const cajaMenu = await mu.locator("#grilla .ev").first().boundingBox();
+await mu.mouse.click(cajaMenu.x + cajaMenu.width / 2, cajaMenu.y + cajaMenu.height / 2);
+await mu.waitForTimeout(300);
+const porClick = await mu.evaluate(() => {
+  const items = [...document.querySelectorAll('#menu [role="menuitem"]')];
+  return {
+    hayMenu: !!document.querySelector("#menu"),
+    focoEnPrimero: items.length > 0 && document.activeElement === items[0],
+    anuncio: (document.querySelector("#announcer")?.textContent || "").trim(),
+  };
+});
+await mu.keyboard.press("Escape");
+await mu.waitForTimeout(200);
+// un arrastre (> 4 px) sigue moviendo la reunión y NO abre el menú
+const iDrag = await mu.evaluate(() => Number(document.querySelector("#grilla .ev").dataset.i));
+const antesMin = await mu.evaluate((i) => EVENTS[i].min, iDrag);
+const cajaDrag = await mu.locator(`#grilla .ev[data-i="${iDrag}"]`).boundingBox();
+await mu.mouse.move(cajaDrag.x + cajaDrag.width / 2, cajaDrag.y + cajaDrag.height / 2);
+await mu.mouse.down();
+await mu.mouse.move(cajaDrag.x + cajaDrag.width / 2, cajaDrag.y + cajaDrag.height / 2 + 45, { steps: 6 });
+await mu.mouse.up();
+await mu.waitForTimeout(300);
+const despuesDrag = await mu.evaluate((i) => ({ min: EVENTS[i].min, menu: !!document.querySelector("#menu") }), iDrag);
+await mu.close();
+{
+  const v = [];
+  const esperados = ["Editar"];   // hoy solo se renderizan las acciones implementadas
+  if (porEnter.falta) v.push("Enter no abre el menu");
+  else {
+    if (porEnter.rol !== "menu") v.push(`role ${porEnter.rol}`);
+    if (!porEnter.nombre) v.push("el menu no tiene nombre accesible");
+    if (JSON.stringify(porEnter.items) !== JSON.stringify(esperados)) v.push(`items ${porEnter.items.join(" | ")} (esperado ${esperados.join(" | ")})`);
+    if (!porEnter.focoEnPrimero) v.push("el foco no entra al primer item");
+    if (!porEnter.tamano) v.push("hay items menores a 24x24");
+    if (!porEnter.dentro) v.push("el menu se sale de la ventana");
+    if (porEnter.contTabStop) v.push("el contenedor del menu es tab stop");
+    if (porEnter.anuncio) v.push(`se anuncio al abrir: "${porEnter.anuncio}"`);
+  }
+  if (!focoCicla) v.push("ArrowDown no cicla el foco");
+  if (porEscape.hayMenu) v.push("Escape no cierra el menu");
+  if (!porEscape.focoVuelve) v.push("Escape no devuelve el foco a la reunion");
+  if (porEscape.anuncio) v.push(`se anuncio al cerrar: "${porEscape.anuncio}"`);
+  if (!porClick.hayMenu) v.push("el click sobre la reunion no abre el menu");
+  if (!porClick.focoEnPrimero) v.push("el click no enfoca el primer item");
+  if (porClick.anuncio) v.push(`el click anuncio: "${porClick.anuncio}"`);
+  if (!(despuesDrag.min > antesMin)) v.push(`el arrastre no movio la reunion (${antesMin}->${despuesDrag.min})`);
+  if (despuesDrag.menu) v.push("el arrastre (>4 px) abrio el menu");
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `menu · items ${(porEnter.items || []).join(" | ") || "-"} · foco primer item ${porEnter.focoEnPrimero} · dentro de ventana ${porEnter.dentro} · Escape cierra ${!porEscape.hayMenu} y vuelve el foco ${porEscape.focoVuelve} · click abre ${porClick.hayMenu} · arrastre mueve ${despuesDrag.min > antesMin} · anuncios "${porEnter.anuncio}"/"${porEscape.anuncio}"/"${porClick.anuncio}"`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
 await browser.close();

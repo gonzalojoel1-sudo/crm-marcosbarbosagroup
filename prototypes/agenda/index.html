@@ -349,6 +349,24 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 #panel .p-dur.on { background: var(--accent); color: #fff; }
 #panel .p-acciones { display: flex; gap: 6px; margin-top: 6px; }
 
+/* ── Menú de la reunión: superficie de acciones sin arrastrar ─────────────
+   fixed (no empuja layout) por encima de la grilla (máx z 5) y del panel. */
+#menu {
+  position: fixed; z-index: 60;
+  background: var(--surface-2); border: 1px solid var(--border-2);
+  border-radius: 10px; padding: 4px; min-width: 200px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.5);
+}
+#menu [role="menuitem"] {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; min-height: 24px; padding: 4px 8px; text-align: left;
+  background: none; border: 0; border-radius: 7px; cursor: pointer;
+  font: inherit; font-size: 13px; color: var(--fg);
+}
+#menu [role="menuitem"]:hover,
+#menu [role="menuitem"]:focus-visible { background: var(--surface); }
+.m-tecla { font-family: var(--mono); font-size: 11px; color: var(--fg-faint); }
+
 /* ═══ Selector de variantes (verbatim de PICKER.md: es chrome, no diseño) ═══ */
 .proto-picker {
   position: fixed;
@@ -785,6 +803,7 @@ function renderList() {
 let PANEL = null;   // { dia, min, dur, evento } | null
 
 function abrirPanel({ dia, min, dur, evento = null }) {
+  MENU = null;   // el panel y el menú nunca conviven: abrir el panel cierra el menú
   PANEL = { dia, min, dur, evento };
   mount(current);
   // el panel recién existe tras el re-render de mount(): por eso el foco va en el siguiente frame.
@@ -855,6 +874,71 @@ function renderPanel() {
       </div>
     </form>
   </aside>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Menú de la reunión: la superficie que vuelve alcanzables sin arrastrar
+   las acciones sobre una reunión. `Enter` sobre un bloque enfocado abre el
+   menú (un solo significado en todo el prototipo); "Editar" abre el panel.
+   Solo se renderizan las acciones YA implementadas: un ítem que no hace
+   nada es un defecto. Las tareas 6/7/8 suman su id a ACCIONES_HECHAS.
+   ══════════════════════════════════════════════════════════════════════ */
+let MENU = null;   // { i, x, y } | null
+
+const ACCIONES = [
+  { id: "editar",   label: "Editar",            tecla: "E" },
+  { id: "mover",    label: "Mover a…",          tecla: "M" },
+  { id: "duracion", label: "Cambiar duración…", tecla: "D" },
+  { id: "duplicar", label: "Duplicar",          tecla: "" },
+  { id: "eliminar", label: "Eliminar",          tecla: "Supr" },
+];
+const ACCIONES_HECHAS = new Set(["editar"]);
+
+function abrirMenu(i) {
+  const el = document.querySelector(`#grilla .ev[data-i="${i}"]`);
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  MENU = { i, x: r.left, y: r.bottom + 4 };
+  mount(current);
+  // El menú existe recién tras el re-render: posicionar y enfocar en el frame
+  // siguiente. Mover el foco ES el anuncio: abrir nunca anuncia.
+  requestAnimationFrame(() => {
+    posicionarMenu();
+    document.querySelector('#menu [role="menuitem"]')?.focus();
+  });
+}
+
+function cerrarMenu({ volverFoco = true } = {}) {
+  const i = MENU?.i;
+  MENU = null;
+  mount(current);
+  // Devolver el foco a la reunión también es el anuncio: cerrar nunca anuncia.
+  if (volverFoco) requestAnimationFrame(() => {
+    document.querySelector(`#grilla .ev[data-i="${i}"]`)?.focus();
+  });
+}
+
+// El menú es fixed pero se ancla al bloque: si se saldría de la ventana, se da vuelta.
+function posicionarMenu() {
+  const m = document.getElementById("menu");
+  if (!m || !MENU) return;
+  const b = m.getBoundingClientRect();
+  const x = Math.max(4, Math.min(MENU.x, innerWidth - b.width - 4));
+  let y = MENU.y;
+  if (y + b.height > innerHeight - 4) y = MENU.y - b.height - 8;
+  y = Math.max(4, Math.min(y, innerHeight - b.height - 4));
+  m.style.left = `${x}px`;
+  m.style.top = `${y}px`;
+}
+
+function renderMenu() {
+  if (!MENU) return "";
+  const e = EVENTS[MENU.i];
+  const acciones = ACCIONES.filter((a) => ACCIONES_HECHAS.has(a.id));
+  return `<div id="menu" role="menu" aria-label="Acciones para ${e.title}"
+      style="left:${MENU.x}px;top:${MENU.y}px">
+    ${acciones.map((a) => `<button type="button" role="menuitem" data-accion="${a.id}" aria-label="${a.label}">${a.label}${a.tecla ? `<span class="m-tecla" aria-hidden="true">${a.tecla}</span>` : ""}</button>`).join("")}
+  </div>`;
 }
 
 function render() {
@@ -944,6 +1028,7 @@ function render() {
     </main>
 
     ${renderPanel()}
+    ${renderMenu()}
 
     <aside class="mini">
       <div>
@@ -1079,11 +1164,13 @@ function onUp(ev) {
   if (lab) lab.style.display = "none";
   document.getElementById("ghost")?.remove();
 
-  // click quieto en un hueco (no sobre un evento): abre el panel; el arrastre crea como siempre
-  const clickQuieto = !!downEn && !!ev && d.kind === "create" &&
+  // click quieto (menos de 4 px): el arrastre crea como siempre, el click en un
+  // hueco abre el panel y el click sobre una reunión abre su menú.
+  const quieto = !!downEn && !!ev &&
     Math.abs(ev.clientX - downEn.x) < DRAG_UMBRAL && Math.abs(ev.clientY - downEn.y) < DRAG_UMBRAL;
   downEn = null;
-  if (clickQuieto) {
+  if (quieto && d.kind === "move") { abrirMenu(EVENTS.indexOf(d.e)); return; }
+  if (quieto && d.kind === "create") {
     const col = document.querySelector(`.col[data-day="${d.day}"]`);
     if (col) {
       const { dia, min } = slotDesdeClick(ev, col);
@@ -1180,6 +1267,15 @@ function setActive(i) {
 items.forEach((el, i) => el.addEventListener("click", () => setActive(i)));
 
 stage.addEventListener("click", (ev) => {
+  const acc = ev.target.closest("#menu [data-accion]");
+  if (acc) {
+    if (acc.dataset.accion === "editar" && MENU) {
+      const e2 = EVENTS[MENU.i];
+      MENU = null;   // el panel reemplaza al menú en el mismo render y se lleva el foco
+      abrirPanel({ dia: e2.day, min: e2.min, dur: e2.dur, evento: e2 });
+    }
+    return;
+  }
   if (ev.target.closest("[data-cerrar-panel]")) { cerrarPanel(); return; }
   const dur = ev.target.closest(".p-dur");
   if (dur) {
@@ -1263,15 +1359,35 @@ stage.addEventListener("submit", (ev) => {
 });
 window.addEventListener("resize", moveHighlight);
 window.addEventListener("pointerdown", onDown, true);
+// un pointerdown fuera del menú lo cierra (sin mover el foco: el click decide adónde va)
+document.addEventListener("pointerdown", (ev) => {
+  if (MENU && !ev.target.closest("#menu")) { MENU = null; mount(current); }
+}, true);
 window.addEventListener("pointermove", onMove);
 window.addEventListener("pointerup", onUp);
 
 document.addEventListener("keydown", (e) => {
+  // El menú abierto se maneja ANTES que el panel: Escape no debe cerrar lo de atrás.
+  if (MENU) {
+    const items = [...document.querySelectorAll('#menu [role="menuitem"]')];
+    const idx = items.indexOf(document.activeElement);
+    if (e.key === "ArrowDown") { items[(idx + 1) % items.length]?.focus(); e.preventDefault(); return; }
+    if (e.key === "ArrowUp") { items[(idx - 1 + items.length) % items.length]?.focus(); e.preventDefault(); return; }
+    if (e.key === "Escape") { cerrarMenu(); e.preventDefault(); return; }
+    if (e.key === "Enter" || e.key === " ") { document.activeElement?.click(); e.preventDefault(); return; }
+    return;   // con el menú abierto ninguna otra tecla debe llegar al resto
+  }
   // Escape cierra el panel antes de que el foco en un campo lo deje pasar al picker
   if (e.key === "Escape" && PANEL) { cerrarPanel(); e.preventDefault(); return; }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable) return;
   if ((e.key === "n" || e.key === "N") && !e.metaKey && !e.ctrlKey && !e.altKey) {
     abrirPanel({ dia: 1, min: NOW_MIN - (NOW_MIN % 30), dur: 45 });   // el atajo no consume las flechas que scrollean
+    e.preventDefault();
+    return;
+  }
+  // Enter/Space sobre una reunión enfocada abre el menú (no el panel: editar es un ítem)
+  if ((e.key === "Enter" || e.key === " ") && e.target.closest(".gridwrap") && e.target.classList.contains("ev")) {
+    abrirMenu(Number(e.target.dataset.i));
     e.preventDefault();
     return;
   }
