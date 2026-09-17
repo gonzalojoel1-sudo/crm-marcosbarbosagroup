@@ -12,7 +12,7 @@ Todos requieren login.
 import re
 
 import frappe
-from frappe.utils import add_days, add_to_date, getdate, nowdate
+from frappe.utils import add_days, add_to_date, get_datetime, getdate, nowdate
 
 from crm_core import billing
 
@@ -25,17 +25,48 @@ def _day_bounds(day=None):
     return f"{day} 00:00:00", f"{add_days(day, 1)} 00:00:00"
 
 
+# El lead no tiene campo de fin: la duración se guarda como una línea
+# "Fin: <datetime>" dentro de `notes`, el mismo Text donde el sync ya escribe
+# "Reunión agendada:", "Cuando:" y "EventId:". Sin esa línea el fin sigue siendo
+# inicio + 1 h (el comportamiento histórico del DTO). No se agrega un campo
+# porque el deploy de la agenda va sin `migrate`.
+FIN_RE = re.compile(r"(?:^|\n)Fin:[^\n]*")
+
+
+def _meeting_end(when, notes=None):
+    m = FIN_RE.search(notes or "")
+    if m:
+        try:
+            return get_datetime(m.group(0).replace("Fin:", "").strip())
+        except Exception:
+            pass
+    return add_to_date(when, hours=1)
+
+
+def _notes_with_end(notes, end):
+    clean = FIN_RE.sub("", notes or "").strip()
+    if not end:
+        return clean
+    return f"{clean}\nFin: {end}".strip()
+
+
+def _notes_with_subject(notes, subject):
+    lines = (notes or "").split("\n") or [""]
+    lines[0] = f"Reunión agendada: {subject}"
+    return "\n".join(lines)
+
+
 def _meeting_dto(r):
     when = r["custom_meeting_datetime"]
     # El sync guarda el título real del evento en notes:
     #   "Reunión agendada: <summary>\nCuando: ...\nEventId: ..."
     subject = ""
-    notes = (r.get("notes") or "").strip()
+    notes = FIN_RE.sub("", r.get("notes") or "").strip()
     if notes.startswith("Reunión agendada:"):
         subject = notes.split("\n", 1)[0].replace("Reunión agendada:", "").strip()
     who = f"{r.get('first_name') or ''} {r.get('last_name') or ''}".strip().strip("-").strip()
     subject = subject or who or r.get("email") or "Reunión"
-    end = add_to_date(when, hours=1)
+    end = _meeting_end(when, r.get("notes"))
     return {
         "name": r["name"],
         "subject": subject,
@@ -775,10 +806,13 @@ def create_event(subject, starts_on, ends_on=None):
 
 
 def _summary_from_notes(notes):
-    notes = (notes or "").strip()
-    if notes.startswith("Reunión agendada:"):
-        return notes.split("\n", 1)[0].replace("Reunión agendada:", "").strip()
-    return notes.split("\n", 1)[0].strip() if notes else ""
+    notes = FIN_RE.sub("", notes or "").strip()
+    if not notes:
+        return ""
+    first = notes.split("\n", 1)[0].strip()
+    if first.startswith("Reunión agendada:"):
+        return first.replace("Reunión agendada:", "").strip()
+    return first
 
 
 @frappe.whitelist()
@@ -811,7 +845,8 @@ def get_meeting(name):
         "status": lead.get("status") or "",
         "source": lead.get("source") or "",
         "meeting": str(lead.custom_meeting_datetime) if lead.get("custom_meeting_datetime") else None,
-        "notes": lead.get("notes") or "",
+        # La línea "Fin:" es interna (duración): no se muestra en las notas.
+        "notes": FIN_RE.sub("", lead.get("notes") or "").strip(),
         "description": lead.get("descripcion") or "",
         "comments": [
             {"name": c.name, "content": c.content, "when": str(c.creation), "by": c.comment_by or c.owner}
@@ -828,6 +863,97 @@ def get_meeting(name):
             for t in tasks
         ],
     }
+
+
+def _meeting_fields(doc):
+    return {
+        "name": doc.name,
+        "first_name": doc.get("first_name"),
+        "last_name": doc.get("last_name"),
+        "email": doc.get("email"),
+        "notes": doc.get("notes"),
+        "custom_meeting_datetime": doc.get("custom_meeting_datetime"),
+    }
+
+
+@frappe.whitelist()
+def update_meeting(name, starts_on, ends_on=None):
+    """Mueve una reunión y/o le cambia la duración (fin opcional)."""
+    if not frappe.has_permission("CRM Lead", "write", doc=name):
+        frappe.throw("Sin permiso para modificar esta reunión", frappe.PermissionError)
+
+    starts_on = get_datetime(starts_on)
+    if ends_on:
+        ends_on = get_datetime(ends_on)
+        if ends_on <= starts_on:
+            frappe.throw("La hora de fin tiene que ser posterior a la de inicio")
+
+    doc = frappe.get_doc("CRM Lead", name)
+    if not ends_on:
+        # Sin fin explícito se conserva la duración que ya tenía la reunión.
+        actual = (
+            get_datetime(doc.custom_meeting_datetime)
+            if doc.get("custom_meeting_datetime")
+            else None
+        )
+        ends_on = (
+            add_to_date(
+                starts_on,
+                seconds=(_meeting_end(actual, doc.get("notes")) - actual).total_seconds(),
+            )
+            if actual
+            else add_to_date(starts_on, hours=1)
+        )
+
+    doc.custom_meeting_datetime = starts_on
+    doc.notes = _notes_with_end(doc.get("notes"), ends_on)
+    doc.save(ignore_permissions=True)
+    return _meeting_dto(_meeting_fields(doc))
+
+
+@frappe.whitelist()
+def delete_meeting(name):
+    """Saca la reunión de la agenda sin borrar el lead (contacto/historial).
+
+    Un CRM Lead es un contacto: borrarlo se lleva su historial y sus negocios.
+    Se limpian los campos de reunión para que desaparezca de la agenda.
+    """
+    if not frappe.has_permission("CRM Lead", "delete", doc=name):
+        frappe.throw("Sin permiso para eliminar esta reunión", frappe.PermissionError)
+
+    doc = frappe.get_doc("CRM Lead", name)
+    doc.custom_meeting_datetime = None
+    doc.notes = _notes_with_end(doc.get("notes"), None)
+    doc.save(ignore_permissions=True)
+    return {"ok": True}
+
+
+@frappe.whitelist()
+def duplicate_meeting(name, starts_on=None):
+    """Copia la reunión con el título "(copia)" y el mismo horario o el indicado."""
+    if not frappe.has_permission("CRM Lead", "read", doc=name):
+        frappe.throw("Sin permiso para duplicar esta reunión", frappe.PermissionError)
+    if not frappe.has_permission("CRM Lead", "create"):
+        frappe.throw("Sin permiso para crear reuniones", frappe.PermissionError)
+
+    src = frappe.get_doc("CRM Lead", name)
+    origen = get_datetime(src.custom_meeting_datetime)
+    duracion = (_meeting_end(origen, src.get("notes")) - origen).total_seconds()
+    nuevo_inicio = get_datetime(starts_on) if starts_on else origen
+
+    who = f"{src.first_name or ''} {src.last_name or ''}".strip().strip("-").strip()
+    titulo = _summary_from_notes(src.get("notes")) or who or src.email or "Reunión"
+
+    copia = frappe.copy_doc(src)
+    # Es otra reunión: no comparte el EventId de Google (rompería el dedupe del sync).
+    copia.custom_event_id = None
+    copia.custom_meeting_datetime = nuevo_inicio
+    copia.notes = _notes_with_end(
+        _notes_with_subject(src.get("notes"), f"{titulo} (copia)"),
+        add_to_date(nuevo_inicio, seconds=duracion),
+    )
+    copia.insert(ignore_permissions=True)
+    return _meeting_dto(_meeting_fields(copia))
 
 
 @frappe.whitelist()
