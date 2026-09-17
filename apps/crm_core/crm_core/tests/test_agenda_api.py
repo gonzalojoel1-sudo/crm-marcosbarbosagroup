@@ -18,22 +18,24 @@ class TestAgendaApi(FrappeTestCase):
         # El título real vive en notes ("Reunión agendada: <título>").
         subject = subject or f"Reunión {suffix}"
         first = f"Agenda{suffix}"
-        return (
-            frappe.get_doc(
-                {
-                    "doctype": "CRM Lead",
-                    "first_name": first,
-                    "last_name": "Test",
-                    "email": f"{first.lower()}@example.com",
-                    "status": "New",
-                    "source": "Agenda Reunión",
-                    "notes": f"Reunión agendada: {subject}\nCuando: {dt}",
-                    "custom_meeting_datetime": dt,
-                }
-            )
-            .insert(ignore_permissions=True)
-            .name
-        )
+        campos = {
+            "doctype": "CRM Lead",
+            "first_name": first,
+            "last_name": "Test",
+            "email": f"{first.lower()}@example.com",
+            "status": "New",
+            "notes": f"Reunión agendada: {subject}\nCuando: {dt}",
+            "custom_meeting_datetime": dt,
+        }
+        # `source` es un Link: su valor puede existir en producción y no en crm-test,
+        # y el insert falla con LinkValidationError antes de llegar al endpoint.
+        # Se usa un valor que exista de verdad en este sitio, o se omite el campo.
+        campo_source = frappe.get_meta("CRM Lead").get_field("source")
+        if campo_source and campo_source.options:
+            existente = frappe.db.get_value(campo_source.options, {}, "name")
+            if existente:
+                campos["source"] = existente
+        return frappe.get_doc(campos).insert(ignore_permissions=True).name
 
     def _events(self, day):
         return {e["name"]: e for e in api.get_agenda(start=day, end=add_days(day, 1))["events"]}
