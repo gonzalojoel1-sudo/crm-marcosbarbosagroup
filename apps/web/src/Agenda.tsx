@@ -46,7 +46,9 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [zoom, setZoom] = useState<DensityStep>(ZOOM_STEPS[2]); // Zoom-Amplio por defecto
   const [data, setData] = useState<AgendaData | null>(null);
-  const [now] = useState(() => new Date());
+  // La hora del botón "Hoy · HH:MM" y de la línea de ahora tiene que ser la real,
+  // no la del montaje: se refresca por minuto mientras la agenda está viva.
+  const [now, setNow] = useState(() => new Date());
   // Sidebar: agendas (categorías) y orígenes apagados. El prototipo los guarda en
   // dos Set (`HIDDEN` / `HIDDEN_ORIGIN`, `index.html:617-618`).
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set());
@@ -82,6 +84,13 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
       window.removeEventListener("resize", measure);
       ro.disconnect();
     };
+  }, []);
+
+  // Un tick por minuto mantiene alineados el botón "Hoy · HH:MM" y la línea de
+  // ahora. No hay transición: es un repintado, no movimiento.
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
   }, []);
 
   const weekStart = useMemo(() => startOfWeek(anchor), [anchor]);
@@ -198,11 +207,14 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
       : rangeTitle(days[0], days[4]);
 
   const n = visibleEvents.length;
-  const allDayCount = visibleEvents.filter((e) => e.allDay).length;
-  const taskCount = tasks.filter((t) => t.due).length;
-  const count = `${n} ${n === 1 ? "reunión" : "reuniones"}${
-    allDayCount ? ` · ${allDayCount} de todo el día` : ""
-  }${taskCount ? ` · ${taskCount} ${taskCount === 1 ? "tarea" : "tareas"}` : ""}`;
+  // El chip del prototipo dice la ventana visible (`index.html:1493-1498,1526`).
+  // La app no pliega franjas, así que la ventana es siempre la grilla completa.
+  // El pendiente de sync no se puede expresar todavía: el DTO de `get_agenda` no
+  // expone `sync`, así que se renderiza sólo lo real (sin inventar un número).
+  const windowChip = `${fmtMin(START_H * 60)} – ${fmtMin(END_H * 60)}`;
+  const count = `${view === "mes" ? "" : `${windowChip} · `}${n} ${
+    n === 1 ? "reunión" : "reuniones"
+  }`;
 
   function move(delta: number) {
     if (view === "mes") setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1));
@@ -711,6 +723,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
             onDensity={setZoom}
             title={title}
             count={count}
+            now={now}
             onPrev={() => move(-1)}
             onNext={() => move(1)}
             onToday={() => setAnchor(new Date())}
@@ -730,6 +743,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
                 onCreateSlot={(dayIdx, startMin, durMin) =>
                   openPanel({ mode: "crear", day: days[dayIdx], startMin, durMin })
                 }
+                onNew={crearDesdeBoton}
                 onMoveEvent={moverConArrastre}
                 onResizeEvent={redimensionarConArrastre}
                 onOpenMenu={openMenu}

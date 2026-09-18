@@ -47,6 +47,7 @@ interface WeekViewProps {
   now: Date;
   weekLabel: string;
   onCreateSlot: (dayIndex: number, startMin: number, durMin: number) => void;
+  onNew: () => void;
   onMoveEvent: (event: AgendaEvent, dayIndex: number, startMin: number, durMin: number) => void;
   onResizeEvent: (event: AgendaEvent, durMin: number) => void;
   onOpenMenu: (event: AgendaEvent, trigger: HTMLElement) => void;
@@ -102,6 +103,7 @@ export default function WeekView({
   now,
   weekLabel,
   onCreateSlot,
+  onNew,
   onMoveEvent,
   onResizeEvent,
   onOpenMenu,
@@ -618,6 +620,18 @@ export default function WeekView({
               </div>
             );
           })}
+
+          {events.length === 0 ? (
+            <div className={styles.agxGridEmpty}>
+              <p className={styles.agxGeT}>No hay reuniones para mostrar</p>
+              <p className={styles.agxGeS}>
+                Activá una agenda en la barra de la izquierda, o creá la primera reunión de la semana.
+              </p>
+              <button type="button" className={styles.agxEmptyBtn} onClick={onNew}>
+                Nueva reunión
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 

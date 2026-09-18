@@ -1,4 +1,5 @@
 import { IconChevronLeft, IconChevronRight } from "../icons";
+import { fmtMin, minutesOfDay } from "./date";
 import { ZOOM_STEPS, type AgendaView, type DensityStep } from "./types";
 import styles from "./Toolbar.module.css";
 
@@ -15,6 +16,7 @@ interface ToolbarProps {
   onDensity: (d: DensityStep) => void;
   title: string;
   count: string;
+  now: Date;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
@@ -30,6 +32,7 @@ export default function Toolbar({
   onDensity,
   title,
   count,
+  now,
   onPrev,
   onNext,
   onToday,
@@ -92,8 +95,13 @@ export default function Toolbar({
             <IconChevronRight />
           </button>
         </div>
-        <button type="button" className={styles.agxToday} onClick={onToday}>
-          Hoy
+        <button
+          type="button"
+          className={styles.agxToday}
+          title="Ir a la hora actual (H)"
+          onClick={onToday}
+        >
+          Hoy · {fmtMin(minutesOfDay(now))}
         </button>
         <button type="button" className={styles.agxNew} onClick={onNew}>
           Nueva reunión

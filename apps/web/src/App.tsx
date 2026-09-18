@@ -6,11 +6,11 @@ import Pipeline from "./Pipeline";
 import MeetingDrawer from "./MeetingModal";
 import Reminder from "./Reminder";
 import Logo from "./Logo";
-// Orden deliberado: tokens.css va ANTES de styles.css para que el :root global
-// del CRM siga ganando la paleta por ahora (Task 5 la restaura). --display/--mono
-// no existen en styles.css, así que sí entran en vigor desde acá.
-import "./agenda/tokens.css";
+// El prototipo aprobado es la autoridad de la paleta. tokens.css va DESPUÉS de
+// styles.css para que su `:root` gane la cascada: si va antes, el CRM pisa
+// --bg/--surface/--fg/--danger/--ok y la agenda vuelve a verse fría.
 import "./styles.css";
+import "./agenda/tokens.css";
 
 type View = "agenda" | "hoy" | "contactos" | "pipeline";
 
