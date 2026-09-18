@@ -1,0 +1,88 @@
+# Spec — Restaurar el diseño aprobado en `/hoy`
+
+**Fecha:** 2026-09-18
+**Estado:** propuesto
+**Motivo:** el port a React **(F1–F5) entregó el comportamiento pero perdió el diseño**. El usuario lo reportó: "el resultado en prod no satisface y no se parece en nada a lo que habíamos decidido". Esta spec lo corrige.
+
+**Autoridad del diseño:** `prototypes/agenda/index.html` — el prototipo aprobado. Su intención también está en `docs/superpowers/specs/2026-09-16-crm-agenda-operar-sin-mouse-design.md` (interacción) y `docs/superpowers/specs/2026-09-17-agenda-port-a-prod-design.md` (decisiones del port).
+
+**Investigaciones que la fundamentan:**
+- `docs/superpowers/research/2026-09-18-port-fidelidad-ui-prototipo-a-app.md` — por qué los ports pierden el diseño y cómo evitarlo
+- `docs/superpowers/research/2026-09-18-visual-regression-prototipo-vs-react.md` — cómo **probar** que coincide
+- **Auditoría forense** (en el reporte de la investigación anterior): tabla token por token prototipo vs app
+
+---
+
+## 1. Causa raíz (verificada, no supuesta)
+
+**El port copió los tokens actuales de la app en vez de los del prototipo.** El `:root` del prototipo trae la paleta aprobada, más cálida; `apps/web/src/styles.css` tiene hoy valores **más fríos y oscuros**. El prototipo tiene un comentario que dice que espeja `styles.css` — pero `styles.css` **derivó después**. El port tomó lo segundo:
+
+| token | prototipo (aprobado) | app (lo que se ve) |
+|---|---|---|
+| `--bg` | `#100f0d` | `#0c0c0e` |
+| `--surface` | `#171614` | `#141417` |
+| `--surface-2` | `#1d1b18` | `#1a1a1f` |
+| `--fg` | `#f4f1ea` | `#f2f0eb` |
+| `--danger` | `oklch(0.66 0.155 28)` | `#ff5a5a` |
+| `--ok` | `#0d7c66` | `#34d399` |
+
+Es el fallo que la investigación nombra como "re-tinte aburrido / fuera de gamut": **re-derivar en vez de llevar**.
+
+**Y tres pérdidas silenciosas, que son las que más se ven:**
+
+1. **Fraunces nunca se carga.** El shell carga **solo Outfit** (`gen-shell.mjs`). `var(--display)` no existe en la app, así que el título de la semana —el rol tipográfico que más identidad da— cae a Outfit sin ningún aviso.
+2. **JetBrains Mono tampoco**, y la app lista `ui-monospace` **primero**: los horarios y los datos se dibujan con la mono del sistema operativo, nunca con la de la marca.
+3. **La barra lateral izquierda entera y el mini-mes no existen en el port**: se perdieron *Agendas* (con contadores por vertical y toggle), *Origen* (CRM / Reserva web / Google), *Buscador*, el mini-mes de Septiembre y la leyenda **"Cómo se lee"**. Es la pérdida estructural más grande.
+
+**Lo que NO fue culpa del port (para no perseguir fantasmas):** la paleta de las 5 categorías se copió **byte por byte** ✓; sus contrastes (4.606:1 y 4.616:1) vienen del prototipo y cumplen AA.
+
+## 2. La decisión que evita que se repita
+
+**D1 · El `:root` del prototipo es el único artefacto de tokens.** Se extrae a un archivo versionado (`apps/web/src/agenda/tokens.css`) que la app **consume tal cual**, sin re-tipear valores. Además una regla de Stylelint que **prohíbe valores crudos** de color/fuente/tamaño en los archivos de la agenda: si alguien necesita un color, tiene que venir de un token. La investigación lo dice derecho: mientras los valores se puedan re-escribir a mano, van a volver a derivar.
+
+**D2 · La agenda queda aislada del CSS global.** El CSS actual de la app son ~3.300 líneas **globales sin scope**, y el CSS sin capas le gana a `@layer`. Se usa **CSS Modules + un `[data-agenda]` como raíz**, que es la técnica que la investigación recomienda: la agenda no recibe estilos globales ni los filtra hacia afuera. (Se descarta Shadow DOM: garantiza más pero cuesta caro en React.)
+
+**D3 · La fidelidad se PRUEBA, no se opina.** Playwright puede sacar la **golden del prototipo** y comparar la app contra ella con `toHaveScreenshot` y un `snapshotPathTemplate` compartido. Requiere migrar a `@playwright/test`. **El enemigo no es el diff, son los datos y el reloj**: el prototipo tiene eventos fijos y `/hoy` tiene los reales, así que hay que sembrar el mismo fixture y congelar el reloj (`page.clock.setFixedTime()`). Se corre **a demanda** (no un CI permanente: para un solo usuario sería sobre-ingeniería, y la investigación lo dice sin vueltas).
+
+**D4 · Las mejoras del port se conservan.** No todo lo distinto es pérdida. Se mantienen: la fila de **todo el día**, la **franja de tareas**, el **paginador** prev/next, la **validación en línea** del panel, las **teclas visibles** en el menú, el **asa de redimensionar** visible, la línea de "ahora" anclada a la columna de hoy real, y los chips del Mes no interactivos (honestos, porque las operaciones del Mes están fuera de alcance).
+
+## 3. Lo que hay que restaurar, por impacto visual
+
+| # | Qué | Detalle | Por qué importa |
+|---|---|---|---|
+| **1** | **Las tres tipografías** | Cargar `Fraunces:opsz,wght@9..144,300..600` y `JetBrains+Mono:wght@400;500` en `gen-shell.mjs` y en `index.html`; agregar `--display`/`--mono` al `:root`; `.agx-title` a Fraunces 23px/400/`-0.015em`/`optical-sizing`; **`"JetBrains Mono"` primero** en la pila mono | El título y **cada horario** — lo que más se ve |
+| **2** | **Sidebar y mini-mes** | *Agendas* (5 verticales con contador y toggle real), *Origen* (CRM / Reserva web / Google), *Buscador*, mini-mes con puntos y estados, leyenda **"Cómo se lee"** (incluido "Ocupado (de Google)"), y el botón **Panel** | La pérdida estructural más grande |
+| **3** | **Calentar la paleta** | Restaurar `#100f0d / #171614 / #1d1b18 / #f4f1ea`, `--danger`, `--ok` | Hoy la página se ve más oscura y fría que lo aprobado |
+| **4** | **Estado vacío de la grilla** | Título, subtítulo y botón "Nueva reunión" | Sin él, una semana sin reuniones queda en blanco |
+| **5** | **Movimiento y afordancias** | `transition` en los bloques + hover con sombra elevada, transiciones de sidebar/menú/lista, **sombra del encabezado al scrollear** (`data-scrolled`), y el bloque **`prefers-reduced-motion`** | El port no tiene **ninguna** transición: se siente muerto |
+| **6** | **Categoría y Día en el panel** | Hoy **la categoría no se puede cambiar en absoluto** (el panel perdió el campo y la API no lo expone para editar) | Funcionalidad perdida, no solo estética |
+| **7** | **`Hoy · HH:MM` y el chip de ventana** | El botón Hoy mostraba la hora; el chip mostraba la ventana visible y los pendientes de sync | Orientación |
+| **8** | **Scroll por teclado + skip link** | `↑/↓`, `PageUp/PageDown`, `Home/End`, `h` = ir a ahora; y "Saltar a la grilla" | Era parte de "operar sin mouse" |
+| **9** | **Bloques de Google de solo lectura + puntos de sync** | Requiere que el modelo exponga `busy`/sync; si no, **se declara la divergencia para siempre** en vez de dejarla como olvido | Semántica: lo importado no se edita |
+| **10** | **Craft menor** | Etiqueta "Nueva reunión" + aviso **"· se superpone"** en el fantasma del arrastre; `data-densa`; base 14px/1.45; selección `rgba(254,65,0,.22)`; radio del panel 14px; anillo de foco radio 4px; borrar los `#a0431c` sueltos | Detalles que suman al conjunto |
+
+## 4. Fases
+
+| Fase | Qué entrega | Verificación |
+|---|---|---|
+| **R1 · Tokens y tipografía** | D1: `tokens.css` extraído del prototipo y consumido; las tres fuentes cargadas y aplicadas; D2: scope `[data-agenda]` + CSS Modules | Comparación visual a demanda (D3) sobre las tres vistas: **0 diferencias** en tipografía y color; el título en Fraunces y los horarios en JetBrains **verificados por fuente computada**, no a ojo |
+| **R2 · Estructura** | La sidebar completa (Agendas con toggle real, Origen, Buscador), el mini-mes con la leyenda, el botón Panel | El toggle de agendas **filtra de verdad**; el conteo por vertical coincide con los eventos visibles |
+| **R3 · Paleta y estados** | Paleta cálida restaurada, estado vacío, `Hoy · HH:MM`, chip de ventana, selector de vista y densidad | Contraste de bloques ≥4.5:1 **medido**, foco ≥3:1, y el diff visual contra el prototipo sin desvíos de color |
+| **R4 · Movimiento y craft** | Transiciones, hover elevado, sombra del encabezado, `prefers-reduced-motion`, y los 10 detalles de craft | Con `prefers-reduced-motion`, **medido**: ninguna transición activa |
+| **R5 · Lo funcional que falta** | Categoría y Día en el panel (con el soporte de API), scroll por teclado, skip link, y la decisión sobre `busy`/sync | Categoría editable de punta a punta; el scroll por teclado medido con un recorrido real |
+| **R6 · La prueba permanente** | D3: `@playwright/test` con la golden del prototipo, fixture sembrado y reloj congelado, corriendo a demanda | Una corrida que diga, por vista, cuántos píxeles difieren y dónde |
+
+## 5. Riesgos
+
+| Riesgo | Mitigación |
+|---|---|
+| **Volver a re-derivar valores** | D1 con Stylelint prohibiendo valores crudos. Es el riesgo central de esta spec |
+| El CSS global de la app pisando la agenda | D2 con `[data-agenda]`; recordar que el CSS **sin capas gana** sobre `@layer` |
+| La comparación visual da ruido y se abandona | Fixture sembrado + reloj congelado + `animations: "disabled"`; comparar contra la golden del prototipo, no entre corridas |
+| Restaurar la sidebar rompe el layout de 3 columnas en pantallas chicas | El prototipo ya resuelve el plegado por ancho; copiar su comportamiento |
+| Tocar `styles.css` (compartido con el resto del CRM) | La agenda **no** se estiliza desde ahí: sus estilos van en sus módulos. Solo los tokens compartidos se ajustan, y con el diff visual como prueba |
+| El trabajo se hace por partes y se pierde el hilo | Cada fase tiene su verificación y su commit; la golden del prototipo es el árbitro |
+
+## 6. Lo que NO entra
+
+Recurrencia, invitados, recordatorios, colores por evento, táctil, operaciones en el Mes, deshacer (`⌘Z`), la paleta ⌘K en español, y notificaciones por email (no hay SMTP). Y **no se re-diseña nada**: el prototipo es la autoridad y esta spec restaura, no reinterpreta.
