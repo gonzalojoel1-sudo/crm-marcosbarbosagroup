@@ -4,6 +4,7 @@
 //   (a) los tokens derivaron del prototipo  -> los re-extrae el propio extractor
 //   (b) las fuentes de marca no se cargan    -> fallback silencioso que ninguna captura ve
 //   (c) una categoria se re-derivo           -> el color tiene que aparecer byte por byte
+//   (d) la fuente computada no es la marca    -> hay que probarlo en un navegador real
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
@@ -77,6 +78,67 @@ if (reDerivados.length) mal(`categorias re-derivadas (no estan en el CATS del pr
 if (perdidos.length) mal(`categorias del prototipo que faltan en categories.ts: ${perdidos.join(", ")}`);
 if (!reDerivados.length && !perdidos.length)
   bien(`las ${coloresProto.length} categorias coinciden byte por byte con el prototipo`);
+
+// (d) las fuentes de marca, COMPUTADAS en un navegador contra el shell construido.
+// getComputedStyle devuelve la familia PEDIDA aunque la cara nunca se haya
+// descargado; document.fonts.check es lo unico que prueba que existe de verdad.
+// Hacen falta las dos: por separado, ninguna caza el fallback silencioso.
+seccion("(d) las fuentes computadas en el navegador");
+const SHELL = "apps/crm_core/crm_core/www/hoy.html";
+try {
+  const html = readFileSync(SHELL, "utf8");
+  let chromium;
+  try {
+    ({ chromium } = await import("playwright"));
+  } catch {
+    throw new Error("no puedo importar playwright (hace falta `npm i playwright`)");
+  }
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+    await page.waitForSelector(".agx-title", { timeout: 15000 });
+    await page.waitForSelector(".agx-hourlab", { timeout: 15000 });
+    // El swap de fuentes termina cuando document.fonts.ready resuelve.
+    await page.evaluate(() => document.fonts.ready.then(() => true));
+    const obs = await page.evaluate(() => {
+      const titulo = document.querySelector(".agx-title");
+      const hora = document.querySelector(".agx-hourlab");
+      return {
+        tituloFam: titulo ? getComputedStyle(titulo).fontFamily : null,
+        horaFam: hora ? getComputedStyle(hora).fontFamily : null,
+        okTitulo: document.fonts.check("400 23px Fraunces"),
+        okMono: document.fonts.check("400 11px 'JetBrains Mono'"),
+      };
+    });
+    log(`      título computa: ${obs.tituloFam}`);
+    log(`      hora computa:   ${obs.horaFam}`);
+    log(`      fonts.check("400 23px Fraunces"): ${obs.okTitulo}`);
+    log(`      fonts.check("400 11px 'JetBrains Mono'"): ${obs.okMono}`);
+    if (!obs.tituloFam || !/Fraunces/i.test(obs.tituloFam))
+      mal(`el título NO computa Fraunces (computa: ${obs.tituloFam ?? "sin .agx-title"})`);
+    else bien("el título computa Fraunces");
+    if (!obs.horaFam || !/JetBrains Mono/i.test(obs.horaFam))
+      mal(`la hora NO computa JetBrains Mono (computa: ${obs.horaFam ?? "sin .agx-hourlab"})`);
+    else bien("la hora computa JetBrains Mono");
+    if (obs.okTitulo !== true)
+      mal('document.fonts.check("400 23px Fraunces") dio false: Fraunces NO está disponible');
+    else bien("Fraunces está realmente cargada (fonts.check)");
+    if (obs.okMono !== true)
+      mal("document.fonts.check(\"400 11px 'JetBrains Mono'\") dio false: JetBrains Mono NO está disponible");
+    else bien("JetBrains Mono está realmente cargada (fonts.check)");
+  } finally {
+    await browser.close();
+  }
+} catch (e) {
+  mal(
+    "no pude medir las fuentes computadas:\n" +
+      String(e.message || e)
+        .split("\n")
+        .map((l) => "      " + l)
+        .join("\n"),
+  );
+}
 
 log(fallos ? `\nFIDELIDAD: ${fallos} problema(s). Corregir lo marcado ✗ y volver a correr.` : "\nFIDELIDAD: OK");
 process.exit(fallos ? 1 : 0);

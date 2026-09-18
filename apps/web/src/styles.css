@@ -2232,9 +2232,11 @@ button.meta-row:hover {
 }
 .agx-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-family: var(--display);
+  font-optical-sizing: auto;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: -0.015em;
   white-space: nowrap;
 }
 .agx-count {
@@ -2367,7 +2369,7 @@ button.meta-row:hover {
   padding: 11px 0;
 }
 .agx-colhead .agx-dow {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
@@ -2397,7 +2399,7 @@ button.meta-row:hover {
 .agx-hourlab {
   position: absolute;
   right: 8px;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
@@ -2512,7 +2514,7 @@ button.meta-row:hover {
 }
 .agx-ev .agx-ev-m {
   order: 2;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
@@ -2595,7 +2597,7 @@ button.meta-row:hover {
   pointer-events: none;
 }
 .agx-ghost-m {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: #fff;
@@ -2627,7 +2629,7 @@ button.meta-row:hover {
   align-items: center;
   justify-content: flex-end;
   padding: 5px 8px;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--fg-faint);
   white-space: nowrap;
@@ -2669,7 +2671,7 @@ button.meta-row:hover {
   align-items: flex-start;
   justify-content: flex-end;
   padding: 5px 8px;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--fg-faint);
   white-space: nowrap;
@@ -2720,7 +2722,7 @@ button.meta-row:hover {
 }
 .agx-task-h {
   flex: none;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   color: var(--fg-dim);
@@ -2769,7 +2771,7 @@ button.meta-row:hover {
   letter-spacing: -0.01em;
 }
 .agx-ldia-c {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--fg-faint);
 }
@@ -2811,7 +2813,7 @@ button.meta-row:hover {
   background: var(--surface-2);
 }
 .agx-lev-h {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11.5px;
   font-variant-numeric: tabular-nums;
   color: var(--fg-dim);
@@ -2876,7 +2878,7 @@ button.meta-row:hover {
 }
 .agx-mes thead th {
   text-align: left;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
@@ -2935,7 +2937,7 @@ button.meta-row:hover {
   background: #a0431c;
 }
 .agx-mev-h {
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   color: var(--fg-dim);
   flex: none;
@@ -3134,7 +3136,7 @@ button.meta-row:hover {
   border: 1px solid var(--border);
   border-radius: 5px;
   color: var(--fg-faint);
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -3199,7 +3201,7 @@ button.meta-row:hover {
 }
 .agx-modal-lab {
   margin-top: 2px;
-  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-family: var(--mono);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
