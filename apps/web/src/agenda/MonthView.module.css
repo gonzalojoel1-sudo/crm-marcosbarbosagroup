@@ -62,6 +62,8 @@
   margin-bottom: 3px;
   min-height: 24px;
   overflow: hidden;
+  /* Prototipo `index.html:290`: 140 ms sobre el fondo. */
+  transition: background 140ms var(--ease);
 }
 [data-agenda] .agx-mev-d {
   width: 7px;

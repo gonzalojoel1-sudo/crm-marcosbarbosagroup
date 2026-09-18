@@ -89,6 +89,8 @@
   border-radius: 9px;
   cursor: pointer;
   min-height: 28px;
+  /* El `.btn` del prototipo (`index.html:111`): 140 ms. */
+  transition: border-color 140ms var(--ease), background 140ms var(--ease);
 }
 [data-agenda] .agx-today:hover {
   color: var(--fg);
@@ -105,6 +107,7 @@
   border-radius: 9px;
   cursor: pointer;
   min-height: 28px;
+  transition: border-color 140ms var(--ease), background 140ms var(--ease);
 }
 [data-agenda] .agx-panel-toggle:hover {
   color: var(--fg);
@@ -123,6 +126,7 @@
   border-radius: 9px;
   cursor: pointer;
   min-height: 28px;
+  transition: border-color 140ms var(--ease), background 140ms var(--ease);
 }
 [data-agenda] .agx-new:hover {
   background: var(--accent-2);

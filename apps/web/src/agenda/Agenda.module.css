@@ -17,6 +17,18 @@
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  /* Base tipográfica del prototipo (`index.html:42`), que el port heredaba del
+     cuerpo global (15px/1.5). `font-size` no tiene token: es un valor del
+     prototipo fuera de D1. */
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* Selección del prototipo (`index.html:47`): rgba(254,65,0,.22). `color-mix`
+   reproduce ese alfa desde el token --accent, que sí es el color del prototipo. */
+[data-agenda] ::selection {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: #fff;
 }
 /* `[data-agenda].agx` (no `[data-agenda] `) mantiene la MISMA relación de
    especificidad que el global `.agx :focus-visible`: el prefijo de scope sube
@@ -25,9 +37,24 @@
 [data-agenda].agx :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 6px;
+  /* Radio del anillo de foco del prototipo (`index.html:54`). */
+  border-radius: 4px;
   /* dos colores (C40): el indicador se ve sobre cualquier superficie */
   box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.85);
+}
+
+/* Prefers-reduced-motion del prototipo (`index.html:486-489`): apaga las
+   transiciones y animaciones de la agenda. Se replica el `1ms !important` (en
+   vez de `transition: none`) porque gana a cualquier transición más específica,
+   igual que el `*` global del prototipo. */
+@media (prefers-reduced-motion: reduce) {
+  [data-agenda],
+  [data-agenda] *,
+  [data-agenda] *::before,
+  [data-agenda] *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
 }
 
 [data-agenda] .agx-body {

@@ -33,6 +33,8 @@
   font: inherit;
   color: inherit;
   text-align: left;
+  /* Prototipo `index.html:83`: 140 ms sobre el fondo. */
+  transition: background 140ms var(--ease);
 }
 [data-agenda] .agx-cal:hover {
   background: var(--surface);

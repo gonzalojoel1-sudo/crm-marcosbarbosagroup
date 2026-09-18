@@ -9,7 +9,8 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--surface);
-  border-radius: var(--r);
+  /* `#panel` del prototipo (`index.html:341`): radio 14px, no --r. */
+  border-radius: 14px;
   padding: 14px;
 }
 [data-agenda] .agx-panel-title {

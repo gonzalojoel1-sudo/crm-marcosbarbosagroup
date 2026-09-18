@@ -69,6 +69,8 @@
   font: inherit;
   color: inherit;
   cursor: pointer;
+  /* Prototipo `index.html:313`: 140 ms sobre el fondo. */
+  transition: background 140ms var(--ease);
 }
 [data-agenda] .agx-lev:hover {
   background: var(--surface-2);

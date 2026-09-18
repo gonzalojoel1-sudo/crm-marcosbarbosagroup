@@ -13,6 +13,16 @@
   z-index: 4;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+  /* La costura del encabezado (prototipo `index.html:128`). */
+  transition: box-shadow 160ms var(--ease);
+}
+/* La sombra aparece solo cuando hay algo scrolleado debajo (prototipo
+   `index.html:131`): `data-scrolled` lo togglea WeekView.tsx. El valor reproduce
+   `0 10px 14px -12px rgba(0,0,0,.85)`; D1 solo exceptúa `var(--shadow)` como
+   sombra con token, así que se aplica por esa variable. */
+[data-agenda] .agx-gridwrap[data-scrolled] .agx-heads {
+  --shadow: 0 10px 14px -12px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--shadow);
 }
 [data-agenda] .agx-colhead {
   display: flex;
@@ -115,6 +125,9 @@
   color: #fff;
   cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.38);
+  /* Movimiento del prototipo (`index.html:204`): 150 ms sobre la sombra y el
+     filtro. Los 150 ms no tienen token; el easing sale de --ease. */
+  transition: box-shadow 150ms var(--ease), filter 150ms var(--ease);
 }
 /* Al pasar el puntero (o enfocar), el bloque sube por encima de sus vecinos:
    el asa de redimensionar cruza el borde inferior sin que el vecino la tape. */
@@ -136,6 +149,13 @@
 }
 [data-agenda] .agx-ev:hover {
   filter: brightness(1.07);
+  /* Elevación del prototipo (`index.html:206`):
+     box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 5px 14px rgba(0,0,0,.45).
+     Se aplica vía `--shadow` porque D1 (stylelint) solo exceptúa `var(--shadow)`;
+     los alfas no tokenizados se expresan con color-mix, sin rgba crudo. */
+  --shadow: inset 0 1px 0 color-mix(in srgb, #fff 20%, transparent),
+    0 5px 14px color-mix(in srgb, black 45%, transparent);
+  box-shadow: var(--shadow);
 }
 /* Asa de duración: 24×24 px de área de impacto (SC 2.5.8), sin agrandar el
    glifo. Centrada en el borde inferior: 12 px adentro y 12 px afuera. */
@@ -240,13 +260,25 @@
   left: 4px;
   right: 4px;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   overflow: hidden;
   padding: 6px 10px;
-  border-radius: var(--r);
+  /* Radio del fantasma del prototipo (`index.html:1680`), que no es --r. */
+  border-radius: 9px;
   background: color-mix(in srgb, var(--accent) 20%, #141417);
   box-shadow: inset 0 0 0 1px var(--accent-line);
   color: #fff;
   pointer-events: none;
+}
+/* El fantasma del prototipo (`index.html:1682`) muestra el rango y, debajo, la
+   etiqueta "Nueva reunión". */
+[data-agenda] .agx-ghost-t {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #fff;
 }
 [data-agenda] .agx-ghost-m {
   font-family: var(--mono);
@@ -267,6 +299,15 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
+}
+/* El aviso de solapamiento del prototipo (`index.html:178-179`): un "· se
+   superpone" en --danger cuando el destino pisa otra reunión. */
+[data-agenda] .agx-droplab b {
+  font-weight: 600;
+}
+[data-agenda] .agx-droplab em {
+  font-style: normal;
+  color: var(--danger);
 }
 
 /* Fila de todo el día (all_day): franja fija arriba de la grilla. */

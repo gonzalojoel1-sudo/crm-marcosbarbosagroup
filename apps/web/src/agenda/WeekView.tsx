@@ -133,6 +133,9 @@ export default function WeekView({
   // Un click que sigue a un arrastre (o a una cancelación) no debe abrir el
   // panel ni el menú: el gesto y el click no se pisan (lanmina 3).
   const suppressClick = useRef(false);
+  // La costura del encabezado aparece recién cuando hay contenido scrolleado
+  // debajo, como el prototipo (`index.html:1798-1803`).
+  const [scrolled, setScrolled] = useState(false);
 
   // El alto de hora se deriva del alto real disponible (prototipo fitHourHeight).
   useLayoutEffect(() => {
@@ -421,6 +424,23 @@ export default function WeekView({
   }
 
   const dragCreate = drag && drag.kind === "create" && drag.moved ? drag : null;
+  // El aviso "· se superpone" del prototipo (`index.html:737-739,1689`): el
+  // destino de un mover/redimensionar pisa otra reunión ese día. El prototipo
+  // excluye las importadas (`busy`); la app no expone ese flag todavía, así que
+  // solo se excluye la reunión arrastrada.
+  const dragClash = useMemo(() => {
+    if (!drag || !drag.moved || drag.kind === "create") return false;
+    const day = days[drag.day];
+    if (!day) return false;
+    const start = drag.startMin;
+    const end = drag.startMin + drag.durMin;
+    return events.some((e) => {
+      if (e.allDay || e.name === drag.event.name) return false;
+      if (!sameDay(e.start, day)) return false;
+      const { startMin, endMin } = eventMinutes(e);
+      return start < endMin && startMin < end;
+    });
+  }, [drag, days, events]);
   const dragLabel =
     drag && drag.moved
       ? drag.kind === "create"
@@ -491,6 +511,11 @@ export default function WeekView({
         tabIndex={0}
         role="region"
         aria-label={`Agenda de la semana del ${weekLabel}`}
+        data-scrolled={scrolled ? "" : undefined}
+        onScroll={(e) => {
+          const next = e.currentTarget.scrollTop > 2;
+          setScrolled((prev) => (prev === next ? prev : next));
+        }}
       >
         <div className={styles.agxHeads} ref={headsRef}>
           <div className={styles.agxColhead} aria-hidden="true" />
@@ -553,6 +578,10 @@ export default function WeekView({
                       data-ev={p.event.name}
                       data-compact={density === "compact" ? "" : undefined}
                       data-tiny={density === "tiny" ? "" : undefined}
+                      // Marca de la excepción "Essential" (SC 2.5.8) que el
+                      // prototipo emite para los bloques de menos de 24 px
+                      // (`index.html:778`).
+                      data-densa={height < 24 ? "" : undefined}
                       data-narrow={narrow ? "" : undefined}
                       aria-haspopup="menu"
                       aria-expanded={expandedName === p.event.name}
@@ -601,9 +630,10 @@ export default function WeekView({
                       height: blockHeight(dragCreate.dur, hourH),
                     }}
                   >
-                    <span className={styles.agxGhostM}>
+                    <span className={styles.agxGhostT}>
                       {fmtMin(dragCreate.min)} – {fmtMin(dragCreate.min + dragCreate.dur)}
                     </span>
+                    <span className={styles.agxGhostM}>Nueva reunión</span>
                   </div>
                 ) : null}
 
@@ -638,6 +668,12 @@ export default function WeekView({
       {dragLabel ? (
         <div className={styles.agxDroplab} aria-hidden="true" style={{ left: drag!.x + 14, top: drag!.y + 14 }}>
           <b>{dragLabel}</b>
+          {dragClash ? (
+            <>
+              {" · "}
+              <em>se superpone</em>
+            </>
+          ) : null}
         </div>
       ) : null}
     </>
