@@ -12,6 +12,7 @@ Requiere sitio Frappe (crm-test, NUNCA producción), con el runner de `bench`:
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import get_datetime
 
 from crm_core import api, patches
 
@@ -86,6 +87,38 @@ class TestAgendaCategoria(FrappeTestCase):
         dto = api.update_meeting(ev.name, "2026-12-05 09:00:00")
 
         self.assertEqual(dto["categoria"], "Software")
+
+    def test_update_cambia_dia_y_categoria(self):
+        """El panel edita Día y Agenda en un solo guardado: van al mismo `Event`."""
+        ev = self._event(**{"custom_crm_categoria": "Trabajo"})
+
+        dto = api.update_meeting(ev.name, "2026-12-08 10:30:00", categoria="Software")
+
+        self.assertEqual(dto["categoria"], "Software")
+        self.assertEqual(
+            frappe.db.get_value("Event", ev.name, "starts_on"),
+            get_datetime("2026-12-08 10:30:00"),
+        )
+
+    # ── Origen y solo lectura (Google) ─────────────────────────────────
+    def test_el_dto_marca_origen_crm_por_defecto(self):
+        ev = self._event()
+
+        dto = self._dto(ev)
+
+        self.assertEqual(dto["origin"], "CRM")
+        self.assertFalse(dto["busy"])
+
+    def test_el_dto_marca_origen_google_y_busy_cuando_vino_del_sync(self):
+        ev = self._event()
+        frappe.db.set_value(
+            "Event", ev.name, "pulled_from_google_calendar", 1, update_modified=False
+        )
+
+        dto = self._dto(ev)
+
+        self.assertEqual(dto["origin"], "Google")
+        self.assertTrue(dto["busy"])
 
     # ── DTO ────────────────────────────────────────────────────────────
     def test_el_dto_devuelve_la_categoria(self):

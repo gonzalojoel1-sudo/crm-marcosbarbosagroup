@@ -81,11 +81,20 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
                         <span className={styles.agxMev} key={e.name} title={`${e.subject} · ${time}`}>
                           <span
                             className={styles.agxMevD}
-                            style={{ background: categoryOf(e.category).color }}
+                            style={{
+                              background: e.busy ? "var(--fg-faint)" : categoryOf(e.category).color,
+                            }}
                             aria-hidden="true"
                           />
                           <span className="sr-only">
-                            {accessibleName(dayLong(date), startMin, endMin, e.subject, e.allDay, e.category)}
+                            {`${accessibleName(
+                              dayLong(date),
+                              startMin,
+                              endMin,
+                              e.subject,
+                              e.allDay,
+                              e.busy ? undefined : e.category,
+                            )}${e.busy ? ", importado de Google" : ""}`}
                           </span>
                           <span className={styles.agxMevH} aria-hidden="true">
                             {time}

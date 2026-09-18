@@ -35,6 +35,7 @@
   color: var(--fg-dim);
 }
 [data-agenda] .agx-panel-form input,
+[data-agenda] .agx-panel-form select,
 [data-agenda] .agx-panel-form textarea {
   background: var(--surface-2);
   border: 1px solid var(--border);

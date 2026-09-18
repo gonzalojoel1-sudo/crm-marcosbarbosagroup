@@ -8,10 +8,12 @@ export interface AgendaEvent {
   end: Date;
   allDay: boolean;
   category?: string;
-  // Origen del evento ("CRM" | "Reserva web" | "Google"). El DTO de `get_agenda`
-  // todavía no lo expone; el predicado del prototipo lo usa sólo para los eventos
-  // SIN categoría (importados). Ausente ⇒ queda `undefined` y no se inventa.
+  // Origen real ("CRM" | "Google"). El DTO lo deriva de
+  // `pulled_from_google_calendar`; "Reserva web" no tiene campo que lo distinga
+  // hoy (divergencia declarada en la spec §2/D5).
   origin?: string;
+  // Importado de Google ⇒ de solo lectura: no abre menú, no se arrastra ni edita.
+  busy?: boolean;
 }
 
 // Tarea ya normalizada. `due` es el vencimiento (nunca una duración): una tarea

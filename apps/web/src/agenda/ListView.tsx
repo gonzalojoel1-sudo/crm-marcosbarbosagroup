@@ -152,27 +152,34 @@ export default function ListView({
                       <li key={`${e.name}#${startMin}#${endMin}`}>
                         <button
                           type="button"
-                          className={styles.agxLev}
+                          className={`${styles.agxLev}${e.busy ? ` ${styles.busy}` : ""}`}
                           data-ev={e.name}
                           data-day={i}
+                          data-busy={e.busy ? "" : undefined}
                           tabIndex={effective === e.name ? 0 : -1}
                           onFocus={() => setRoving(e.name)}
-                          aria-haspopup="menu"
-                          aria-expanded={expandedName === e.name}
-                          onClick={(ev) => onOpenMenu(e, ev.currentTarget)}
+                          aria-haspopup={e.busy ? undefined : "menu"}
+                          aria-expanded={e.busy ? undefined : expandedName === e.name}
+                          onClick={(ev) => {
+                            if (!e.busy) onOpenMenu(e, ev.currentTarget);
+                          }}
                           title={`${e.subject} · ${time}`}
-                          aria-label={accessibleName(
+                          aria-label={`${accessibleName(
                             dayLong(g.date),
                             startMin,
                             endMin,
                             e.subject,
                             e.allDay,
-                            e.category,
-                          )}
+                            // Un importado no tiene agenda real (su categoría es el
+                            // default fabricado): no se nombra.
+                            e.busy ? undefined : e.category,
+                          )}${e.busy ? ", importado de Google" : ""}`}
                         >
                           <span className={styles.agxLevH}>{time}</span>
                           <span className={styles.agxLevT}>{e.subject}</span>
-                          {e.category ? (
+                          {e.busy ? (
+                            <span className={styles.agxLevC}>de Google</span>
+                          ) : e.category ? (
                             <span className={styles.agxLevC}>
                               <i
                                 className={styles.agxLevDot}

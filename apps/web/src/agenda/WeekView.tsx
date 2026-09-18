@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent,
   type PointerEvent,
 } from "react";
 import {
@@ -154,6 +155,42 @@ export default function WeekView({
   const hourH = (fit ?? 44) * zoom.mult;
   const gridH = HOURS * hourH;
   const nowMin = now.getHours() * 60 + now.getMinutes();
+
+  // Scroll sin mouse (`index.html:688-698`): el modelo Amplio vive de scrollear.
+  // ↑/↓ media hora, PageUp/PageDown 0.9 del viewport, Home/End los extremos y
+  // `h` salta a la hora actual. No reemplaza la barra: la complementa.
+  function onGridKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const paso: Record<string, number> = {
+      ArrowDown: hourH / 2,
+      ArrowUp: -hourH / 2,
+      PageDown: wrap.clientHeight * 0.9,
+      PageUp: -wrap.clientHeight * 0.9,
+    };
+    if (e.key in paso) {
+      wrap.scrollTop += paso[e.key];
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "Home") {
+      wrap.scrollTop = 0;
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "End") {
+      wrap.scrollTop = wrap.scrollHeight;
+      e.preventDefault();
+      return;
+    }
+    if (e.key === "h" || e.key === "H") {
+      const top = Math.max(0, minutesToY(nowMin, hourH) - wrap.clientHeight / 2);
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) wrap.scrollTop = top;
+      else wrap.scrollTo({ top, behavior: "smooth" });
+      e.preventDefault();
+    }
+  }
 
   stateRef.current.hourH = hourH;
   stateRef.current.cb = { onCreateSlot, onMoveEvent, onResizeEvent, onOpenMenu };
@@ -381,6 +418,8 @@ export default function WeekView({
 
   function onEventPointerDown(e: PointerEvent<HTMLButtonElement>, p: Placed, dayIdx: number) {
     if (e.button !== 0) return;
+    // Los importados de Google son de solo lectura: no se mueven ni redimensionan.
+    if (p.event.busy) return;
     e.stopPropagation();
     const esResize = !!(e.target as Element).closest("[data-grip]");
     const rect = columnRect(dayIdx);
@@ -507,6 +546,7 @@ export default function WeekView({
 
       <div
         className={styles.agxGridwrap}
+        id="agx-grilla"
         ref={wrapRef}
         tabIndex={0}
         role="region"
@@ -516,6 +556,7 @@ export default function WeekView({
           const next = e.currentTarget.scrollTop > 2;
           setScrolled((prev) => (prev === next ? prev : next));
         }}
+        onKeyDown={onGridKeyDown}
       >
         <div className={styles.agxHeads} ref={headsRef}>
           <div className={styles.agxColhead} aria-hidden="true" />
@@ -583,11 +624,12 @@ export default function WeekView({
                       // (`index.html:778`).
                       data-densa={height < 24 ? "" : undefined}
                       data-narrow={narrow ? "" : undefined}
-                      aria-haspopup="menu"
-                      aria-expanded={expandedName === p.event.name}
+                      data-busy={p.event.busy ? "" : undefined}
+                      aria-haspopup={p.event.busy ? undefined : "menu"}
+                      aria-expanded={p.event.busy ? undefined : expandedName === p.event.name}
                       onPointerDown={(e) => onEventPointerDown(e, p, dayIdx)}
                       onClick={(e) => {
-                        if (suppressClick.current) return;
+                        if (suppressClick.current || p.event.busy) return;
                         onOpenMenu(p.event, e.currentTarget);
                       }}
                       style={
@@ -600,14 +642,16 @@ export default function WeekView({
                         } as CSSProperties
                       }
                       title={`${p.event.subject} · ${fmtMin(p.startMin)} – ${fmtMin(p.endMin)}`}
-                      aria-label={accessibleName(
+                      aria-label={`${accessibleName(
                         dayLong(date),
                         p.startMin,
                         p.endMin,
                         p.event.subject,
                         false,
-                        p.event.category,
-                      )}
+                        // Un importado no tiene agenda real: su categoría es el
+                        // default fabricado, así que no se nombra (prototipo).
+                        p.event.busy ? undefined : p.event.category,
+                      )}${p.event.busy ? ", ocupado, importado de Google" : ""}`}
                     >
                       <span className={styles.agxEvIn}>
                         <span className={styles.agxEvM}>
@@ -616,7 +660,9 @@ export default function WeekView({
                         </span>
                         <span className={styles.agxEvT}>{p.event.subject}</span>
                       </span>
-                      <span className={styles.agxGrip} data-grip aria-hidden="true" />
+                      {p.event.busy ? null : (
+                        <span className={styles.agxGrip} data-grip aria-hidden="true" />
+                      )}
                     </button>
                   );
                 })}

@@ -127,9 +127,8 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
         end: parseDT(e.ends_on),
         allDay: Boolean(e.all_day),
         category: e.categoria,
-        // El DTO todavía no expone `origin`; si el backend lo agrega, viaja acá
-        // sin tocar nada más y el filtro de Origen empieza a discriminar.
-        origin: (e as EventDTO & { origin?: string }).origin,
+        origin: e.origin,
+        busy: e.busy,
       })),
     [data],
   );
@@ -137,30 +136,31 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
   // El predicado del prototipo (`index.html:620`): un evento se oculta por su
-  // agenda; si no tiene agenda (importado), por su origen. Acá la categoría
-  // siempre llega (la API usa default), así que el origen aplica a lo que el
-  // backend marque sin categoría. Filtra las TRES vistas.
+  // agenda; si es importado (sin agenda propia), por su origen. Lo importado de
+  // Google llega con `busy`: es lo que el prototipo renderiza con `cat: null`.
+  // Filtra las TRES vistas.
   const visibleEvents = useMemo(
     () =>
-      events.filter(
-        (e) =>
-          !(e.category ? hiddenCategories.has(e.category) : hiddenOrigins.has(e.origin ?? "")),
+      events.filter((e) =>
+        e.busy ? !hiddenOrigins.has(e.origin ?? "") : !hiddenCategories.has(e.category ?? ""),
       ),
     [events, hiddenCategories, hiddenOrigins],
   );
 
-  // Los contadores de la sidebar salen de TODOS los eventos, como el prototipo.
+  // La sidebar cuenta como el prototipo: las agendas por categoría, entre los
+  // eventos que TIENEN agenda (los importados no la tienen); el origen, sobre
+  // TODOS los eventos. "Reserva web" no tiene campo en el modelo: su contador
+  // queda en 0 (divergencia declarada en la spec §2/D5).
   const categoryCounts = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const key of CATEGORY_ORDER) out[key] = events.filter((e) => e.category === key).length;
+    for (const key of CATEGORY_ORDER) {
+      out[key] = events.filter((e) => !e.busy && e.category === key).length;
+    }
     return out;
   }, [events]);
   const originCounts = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const origin of ORIGINS) {
-      const prefijo = origin.split(" ")[0];
-      out[origin] = events.filter((e) => (e.origin ?? "").startsWith(prefijo)).length;
-    }
+    for (const origin of ORIGINS) out[origin] = events.filter((e) => e.origin === origin).length;
     return out;
   }, [events]);
   const eventDays = useMemo(() => new Set(events.map((e) => ymd(e.start))), [events]);
@@ -209,8 +209,9 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   const n = visibleEvents.length;
   // El chip del prototipo dice la ventana visible (`index.html:1493-1498,1526`).
   // La app no pliega franjas, así que la ventana es siempre la grilla completa.
-  // El pendiente de sync no se puede expresar todavía: el DTO de `get_agenda` no
-  // expone `sync`, así que se renderiza sólo lo real (sin inventar un número).
+  // El contador de "sin sincronizar" NO se renderiza: mide si nuestra escritura
+  // llegó a Google, y el modelo no expone ese estado; no se inventa (divergencia
+  // declarada en la spec §2/D5).
   const windowChip = `${fmtMin(START_H * 60)} – ${fmtMin(END_H * 60)}`;
   const count = `${view === "mes" ? "" : `${windowChip} · `}${n} ${
     n === 1 ? "reunión" : "reuniones"
@@ -315,6 +316,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
         durMin: durDe(ev),
         name: ev.name,
         subject: ev.subject,
+        category: ev.category,
       },
       el,
     );
@@ -492,6 +494,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
         durMin: durDe(ev),
         name: ev.name,
         subject: ev.subject,
+        category: ev.category,
       },
       el,
     );
@@ -620,7 +623,9 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
       const evEl = a.closest<HTMLElement>("[data-ev]");
       if (evEl) {
         const ev = events.find((x) => x.name === evEl.dataset.ev);
-        if (ev) {
+        // Los importados de Google son de solo lectura: ninguna tecla de acción
+        // (editar/mover/duplicar/borrar/nudge) los toca.
+        if (ev && !ev.busy) {
           if (e.ctrlKey && e.altKey && !e.metaKey) {
             if (e.key === "ArrowDown") { e.preventDefault(); nudge(ev, { min: 15 }); return; }
             if (e.key === "ArrowUp") { e.preventDefault(); nudge(ev, { min: -15 }); return; }
@@ -705,6 +710,11 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
       ref={rootRef}
       style={{ height }}
     >
+      {/* Salto directo a la grilla (`index.html:517`): visualmente oculto hasta
+          enfocarse, para operar sin ratón desde el teclado. */}
+      <a className={styles.agxSkip} href="#agx-grilla">
+        Saltar a la grilla
+      </a>
       <div className={styles.agxBody}>
         <Sidebar
           categoryCounts={categoryCounts}
@@ -772,7 +782,9 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
               />
             )}
 
-            {panel ? <EventPanel ctx={panel} onClose={closePanel} onSaved={handleSaved} /> : null}
+            {panel ? (
+              <EventPanel ctx={panel} days={days} onClose={closePanel} onSaved={handleSaved} />
+            ) : null}
           </div>
         </div>
 

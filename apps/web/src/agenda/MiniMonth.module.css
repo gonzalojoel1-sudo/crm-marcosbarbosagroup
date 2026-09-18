@@ -85,3 +85,9 @@
   border-radius: 3px;
   display: block;
 }
+/* Fila "Ocupado (de Google)": lo importado no tiene color de agenda. El
+   `#211f1b` del prototipo no está tokenizado; se usa la superficie cercana. */
+[data-agenda] .agx-legend i.agx-legend-busy {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}

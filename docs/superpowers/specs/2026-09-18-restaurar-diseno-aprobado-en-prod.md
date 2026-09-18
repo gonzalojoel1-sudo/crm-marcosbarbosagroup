@@ -52,6 +52,11 @@ Es el fallo que la investigación nombra como "re-tinte aburrido / fuera de gamu
 
 **D4 · Las mejoras del port se conservan.** No todo lo distinto es pérdida. Se mantienen: la fila de **todo el día**, la **franja de tareas**, el **paginador** prev/next, la **validación en línea** del panel, las **teclas visibles** en el menú, el **asa de redimensionar** visible, la línea de "ahora" anclada a la columna de hoy real, y los chips del Mes no interactivos (honestos, porque las operaciones del Mes están fuera de alcance).
 
+**D5 · `busy`/origen se derivan de un dato real; lo que falta se declara.** El modelo ya expone el origen de lo importado con el campo **nativo** `Event.pulled_from_google_calendar`: el DTO de `get_agenda` agrega `origin` (`"Google" | "CRM"`) y `busy` (solo lectura), y la UI renderiza los importados como bloque/fila de solo lectura (sin menú, sin arrastre, sin color de agenda), los cuenta en *Origen* y agrega la fila **"Ocupado (de Google)"** a la leyenda. **Divergencias declaradas, no olvidos:**
+  - **"Reserva web" no tiene campo en el modelo.** Ninguna reserva web se distingue hoy de una reunión creada en el CRM (el `source` del lead lo escribe el sync legacy, no el canal). Su contador queda en **0** y su toggle no filtra nada; se deja de mentir sobre una discriminación que el dato no tiene.
+  - **El sync pendiente no se expone.** El contador/indicador de "¿nuestra escritura llegó a Google?" mide un estado que el modelo no tiene: el chip de ventana se renderiza **sin** él y no se inventa un número.
+  - **El fondo exacto del bloque ocupado (`#211f1b`) no está tokenizado** y D1 prohíbe re-derivar colores, así que se usa `--surface-2`; mismo criterio en Lista y en el swatch de la leyenda.
+
 ## 3. Lo que hay que restaurar, por impacto visual
 
 | # | Qué | Detalle | Por qué importa |
@@ -61,10 +66,10 @@ Es el fallo que la investigación nombra como "re-tinte aburrido / fuera de gamu
 | **3** | **Calentar la paleta** | Restaurar `#100f0d / #171614 / #1d1b18 / #f4f1ea`, `--danger`, `--ok` | Hoy la página se ve más oscura y fría que lo aprobado |
 | **4** | **Estado vacío de la grilla** | Título, subtítulo y botón "Nueva reunión" | Sin él, una semana sin reuniones queda en blanco |
 | **5** | **Movimiento y afordancias** | `transition` en los bloques + hover con sombra elevada, transiciones de sidebar/menú/lista, **sombra del encabezado al scrollear** (`data-scrolled`), y el bloque **`prefers-reduced-motion`** | El port no tiene **ninguna** transición: se siente muerto |
-| **6** | **Categoría y Día en el panel** | Hoy **la categoría no se puede cambiar en absoluto** (el panel perdió el campo y la API no lo expone para editar) | Funcionalidad perdida, no solo estética |
+| **6** | **Categoría y Día en el panel** | Restaurado: el panel vuelve a tener *Agenda* y *Día*; `update_meeting` ya acepta `categoria` y el test de integración lo cierra de punta a punta | Funcionalidad perdida, no solo estética |
 | **7** | **`Hoy · HH:MM` y el chip de ventana** | El botón Hoy mostraba la hora; el chip mostraba la ventana visible y los pendientes de sync | Orientación |
-| **8** | **Scroll por teclado + skip link** | `↑/↓`, `PageUp/PageDown`, `Home/End`, `h` = ir a ahora; y "Saltar a la grilla" | Era parte de "operar sin mouse" |
-| **9** | **Bloques de Google de solo lectura + puntos de sync** | Requiere que el modelo exponga `busy`/sync; si no, **se declara la divergencia para siempre** en vez de dejarla como olvido | Semántica: lo importado no se edita |
+| **8** | **Scroll por teclado + skip link** | Restaurado: `↑/↓` media hora, `PageUp/PageDown` 0.9 del viewport, `Home/End` y `h` = ir a ahora en la grilla; y el skip link "Saltar a la grilla" | Era parte de "operar sin mouse" |
+| **9** | **Bloques de Google de solo lectura + origen** | Decidido y registrado en **D5**: `origin`/`busy` desde `pulled_from_google_calendar`, solo lectura + leyenda; "Reserva web" y sync pendiente **declarados** (el dato no existe, no se inventa) | Semántica: lo importado no se edita |
 | **10** | **Craft menor** | Etiqueta "Nueva reunión" + aviso **"· se superpone"** en el fantasma del arrastre; `data-densa`; base 14px/1.45; selección `rgba(254,65,0,.22)`; radio del panel 14px; anillo de foco radio 4px; borrar los `#a0431c` sueltos | Detalles que suman al conjunto |
 
 ## 4. Fases

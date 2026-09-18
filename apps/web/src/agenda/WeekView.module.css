@@ -252,6 +252,21 @@
   -webkit-line-clamp: 2;
   font-size: 12.5px;
 }
+/* Importado de Google: de solo lectura, sin color de agenda ni hover elevado
+   (`index.html:229`). El fondo exacto del prototipo no está tokenizado; se usa
+   la superficie más cercana, sin re-derivar un color (divergencia en spec §2/D5). */
+[data-agenda] .agx-ev[data-busy] {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  cursor: default;
+}
+[data-agenda] .agx-ev[data-busy]:hover {
+  filter: none;
+}
+[data-agenda] .agx-ev[data-busy] .agx-ev-t,
+[data-agenda] .agx-ev[data-busy] .agx-ev-m {
+  color: var(--fg-dim);
+}
 
 /* Fantasma del arrastre de creación y etiqueta de destino. Decorativos: no
    reciben puntero (pointer-events: none), así el gesto los atraviesa. */

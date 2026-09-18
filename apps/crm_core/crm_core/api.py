@@ -28,6 +28,9 @@ EVENT_FIELDS = [
     "all_day",
     "custom_crm_lead",
     "custom_crm_categoria",
+    # Campo NATIVO de `Event` (Google Calendar sync): 1 si el evento se importó de
+    # Google. Es la señal real del origen "Google" y de "de solo lectura".
+    "pulled_from_google_calendar",
 ]
 # Las cinco categorías de la agenda. Son una decisión de producto (la paleta y los
 # filtros del prototipo), no datos del usuario: por eso el Custom Field es un
@@ -117,6 +120,12 @@ def _event_dto(r, lead=None):
     ends = get_datetime(r.get("ends_on")) if r.get("ends_on") else add_to_date(starts, hours=1)
     who = _who_de(lead)
     subject = (r.get("subject") or "").strip() or who or (lead or {}).get("email") or "Reunión"
+    # El origen sale de un dato real, no se inventa: `pulled_from_google_calendar`
+    # es el campo nativo de `Event` que marca lo importado de Google. Todo lo demás
+    # nació en el CRM (el canal "Reserva web" no tiene campo que lo distinga hoy;
+    # ver la divergencia declarada en la spec, §2/D5). Lo importado además es de
+    # SOLO LECTURA: `busy` viaja para que la UI no ofrezca editar/mover.
+    busy = bool(cint(r.get("pulled_from_google_calendar")))
     return {
         "name": r.get("name"),
         "subject": subject,
@@ -124,6 +133,8 @@ def _event_dto(r, lead=None):
         "email": (lead or {}).get("email") or "",
         "all_day": bool(cint(r.get("all_day"))),
         "categoria": _categoria_del_dto(r.get("custom_crm_categoria")),
+        "origin": "Google" if busy else "CRM",
+        "busy": busy,
         "starts_on": str(starts),
         "ends_on": str(ends),
     }

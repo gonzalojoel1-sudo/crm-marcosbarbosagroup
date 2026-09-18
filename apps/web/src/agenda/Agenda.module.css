@@ -57,6 +57,24 @@
   }
 }
 
+/* Skip link: visible sólo al enfocarse (`index.html:98-103`). */
+[data-agenda] .agx-skip {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  transform: translateY(-200%);
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+[data-agenda] .agx-skip:focus {
+  transform: none;
+}
+
 [data-agenda] .agx-body {
   flex: 1;
   min-height: 0;

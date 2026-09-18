@@ -77,6 +77,10 @@ export default function MiniMonth({ anchor, rangeDays, today, eventDays }: MiniM
               {CATEGORIES[key].label}
             </div>
           ))}
+          <div>
+            <i className={styles.agxLegendBusy} aria-hidden="true" />
+            Ocupado (de Google)
+          </div>
         </div>
       </div>
     </aside>

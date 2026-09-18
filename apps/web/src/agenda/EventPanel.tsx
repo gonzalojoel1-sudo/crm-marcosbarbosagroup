@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api } from "../api";
-import { dayLong, dayShort, fmtMin, ymd } from "./date";
+import { DOW_SHORT, capitalize, dayLong, dayShort, fmtMin, sameDay, weekdayIndex, ymd } from "./date";
+import { CATEGORIES, CATEGORY_ORDER } from "./categories";
 import styles from "./EventPanel.module.css";
 
 // El panel es la ÚNICA superficie de creación y edición (spec S1). No es modal:
@@ -13,6 +14,9 @@ export interface PanelContext {
   durMin: number;
   name?: string;
   subject?: string;
+  // Categoría actual al editar; en creación arranca en "Consultora" (el default
+  // del prototipo, `index.html:969`).
+  category?: string;
   returnFocus: HTMLElement | null;
 }
 
@@ -37,13 +41,19 @@ function parseHora(raw: string): number | null {
 
 interface EventPanelProps {
   ctx: PanelContext;
+  days: Date[];
   onClose: () => void;
   onSaved: (s: SavedInfo) => void;
 }
 
-export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
+export default function EventPanel({ ctx, days, onClose, onSaved }: EventPanelProps) {
   const editando = ctx.mode === "editar";
   const [titulo, setTitulo] = useState(ctx.subject ?? "");
+  const [categoria, setCategoria] = useState(ctx.category ?? CATEGORY_ORDER[0]);
+  const [dia, setDia] = useState(() => {
+    const i = days.findIndex((d) => sameDay(d, ctx.day));
+    return i >= 0 ? i : 0;
+  });
   const [inicio, setInicio] = useState(fmtMin(ctx.startMin));
   const [dur, setDur] = useState(ctx.durMin);
   const [notas, setNotas] = useState("");
@@ -94,9 +104,11 @@ export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
   const min = useMemo(() => parseHora(inicio), [inicio]);
   const minEfectivo = min ?? ctx.startMin;
   const rango = `${fmtMin(minEfectivo)} – ${fmtMin(minEfectivo + dur)}`;
+  // El Día elegido manda: el encabezado, el guardado y el anuncio lo usan.
+  const day = days[dia] ?? ctx.day;
   const encabezado = editando
-    ? `Editar · ${titulo || ctx.subject || "Reunión"} · ${dayShort(ctx.day)}, ${rango}`
-    : `Nueva reunión · ${dayShort(ctx.day)}, ${rango}`;
+    ? `Editar · ${titulo || ctx.subject || "Reunión"} · ${dayShort(day)}, ${rango}`
+    : `Nueva reunión · ${dayShort(day)}, ${rango}`;
 
   async function guardar(e: FormEvent) {
     e.preventDefault();
@@ -112,28 +124,30 @@ export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
       return;
     }
     setError(null);
-    const inicioDT = `${ymd(ctx.day)} ${fmtMin(minVal)}:00`;
-    const finDT = `${ymd(ctx.day)} ${fmtMin(minVal + dur)}:00`;
+    const inicioDT = `${ymd(day)} ${fmtMin(minVal)}:00`;
+    const finDT = `${ymd(day)} ${fmtMin(minVal + dur)}:00`;
     setGuardando(true);
     try {
       if (editando && ctx.name) {
-        await api.updateMeeting(ctx.name, inicioDT, finDT);
+        // La categoría viaja en `update_meeting`; `_categoria` la valida en el
+        // backend (fuera de la lista = error, no una corrección silenciosa).
+        await api.updateMeeting(ctx.name, inicioDT, finDT, categoria);
         const campos: { subject?: string; description?: string } = {};
         if (t !== ctx.subject) campos.subject = t;
         if (notas !== notasOriginales.current) campos.description = notas;
         if (Object.keys(campos).length) await api.setEventFields(ctx.name, campos);
         onSaved({
           name: ctx.name,
-          announcement: `Actualizada ${t}, ${dayLong(ctx.day)} de ${fmtMin(minVal)} a ${fmtMin(
+          announcement: `Actualizada ${t}, ${dayLong(day)} de ${fmtMin(minVal)} a ${fmtMin(
             minVal + dur,
           )}`,
         });
       } else {
-        const r = await api.createEvent(t, inicioDT, finDT);
+        const r = await api.createEvent(t, inicioDT, finDT, categoria);
         if (notas.trim()) await api.setEventFields(r.name, { description: notas.trim() });
         onSaved({
           name: r.name,
-          announcement: `Creada ${t}, ${dayLong(ctx.day)} de ${fmtMin(minVal)} a ${fmtMin(
+          announcement: `Creada ${t}, ${dayLong(day)} de ${fmtMin(minVal)} a ${fmtMin(
             minVal + dur,
           )}`,
         });
@@ -163,6 +177,28 @@ export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
           value={titulo}
           onChange={(e) => setTitulo(e.target.value)}
         />
+
+        <label htmlFor="agx-p-cat">Agenda</label>
+        <select
+          id="agx-p-cat"
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+        >
+          {CATEGORY_ORDER.map((k) => (
+            <option key={k} value={k}>
+              {CATEGORIES[k].label}
+            </option>
+          ))}
+        </select>
+
+        <label htmlFor="agx-p-dia">Día</label>
+        <select id="agx-p-dia" value={dia} onChange={(e) => setDia(Number(e.target.value))}>
+          {days.map((d, i) => (
+            <option key={ymd(d)} value={i}>
+              {`${capitalize(DOW_SHORT[weekdayIndex(d)])} ${d.getDate()}`}
+            </option>
+          ))}
+        </select>
 
         <label htmlFor="agx-p-inicio">Hora de inicio</label>
         <p className={styles.agxPanelHint} id={HINT_ID}>

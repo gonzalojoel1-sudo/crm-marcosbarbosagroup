@@ -20,6 +20,12 @@ export interface EventDTO {
   ends_on: string;
   all_day: boolean;
   categoria: string;
+  // Origen real del evento ("CRM" | "Google", derivado de
+  // `pulled_from_google_calendar`). "Reserva web" no tiene campo que lo
+  // distinga hoy: la divergencia está declarada en la spec §2/D5.
+  origin: string;
+  // `true` = importado de Google: de solo lectura (no se edita, mueve ni borra).
+  busy: boolean;
   who?: string;
   email?: string;
 }
@@ -276,14 +282,15 @@ export const api = {
   quickAdd: (subject: string) =>
     post<{ name: string; subject: string }>("crm_core.api.quick_add_task", { subject }),
   complete: (name: string) => post<{ ok: boolean }>("crm_core.api.complete_task", { name }),
-  createEvent: (subject: string, starts_on: string, ends_on?: string) =>
+  createEvent: (subject: string, starts_on: string, ends_on?: string, categoria?: string) =>
     post<{ name: string; subject: string }>("crm_core.api.create_event", {
       subject,
       starts_on,
       ends_on,
+      categoria,
     }),
-  updateMeeting: (name: string, starts_on: string, ends_on?: string) =>
-    post<EventDTO>("crm_core.api.update_meeting", { name, starts_on, ends_on }),
+  updateMeeting: (name: string, starts_on: string, ends_on?: string, categoria?: string) =>
+    post<EventDTO>("crm_core.api.update_meeting", { name, starts_on, ends_on, categoria }),
   duplicateMeeting: (name: string, starts_on?: string) =>
     post<EventDTO>("crm_core.api.duplicate_meeting", { name, starts_on }),
   deleteMeeting: (name: string) => post<{ ok: boolean }>("crm_core.api.delete_meeting", { name }),
