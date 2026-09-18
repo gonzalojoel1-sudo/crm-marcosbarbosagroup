@@ -6,9 +6,11 @@ import Pipeline from "./Pipeline";
 import MeetingDrawer from "./MeetingModal";
 import Reminder from "./Reminder";
 import Logo from "./Logo";
-// El prototipo aprobado es la autoridad de la paleta. tokens.css va DESPUÉS de
-// styles.css para que su `:root` gane la cascada: si va antes, el CRM pisa
-// --bg/--surface/--fg/--danger/--ok y la agenda vuelve a verse fría.
+// El prototipo aprobado es la autoridad de la paleta de la AGENDA. tokens.css
+// define los tokens en `[data-agenda]`, no en `:root`: el `:root` de styles.css
+// queda intacto y el resto del CRM conserva su paleta (D2). El orden de imports
+// ya no decide la cascada (el atributo gana sobre la herencia de `:root`), pero
+// se mantiene para que la agenda cargue después del shell.
 import "./styles.css";
 import "./agenda/tokens.css";
 

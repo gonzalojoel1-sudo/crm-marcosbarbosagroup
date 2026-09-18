@@ -49,6 +49,10 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   // La hora del botón "Hoy · HH:MM" y de la línea de ahora tiene que ser la real,
   // no la del montaje: se refresca por minuto mientras la agenda está viva.
   const [now, setNow] = useState(() => new Date());
+  // Un contador que sube cuando el botón "Hoy · HH:MM" pide, además de
+  // re-anclar la semana, saltar a la hora actual (prototipo `jumpToNow`).
+  const [jumpSignal, setJumpSignal] = useState(0);
+  const primerDato = useRef(true);
   // Sidebar: agendas (categorías) y orígenes apagados. El prototipo los guarda en
   // dos Set (`HIDDEN` / `HIDDEN_ORIGIN`, `index.html:617-618`).
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set());
@@ -107,7 +111,16 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
     api
       .getAgenda(ymd(rangeStart), ymd(rangeEnd))
       .then((d) => {
-        if (alive) setData(d);
+        if (!alive) return;
+        setData(d);
+        // El prototipo nace con las reuniones cargadas y salta a "ahora" en la
+        // primera pintura. La app las trae después: el primer dato listo dispara
+        // ese salto (grilla y Lista). Sólo la PRIMERA carga: cambiar de semana no
+        // debe volver a saltar.
+        if (primerDato.current) {
+          primerDato.current = false;
+          setJumpSignal((n) => n + 1);
+        }
       })
       .catch(() => {
         if (alive) setData({ start: "", end: "", events: [], tasks: [] });
@@ -147,14 +160,14 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
     [events, hiddenCategories, hiddenOrigins],
   );
 
-  // La sidebar cuenta como el prototipo: las agendas por categoría, entre los
-  // eventos que TIENEN agenda (los importados no la tienen); el origen, sobre
-  // TODOS los eventos. "Reserva web" no tiene campo en el modelo: su contador
-  // queda en 0 (divergencia declarada en la spec §2/D5).
+  // La sidebar cuenta como el prototipo (`index.html:1507`): las agendas suman
+  // TODA reunión con esa categoría, incluidas las importadas de Google que traen
+  // una; el origen, sobre todos los eventos. "Reserva web" no tiene campo en el
+  // modelo: su contador queda en 0 (divergencia declarada en la spec §2/D5).
   const categoryCounts = useMemo(() => {
     const out: Record<string, number> = {};
     for (const key of CATEGORY_ORDER) {
-      out[key] = events.filter((e) => !e.busy && e.category === key).length;
+      out[key] = events.filter((e) => e.category === key).length;
     }
     return out;
   }, [events]);
@@ -201,21 +214,22 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   );
 
   const weekLabel = `${days[0].getDate()} al ${days[4].getDate()} de ${MON_FULL[days[0].getMonth()]}`;
+  // El prototipo titula el Mes solo con el nombre del mes (`index.html:1525`).
   const title =
-    view === "mes"
-      ? `${capitalize(MON_FULL[anchor.getMonth()])} de ${anchor.getFullYear()}`
-      : rangeTitle(days[0], days[4]);
+    view === "mes" ? capitalize(MON_FULL[anchor.getMonth()]) : rangeTitle(days[0], days[4]);
 
-  const n = visibleEvents.length;
-  // El chip del prototipo dice la ventana visible (`index.html:1493-1498,1526`).
-  // La app no pliega franjas, así que la ventana es siempre la grilla completa.
-  // El contador de "sin sincronizar" NO se renderiza: mide si nuestra escritura
-  // llegó a Google, y el modelo no expone ese estado; no se inventa (divergencia
-  // declarada en la spec §2/D5).
+  // El prototipo cuenta como "reuniones" solo las que NO son importadas de
+  // Google (`shown = EVENTS.filter(e => !e.busy && …)`, `index.html:1479-1480`);
+  // las ocupadas no son reuniones de la agenda. El "· N sin sincronizar" mide si
+  // nuestra escritura llegó a Google, estado que el modelo no expone: no se
+  // inventa (divergencia declarada en la spec §2/D5).
+  const n = visibleEvents.filter((e) => !e.busy).length;
   const windowChip = `${fmtMin(START_H * 60)} – ${fmtMin(END_H * 60)}`;
-  const count = `${view === "mes" ? "" : `${windowChip} · `}${n} ${
-    n === 1 ? "reunión" : "reuniones"
-  }`;
+  const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  const count =
+    view === "mes"
+      ? `${daysInMonth} días · ${n} ${n === 1 ? "reunión" : "reuniones"}`
+      : `${windowChip} · ${n} ${n === 1 ? "reunión" : "reuniones"}`;
 
   function move(delta: number) {
     if (view === "mes") setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1));
@@ -736,7 +750,10 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
             now={now}
             onPrev={() => move(-1)}
             onNext={() => move(1)}
-            onToday={() => setAnchor(new Date())}
+            onToday={() => {
+              setAnchor(new Date());
+              setJumpSignal((n) => n + 1);
+            }}
             onNew={crearDesdeBoton}
             panelOpen={miniOpen}
             onTogglePanel={() => setMiniOpen((v) => !v)}
@@ -760,6 +777,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
                 expandedName={menu?.event.name ?? null}
                 tasksByDay={tasksByDay}
                 onCompleteTask={completarTarea}
+                jumpSignal={jumpSignal}
               />
             ) : view === "lista" ? (
               <ListView
@@ -771,6 +789,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
                 expandedName={menu?.event.name ?? null}
                 tasksByDay={tasksByDay}
                 onCompleteTask={completarTarea}
+                jumpSignal={jumpSignal}
               />
             ) : (
               <MonthView

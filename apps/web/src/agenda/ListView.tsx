@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { accessibleName, dayLong, fmtMin, minutesOfDay, sameDay, ymd } from "./date";
 import { eventMinutes } from "./geometry";
 import { categoryOf } from "./categories";
@@ -17,6 +17,8 @@ interface ListViewProps {
   expandedName: string | null;
   tasksByDay: AgendaTask[][];
   onCompleteTask: (task: AgendaTask) => void;
+  /** Sube cuando el botón "Hoy · HH:MM" pide saltar al día de hoy. */
+  jumpSignal: number;
 }
 
 function countLabel(n: number): string {
@@ -39,9 +41,19 @@ export default function ListView({
   expandedName,
   tasksByDay,
   onCompleteTask,
+  jumpSignal,
 }: ListViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [roving, setRoving] = useState<string | null>(null);
+
+  // La Lista abre en el día de hoy, como el prototipo (`jumpToNow`,
+  // `index.html:677-682`), y el botón "Hoy · HH:MM" vuelve a él.
+  useEffect(() => {
+    const hoy = containerRef.current?.querySelector<HTMLElement>(".agx-ldia.today");
+    if (!hoy) return;
+    const quieto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    hoy.scrollIntoView({ block: "start", behavior: quieto ? "auto" : "smooth" });
+  }, [jumpSignal]);
 
   const groups = useMemo(
     () =>

@@ -12,7 +12,13 @@
   padding: 14px;
 }
 
+/* El `h2 { text-transform: uppercase; display:flex; … }` global de styles.css
+   (línea 224) es un selector de ELEMENTO: `[data-agenda]` no lo frena. Se
+   resetean las propiedades visuales que filtra para que el título del bloque se
+   vea como el prototipo (`index.html:75`). La guarda (g) lo verifica. */
 [data-agenda] .agx-block-title {
+  display: block;
+  text-transform: none;
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.005em;
@@ -34,7 +40,7 @@
   color: inherit;
   text-align: left;
   /* Prototipo `index.html:83`: 140 ms sobre el fondo. */
-  transition: background 140ms var(--ease);
+  transition: background 140ms ease-out;
 }
 [data-agenda] .agx-cal:hover {
   background: var(--surface);

@@ -55,6 +55,8 @@ interface WeekViewProps {
   expandedName: string | null;
   tasksByDay: AgendaTask[][];
   onCompleteTask: (task: AgendaTask) => void;
+  /** Cambia de valor cuando el botón "Hoy · HH:MM" pide saltar a la hora actual. */
+  jumpSignal: number;
 }
 
 const DRAG_UMBRAL = 4; // menos de 4 px de movimiento es un click, no un arrastre
@@ -111,12 +113,20 @@ export default function WeekView({
   expandedName,
   tasksByDay,
   onCompleteTask,
+  jumpSignal,
 }: WeekViewProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const headsRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState<number | null>(null);
   const prevHourH = useRef<number | null>(null);
   const jumped = useRef(false);
+  // El primer salto a "ahora" corre con el alto todavía transitorio (el padre
+  // mide su alto en su propio layout effect, que corre DESPUÉS del hijo): se
+  // repite mientras el layout se asienta y recién ahí los cambios de alto
+  // posteriores (densidad/cuadro) conservan el minuto centrado, como el prototipo.
+  const settled = useRef(false);
+  const settleTimer = useRef<number | null>(null);
+  const lastSignal = useRef(jumpSignal);
   const [drag, setDrag] = useState<Drag | null>(null);
   // El gesto vive en un ref para que los listeners de window (montados una sola
   // vez) lean siempre el estado vigente sin re-suscribirse en cada move.
@@ -195,21 +205,42 @@ export default function WeekView({
   stateRef.current.hourH = hourH;
   stateRef.current.cb = { onCreateSlot, onMoveEvent, onResizeEvent, onOpenMenu };
 
-  // Primera pintura: abrir en la hora actual. Al cambiar la densidad, conservar
-  // el minuto que estaba en el centro del área visible (no resetear el scroll).
+  // Abrir en la hora actual (el prototipo salta a "ahora" en la primera
+  // pintura, `index.html:1794`). El botón "Hoy · HH:MM" re-dispara el salto vía
+  // `jumpSignal`. Al cambiar la densidad, una vez asentado el layout, se conserva
+  // el minuto que estaba en el centro del área visible (no se resetea el scroll).
   useLayoutEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap || fit == null) return;
     const prev = prevHourH.current;
-    if (!jumped.current) {
+    const reflow = prev != null && prev !== hourH;
+    const signal = jumpSignal !== lastSignal.current;
+    const irA = (top: number, smooth: boolean) => {
+      const quieto = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (smooth && !quieto) wrap.scrollTo({ top, behavior: "smooth" });
+      else wrap.scrollTop = top;
+    };
+    if (!jumped.current || signal || (reflow && !settled.current)) {
       jumped.current = true;
-      wrap.scrollTop = Math.max(0, minutesToY(nowMin, hourH) - wrap.clientHeight / 2);
-    } else if (prev != null && prev !== hourH) {
-      const center = yToMinutes(wrap.scrollTop + wrap.clientHeight / 2, prev);
+      lastSignal.current = jumpSignal;
+      irA(Math.max(0, minutesToY(nowMin, hourH) - wrap.clientHeight / 2), !reflow);
+      if (settleTimer.current) window.clearTimeout(settleTimer.current);
+      settleTimer.current = window.setTimeout(() => {
+        settled.current = true;
+      }, 300);
+    } else if (reflow) {
+      const center = yToMinutes(wrap.scrollTop + wrap.clientHeight / 2, prev!);
       wrap.scrollTop = Math.max(0, minutesToY(center, hourH) - wrap.clientHeight / 2);
     }
     prevHourH.current = hourH;
-  }, [fit, hourH, nowMin]);
+  }, [fit, hourH, nowMin, jumpSignal]);
+
+  useEffect(
+    () => () => {
+      if (settleTimer.current) window.clearTimeout(settleTimer.current);
+    },
+    [],
+  );
 
   const columns = useMemo<Placed[][]>(() => {
     const mover = drag && drag.kind === "move" && drag.moved ? drag : null;
@@ -464,9 +495,9 @@ export default function WeekView({
 
   const dragCreate = drag && drag.kind === "create" && drag.moved ? drag : null;
   // El aviso "· se superpone" del prototipo (`index.html:737-739,1689`): el
-  // destino de un mover/redimensionar pisa otra reunión ese día. El prototipo
-  // excluye las importadas (`busy`); la app no expone ese flag todavía, así que
-  // solo se excluye la reunión arrastrada.
+  // destino de un mover/redimensionar pisa otra reunión ese día. Se excluyen las
+  // de todo el día, la reunión arrastrada y las importadas (`e.busy`): el
+  // prototipo no las cuenta como choque porque no son editables.
   const dragClash = useMemo(() => {
     if (!drag || !drag.moved || drag.kind === "create") return false;
     const day = days[drag.day];
@@ -474,7 +505,7 @@ export default function WeekView({
     const start = drag.startMin;
     const end = drag.startMin + drag.durMin;
     return events.some((e) => {
-      if (e.allDay || e.name === drag.event.name) return false;
+      if (e.allDay || e.busy || e.name === drag.event.name) return false;
       if (!sameDay(e.start, day)) return false;
       const { startMin, endMin } = eventMinutes(e);
       return start < endMin && startMin < end;

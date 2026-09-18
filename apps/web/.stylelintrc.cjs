@@ -36,6 +36,7 @@ const SOMBRAS_SIN_TOKEN = [
   "none",
   "0 0 0 4px rgba(0, 0, 0, 0.85)",
   "inset 0 0 0 1px var(--accent-line)",
+  "inset 0 0 0 1px var(--border)",
   "inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.38)",
   "inset 0 2px 0 var(--accent)",
 ];
@@ -46,15 +47,17 @@ module.exports = {
       // Los colores pueden aparecer en cualquier propiedad: color, background,
       // border-color, box-shadow, custom properties…
       "/.+/": [HEX_SIN_TOKEN, FUNCIONES_SIN_TOKEN],
-      // `--ease` es el token de easing; un `ease`/`linear`/`cubic-bezier` suelto falla.
-      transition: ["/(?<!var\\(--)(?:ease|linear|cubic-bezier)/"],
+      // El prototipo define `--ease` pero NUNCA lo usa: TODAS sus transiciones
+      // llevan el literal `ease-out`. Copiamos ese literal; `ease` a secas,
+      // `ease-in`, `linear` y `cubic-bezier` sueltos fallan.
+      transition: ["/(?<!var\\(--)(?:ease(?!-out)|linear|cubic-bezier)/"],
     },
     "declaration-property-value-allowed-list": {
       // Toda familia sale de `--display`/`--mono` (o `inherit`).
       "font-family": ["inherit", "var(--display)", "var(--mono)"],
       // Un radio crudo solo se acepta si está en la lista de no-tokenizados.
       "border-radius": ["inherit", "/var\\(/", RADIOS_SIN_TOKEN],
-      "box-shadow": ["/var\\(--shadow\\)/", ...SOMBRAS_SIN_TOKEN],
+      "box-shadow": ["/var\\(--shadow\\)/", "/var\\(--busy-shadow\\)/", ...SOMBRAS_SIN_TOKEN],
     },
   },
 };

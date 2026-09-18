@@ -14,7 +14,7 @@
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   /* La costura del encabezado (prototipo `index.html:128`). */
-  transition: box-shadow 160ms var(--ease);
+  transition: box-shadow 160ms ease-out;
 }
 /* La sombra aparece solo cuando hay algo scrolleado debajo (prototipo
    `index.html:131`): `data-scrolled` lo togglea WeekView.tsx. El valor reproduce
@@ -126,8 +126,8 @@
   cursor: pointer;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.38);
   /* Movimiento del prototipo (`index.html:204`): 150 ms sobre la sombra y el
-     filtro. Los 150 ms no tienen token; el easing sale de --ease. */
-  transition: box-shadow 150ms var(--ease), filter 150ms var(--ease);
+     filtro, con el literal `ease-out` del prototipo (su `--ease` nunca se usa). */
+  transition: box-shadow 150ms ease-out, filter 150ms ease-out;
 }
 /* Al pasar el puntero (o enfocar), el bloque sube por encima de sus vecinos:
    el asa de redimensionar cruza el borde inferior sin que el vecino la tape. */
@@ -253,11 +253,12 @@
   font-size: 12.5px;
 }
 /* Importado de Google: de solo lectura, sin color de agenda ni hover elevado
-   (`index.html:229`). El fondo exacto del prototipo no está tokenizado; se usa
-   la superficie más cercana, sin re-derivar un color (divergencia en spec §2/D5). */
+   (`index.html:229-233`). Fondo relleno, título y hora en mono MAYÚSCULA y
+   atenuados. Los valores vienen del prototipo vía tokens (`--busy-bg`,
+   `--busy-fg`, `--busy-shadow`), no se re-derivan (D1/D5). */
 [data-agenda] .agx-ev[data-busy] {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  background: var(--busy-bg);
+  box-shadow: var(--busy-shadow);
   cursor: default;
 }
 [data-agenda] .agx-ev[data-busy]:hover {
@@ -265,7 +266,11 @@
 }
 [data-agenda] .agx-ev[data-busy] .agx-ev-t,
 [data-agenda] .agx-ev[data-busy] .agx-ev-m {
-  color: var(--fg-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--busy-fg);
 }
 
 /* Fantasma del arrastre de creación y etiqueta de destino. Decorativos: no

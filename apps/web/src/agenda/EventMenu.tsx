@@ -24,9 +24,9 @@ interface EventMenuProps {
  * devuelve el foco a la reunión. "Eliminar" pide confirmación EN LÍNEA, en el
  * mismo menú, nunca en un modal anidado.
  *
- * No se muestran atajos de una letra: los del prototipo (E/M/D/Supr) pertenecen
- * al nudge por teclado, que no está en esta fase. Un hint de una tecla que no
- * hace nada es una promesa falsa.
+ * Se muestran las teclas del prototipo (E/M/D/Supr) porque ahora son REALES: los
+ * atajos de una tecla viven en Agenda.tsx y están acotados al foco. Un hint de
+ * una tecla muerta sería una promesa falsa (D4: teclas visibles).
  */
 export default function EventMenu({
   event,

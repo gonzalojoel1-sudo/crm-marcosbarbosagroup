@@ -10,6 +10,10 @@
   display: grid;
   grid-template-columns: 168px 1fr;
   gap: 20px;
+  /* `section { margin-top: 30px }` global es un selector de ELEMENTO y
+     `[data-agenda]` no lo frena: se anula para igualar el `.ldia` del prototipo
+     (`index.html:301`), que no lleva margen. La guarda (g) lo verifica. */
+  margin: 0;
   padding: 16px 0;
   border-top: 1px solid var(--border);
 }
@@ -42,10 +46,11 @@
 [data-agenda] .agx-ldia-body {
   display: flex;
   flex-direction: column;
+  /* `align-items:flex-start` deja que la lista se ajuste al contenido: el
+     prototipo NO estira las filas a todo el ancho (`index.html:307`). */
   align-items: flex-start;
   gap: 9px;
   min-width: 0;
-  width: 100%;
 }
 [data-agenda] .agx-levs {
   list-style: none;
@@ -54,7 +59,6 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  width: 100%;
 }
 [data-agenda] .agx-lev {
   display: flex;
@@ -70,7 +74,7 @@
   color: inherit;
   cursor: pointer;
   /* Prototipo `index.html:313`: 140 ms sobre el fondo. */
-  transition: background 140ms var(--ease);
+  transition: background 140ms ease-out;
 }
 [data-agenda] .agx-lev:hover {
   background: var(--surface-2);

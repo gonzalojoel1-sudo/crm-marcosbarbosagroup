@@ -22,7 +22,8 @@ export const CATEGORIES: Record<string, Category> = {
 export const CATEGORY_ORDER = ["Consultora", "Ministerial", "Personal", "Trabajo", "Software"];
 
 // Los tres orígenes del prototipo. La UI los muestra siempre; el conteo sale de
-// `AgendaEvent.origin` (hoy vacío porque el DTO no lo expone: ver reporte R4).
+// `AgendaEvent.origin`, que el DTO ya expone (`get_agenda` agrega `origin` /
+// `busy` desde `pulled_from_google_calendar`, commit f200be6).
 export const ORIGINS = ["CRM", "Reserva web", "Google"];
 
 // La API nunca manda vacío (cae a "Trabajo"), pero el tipo es opcional: sin valor

@@ -37,6 +37,98 @@ const mal = (msg) => {
 const bien = (msg) => log("  ✓ " + msg);
 const seccion = (t) => log(`\n${t}`);
 
+// Propiedades "visuales": las que un selector de elemento global puede filtrar
+// al subárbol de la agenda y verse. `display`/`flex`/`gap` quedan afuera: en un
+// elemento con el layout ya resuelto suelen ser inertes, y el objetivo es cazar
+// fugas que se VEN (p. ej. `h2 { text-transform: uppercase }` sobre el título de
+// bloque). Las longitudes cubren el caso de un shorthand (`margin` tapa
+// `margin-top`).
+const VISUAL = new Set([
+  "text-transform",
+  "letter-spacing",
+  "font-weight",
+  "font-size",
+  "line-height",
+  "font-style",
+  "font-variant-numeric",
+  "color",
+  "background",
+  "background-color",
+  "border-radius",
+  "text-align",
+  "white-space",
+  "margin",
+  "margin-top",
+  "margin-right",
+  "margin-bottom",
+  "margin-left",
+  "padding",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+]);
+
+// Parser plano de reglas CSS de primer nivel (saltea @media/@keyframes): alcanza
+// para leer `styles.css` y los módulos, y evita traer un parser entero. Devuelve
+// una entrada por declaración, con el selector de la regla.
+function declaracionesSimples(css) {
+  const texto = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out = [];
+  let i = 0;
+  while (i < texto.length) {
+    const abre = texto.indexOf("{", i);
+    if (abre === -1) break;
+    const selector = texto.slice(i, abre).trim();
+    let j = abre + 1;
+    let nivel = 1;
+    while (j < texto.length && nivel > 0) {
+      if (texto[j] === "{") nivel++;
+      else if (texto[j] === "}") nivel--;
+      j++;
+    }
+    const cuerpo = texto.slice(abre + 1, j - 1);
+    // Los @media/@keyframes se saltean enteros: sus reglas internas no son
+    // universales y no queremos falsos positivos de selectores anidados.
+    if (selector && !selector.startsWith("@")) {
+      for (const d of cuerpo.matchAll(/([-\w]+)\s*:\s*([^;{}]+)/g)) {
+        out.push({ selector, prop: d[1].toLowerCase(), valor: d[2].trim() });
+      }
+    }
+    i = j;
+  }
+  return out;
+}
+
+// Declaraciones visuales hechas por selectores SOLO de elemento (body, h2, button,
+// section, *, kbd…): las únicas que `[data-agenda]` no puede frenar por scope.
+function reglasDeElemento(css) {
+  const out = [];
+  for (const { selector, prop, valor } of declaracionesSimples(css)) {
+    const partes = selector.split(",").map((s) => s.trim()).filter(Boolean);
+    if (partes.length && partes.every((p) => /^(\*|[a-z][a-z0-9]*)$/i.test(p))) {
+      for (const p of partes) out.push({ selector: p, prop, valor });
+    }
+  }
+  return out;
+}
+
+// Qué propiedades declara la agenda para cada clase `.agx-*`, para saber si una
+// declaración global quedó tapada por el módulo.
+function declaracionesDeAgenda() {
+  const decls = {};
+  const DIR = "apps/web/src/agenda";
+  for (const f of readdirSync(DIR).filter((n) => n.endsWith(".module.css"))) {
+    for (const { selector, prop } of declaracionesSimples(readFileSync(`${DIR}/${f}`, "utf8"))) {
+      for (const c of new Set(selector.match(/\.agx-[\w-]+/g) || [])) {
+        const k = c.slice(1);
+        (decls[k] ||= new Set()).add(prop);
+      }
+    }
+  }
+  return decls;
+}
+
 // (a) los tokens tienen que estar al dia contra el prototipo.
 seccion("(a) tokens contra el prototipo");
 try {
@@ -243,6 +335,89 @@ try {
   else bien(`los ${archivos.length} archivos de la agenda no importan styles.css`);
 } catch (e) {
   mal("no pude revisar apps/web/src/agenda: " + e.message);
+}
+
+// (g) fugas por selector de ELEMENTO. (e) verifica que styles.css no tenga
+// selectores `.agx`, pero una regla de elemento (`h2`, `section`, `button`) no
+// necesita nombrar la agenda para pisarla, y `[data-agenda]` NO la frena
+// (una regla de tipo con un ancestro `[data-agenda] .agx-*` empata en el
+// elemento y `h2` no se puede scopear). Se mide sobre el shell construido: para
+// cada clase `.agx-*` del DOM, si una declaración visual global la matchea por su
+// etiqueta y ningún módulo de la agenda declara esa propiedad, es una fuga.
+// La comparación visual probó que es detectable (los títulos de bloque salían
+// UPPERCASE por el `h2` global).
+if (!ESTATICO) {
+  seccion("(g) el CSS global no fuga por selectores de elemento");
+  try {
+    const reglas = reglasDeElemento(readFileSync("apps/web/src/styles.css", "utf8")).filter((r) =>
+      VISUAL.has(r.prop),
+    );
+    if (!reglas.length) {
+      bien("styles.css no define propiedades visuales con selectores de elemento");
+    } else {
+      const decls = declaracionesDeAgenda();
+      const shell = readFileSync("apps/crm_core/crm_core/www/hoy.html", "utf8");
+      let chromium;
+      try {
+        ({ chromium } = await import("playwright"));
+      } catch {
+        throw new Error("no puedo importar playwright (hace falta `npm i playwright`)");
+      }
+      const browser = await chromium.launch();
+      try {
+        const page = await browser.newPage();
+        await page.setContent(shell, { waitUntil: "domcontentloaded" });
+        await page.waitForSelector(".agx-block-title", { timeout: 15000 });
+        const declsPlano = Object.fromEntries(
+          Object.entries(decls).map(([k, v]) => [k, [...v]]),
+        );
+        const fugas = await page.evaluate(
+          ({ reglas: rs, decls: ds }) => {
+            const shorthands = {
+              margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+              padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+            };
+            const tapada = (clases, prop) => {
+              for (const c of clases) {
+                const set = ds[c] || [];
+                if (set.includes(prop)) return true;
+                for (const [corto, largos] of Object.entries(shorthands)) {
+                  if (largos.includes(prop) && set.includes(corto)) return true;
+                }
+              }
+              return false;
+            };
+            const out = [];
+            for (const el of document.querySelectorAll('[class*="agx"]')) {
+              const clases = [...el.classList].filter((c) => c.startsWith("agx-"));
+              if (!clases.length) continue;
+              for (const r of rs) {
+                if (!el.matches(r.selector)) continue;
+                if (tapada(clases, r.prop)) continue;
+                out.push(
+                  `${r.selector} { ${r.prop}: ${r.valor} } llega a <${el.tagName.toLowerCase()} class="${clases.join(" ")}">`,
+                );
+              }
+            }
+            return [...new Set(out)];
+          },
+          { reglas, decls: declsPlano },
+        );
+        if (fugas.length) for (const f of fugas) mal(`fuga por selector de elemento: ${f}`);
+        else bien(`ninguna de las ${reglas.length} declaraciones de elemento de styles.css fuga a la agenda`);
+      } finally {
+        await browser.close();
+      }
+    }
+  } catch (e) {
+    mal(
+      "no pude medir las fugas por selector de elemento:\n" +
+        String(e.message || e)
+          .split("\n")
+          .map((l) => "      " + l)
+          .join("\n"),
+    );
+  }
 }
 
 log(

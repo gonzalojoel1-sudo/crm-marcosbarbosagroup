@@ -13,8 +13,9 @@ interface SidebarProps {
 /**
  * La barra izquierda del prototipo (`index.html:1501-1521`): Agendas (las cinco
  * verticales con contador y toggle), Origen (CRM / Reserva web / Google) y el
- * stub de Buscador. Los contadores salen de TODOS los eventos; los toggles
- * filtran (el predicado vive en `Agenda.tsx`, igual que `oculto()`).
+ * stub de Buscador. Los contadores salen de TODOS los eventos —incluidas las
+ * importadas de Google con categoría—; los toggles filtran (el predicado vive en
+ * `Agenda.tsx`, igual que `oculto()`).
  */
 export default function Sidebar({
   categoryCounts,

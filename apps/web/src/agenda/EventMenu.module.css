@@ -32,7 +32,7 @@
   text-align: left;
   cursor: pointer;
   /* El menú comparte el movimiento de 140 ms de la sidebar/lista. */
-  transition: background 140ms var(--ease);
+  transition: background 140ms ease-out;
 }
 [data-agenda] .agx-menu-item:hover {
   background: var(--surface);

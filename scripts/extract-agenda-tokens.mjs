@@ -4,6 +4,10 @@
 // a mano, van a volver a derivar (fue exactamente el error del port). El prototipo
 // tiene DOS bloques `:root` (el segundo define --focus) y las familias --display /
 // --mono viven en un bloque `body`, no en `:root`: hay que juntar los tres lados.
+//
+// Los tokens salen ACOTADOS a `[data-agenda]`, no a `:root`: la agenda es un
+// subárbol del CRM y su paleta cálida es del prototipo, no del resto de la app
+// (D2). Un `:root` global re-vestiría todo el CRM al tocar la agenda.
 import { readFileSync, writeFileSync } from "node:fs";
 
 const PROTO = "prototypes/agenda/index.html";
@@ -11,7 +15,8 @@ const SALIDA = "apps/web/src/agenda/tokens.css";
 
 const cabecera = `/* GENERADO — NO EDITAR A MANO.
    Lo escribe scripts/extract-agenda-tokens.mjs a partir de prototypes/agenda/index.html.
-   Si falta un valor, se agrega ALLI (al prototipo) y se vuelve a correr el script. */
+   Si falta un valor, se agrega ALLI (al prototipo) y se vuelve a correr el script.
+   El scope es [data-agenda]: el resto del CRM no cambia de paleta. */
 `;
 
 // Saca el contenido del <style> para no confundir un `:root` que aparezca en el JS.
@@ -87,7 +92,7 @@ function tokensDelPrototipo(html) {
 
 function construirContenido(tokens) {
   const cuerpo = tokens.map((t) => `  ${t.nombre}: ${t.valor};`).join("\n");
-  return `${cabecera}:root {\n${cuerpo}\n}\n`;
+  return `${cabecera}[data-agenda] {\n${cuerpo}\n}\n`;
 }
 
 const normalizar = (v) => v.replace(/\s+/g, " ").trim();

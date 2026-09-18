@@ -20,7 +20,12 @@
   }
 }
 
+/* Igual que en la sidebar: el `h2` global de styles.css es un selector de
+   elemento y `[data-agenda]` no lo frena; se resetean sus propiedades visuales
+   (guarda de fidelidad, sección g). */
 [data-agenda] .agx-block-title {
+  display: block;
+  text-transform: none;
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: -0.005em;
@@ -85,9 +90,9 @@
   border-radius: 3px;
   display: block;
 }
-/* Fila "Ocupado (de Google)": lo importado no tiene color de agenda. El
-   `#211f1b` del prototipo no está tokenizado; se usa la superficie cercana. */
+/* Fila "Ocupado (de Google)": lo importado no tiene color de agenda. Fondo del
+   prototipo (`index.html:1581`) vía token `--busy-bg`. */
 [data-agenda] .agx-legend i.agx-legend-busy {
-  background: var(--surface-2);
+  background: var(--busy-bg);
   border: 1px solid var(--border);
 }

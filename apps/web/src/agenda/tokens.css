@@ -1,7 +1,8 @@
 /* GENERADO — NO EDITAR A MANO.
    Lo escribe scripts/extract-agenda-tokens.mjs a partir de prototypes/agenda/index.html.
-   Si falta un valor, se agrega ALLI (al prototipo) y se vuelve a correr el script. */
-:root {
+   Si falta un valor, se agrega ALLI (al prototipo) y se vuelve a correr el script.
+   El scope es [data-agenda]: el resto del CRM no cambia de paleta. */
+[data-agenda] {
   --bg: #100f0d;
   --surface: #171614;
   --surface-2: #1d1b18;
@@ -16,6 +17,9 @@
   --accent-line: rgba(254, 65, 0, 0.26);
   --danger: oklch(0.66 0.155 28);
   --ok: #0d7c66;
+  --busy-bg: #211f1b;
+  --busy-fg: rgba(244, 241, 234, 0.55);
+  --busy-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.3);
   --r: 12px;
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --ease: cubic-bezier(.23, 1, .32, 1);

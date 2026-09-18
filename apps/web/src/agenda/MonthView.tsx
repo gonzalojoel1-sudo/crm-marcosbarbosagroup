@@ -78,7 +78,11 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
                       const { startMin, endMin } = eventMinutes(e);
                       const time = e.allDay ? "Todo el día" : fmtMin(startMin);
                       return (
-                        <span className={styles.agxMev} key={e.name} title={`${e.subject} · ${time}`}>
+                        <span
+                          className={`${styles.agxMev}${e.busy ? ` ${styles.busy}` : ""}`}
+                          key={e.name}
+                          title={`${e.subject} · ${time}`}
+                        >
                           <span
                             className={styles.agxMevD}
                             style={{
