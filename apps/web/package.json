@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "preview": "vite preview",
     "build": "npm run lint && vite build && node gen-shell.mjs && node ../../scripts/check-agenda-fidelity.mjs --static",
     "lint": "stylelint \"src/agenda/**/*.module.css\" && node ../../scripts/check-agenda-fidelity.mjs --static",
     "fidelity": "node ../../scripts/check-agenda-fidelity.mjs",
+    "fidelity:visual": "vite build && playwright test --config ../../playwright.config.ts agenda.visual.spec.ts",
+    "fidelity:visual:golden": "vite build && playwright test --config ../../playwright.config.ts agenda.golden.spec.ts --update-snapshots",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -15,6 +18,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",

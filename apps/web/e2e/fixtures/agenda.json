@@ -1,0 +1,25 @@
+{
+  "_fuente": "Espejo exacto del arreglo EVENTS hardcodeado del prototipo (prototypes/agenda/index.html). La semana del prototipo es lunes 15 a viernes 19 de septiembre; 'ahora' es martes 16 a las 15:42. Los origin usan los valores que la app ya conoce (ORIGINS: 'Reserva web'), y los importados de Google van con busy:true y sin categoría, como el `cat:null` del prototipo.",
+  "start": "2025-09-15",
+  "end": "2025-09-20",
+  "tasks": [],
+  "events": [
+    { "name": "proto-00", "subject": "Reunión de equipo", "starts_on": "2025-09-15 08:30:00", "ends_on": "2025-09-15 09:15:00", "all_day": false, "categoria": "Trabajo", "origin": "CRM", "busy": false },
+    { "name": "proto-01", "subject": "Constructora Del Sur S.A.", "starts_on": "2025-09-15 10:00:00", "ends_on": "2025-09-15 11:00:00", "all_day": false, "categoria": "Consultora", "origin": "CRM", "busy": false },
+    { "name": "proto-02", "subject": "Revisión de propuesta", "starts_on": "2025-09-15 14:15:00", "ends_on": "2025-09-15 15:00:00", "all_day": false, "categoria": "Software", "origin": "CRM", "busy": false },
+    { "name": "proto-03", "subject": "Ocupado", "starts_on": "2025-09-15 16:00:00", "ends_on": "2025-09-15 17:30:00", "all_day": false, "categoria": "", "origin": "Google", "busy": true },
+    { "name": "proto-04", "subject": "Llamada: Oscar Vera", "starts_on": "2025-09-16 09:00:00", "ends_on": "2025-09-16 09:30:00", "all_day": false, "categoria": "Consultora", "origin": "Reserva web", "busy": false },
+    { "name": "proto-05", "subject": "Ministerial · Cuerpo de Cristo", "starts_on": "2025-09-16 11:30:00", "ends_on": "2025-09-16 12:30:00", "all_day": false, "categoria": "Ministerial", "origin": "CRM", "busy": false },
+    { "name": "proto-06", "subject": "Block: trabajo profundo", "starts_on": "2025-09-16 15:00:00", "ends_on": "2025-09-16 17:00:00", "all_day": false, "categoria": "Personal", "origin": "CRM", "busy": false },
+    { "name": "proto-07", "subject": "Reunión de socios", "starts_on": "2025-09-16 09:00:00", "ends_on": "2025-09-16 10:00:00", "all_day": false, "categoria": "Consultora", "origin": "CRM", "busy": false },
+    { "name": "proto-08", "subject": "Llamada: Estudio Norte", "starts_on": "2025-09-16 09:15:00", "ends_on": "2025-09-16 10:00:00", "all_day": false, "categoria": "Ministerial", "origin": "Reserva web", "busy": false },
+    { "name": "proto-09", "subject": "Cuerpo de Cristo", "starts_on": "2025-09-17 08:00:00", "ends_on": "2025-09-17 09:00:00", "all_day": false, "categoria": "Ministerial", "origin": "Google", "busy": true },
+    { "name": "proto-10", "subject": "Almuerzo con Marcos", "starts_on": "2025-09-17 12:30:00", "ends_on": "2025-09-17 13:15:00", "all_day": false, "categoria": "Personal", "origin": "Google", "busy": true },
+    { "name": "proto-11", "subject": "Jonatan · Plan 3", "starts_on": "2025-09-17 17:00:00", "ends_on": "2025-09-17 18:00:00", "all_day": false, "categoria": "Consultora", "origin": "Reserva web", "busy": false },
+    { "name": "proto-12", "subject": "Seguimiento semanal", "starts_on": "2025-09-18 10:00:00", "ends_on": "2025-09-18 10:30:00", "all_day": false, "categoria": "Trabajo", "origin": "CRM", "busy": false },
+    { "name": "proto-13", "subject": "Taller: Software y Apps", "starts_on": "2025-09-18 13:15:00", "ends_on": "2025-09-18 14:45:00", "all_day": false, "categoria": "Software", "origin": "CRM", "busy": false },
+    { "name": "proto-14", "subject": "Fernando Bustos · Plan 1", "starts_on": "2025-09-19 09:30:00", "ends_on": "2025-09-19 10:15:00", "all_day": false, "categoria": "Consultora", "origin": "Reserva web", "busy": false },
+    { "name": "proto-15", "subject": "Ministerio · Los 1000 Socios", "starts_on": "2025-09-19 12:00:00", "ends_on": "2025-09-19 13:00:00", "all_day": false, "categoria": "Ministerial", "origin": "CRM", "busy": false },
+    { "name": "proto-16", "subject": "Legendarios · próximas fechas", "starts_on": "2025-09-19 16:30:00", "ends_on": "2025-09-19 17:30:00", "all_day": false, "categoria": "Ministerial", "origin": "Google", "busy": true }
+  ]
+}

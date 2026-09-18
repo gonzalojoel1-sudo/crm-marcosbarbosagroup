@@ -27,6 +27,13 @@ apps/web/test-results/
 apps/web/playwright-report/
 apps/web/blob-report/
 
+# Comparación visual (playwright.config.ts en la raíz). Los artefactos de una
+# corrida son desechables; las baselines de `apps/web/e2e/__screenshots__/` SÍ se
+# commitean (son la golden derivada del prototipo).
+test-results/
+playwright-report/
+blob-report/
+
 # Cal.com sidecar runtime
 deploy/cal-data/
 deploy/pg-data/
