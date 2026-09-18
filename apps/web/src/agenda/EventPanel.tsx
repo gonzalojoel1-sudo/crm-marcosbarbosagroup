@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api } from "../api";
 import { dayLong, dayShort, fmtMin, ymd } from "./date";
+import styles from "./EventPanel.module.css";
 
 // El panel es la ÚNICA superficie de creación y edición (spec S1). No es modal:
 // la grilla queda visible y operable detrás; no atrapa el foco (se puede tabular
@@ -145,15 +146,15 @@ export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
 
   return (
     <aside
-      className="agx-panel"
+      className={styles.agxPanel}
       role="dialog"
       aria-modal="false"
       aria-labelledby="agx-panel-titulo"
     >
-      <h2 className="agx-panel-title" id="agx-panel-titulo">
+      <h2 className={styles.agxPanelTitle} id="agx-panel-titulo">
         {encabezado}
       </h2>
-      <form className="agx-panel-form" onSubmit={guardar} noValidate>
+      <form className={styles.agxPanelForm} onSubmit={guardar} noValidate>
         <label htmlFor="agx-p-titulo">Título</label>
         <input
           id="agx-p-titulo"
@@ -164,7 +165,7 @@ export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
         />
 
         <label htmlFor="agx-p-inicio">Hora de inicio</label>
-        <p className="agx-panel-hint" id={HINT_ID}>
+        <p className={styles.agxPanelHint} id={HINT_ID}>
           Formato 24 h, por ejemplo 09:30
         </p>
         <input
@@ -176,13 +177,13 @@ export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
           onChange={(e) => setInicio(e.target.value)}
         />
 
-        <fieldset className="agx-panel-dur">
+        <fieldset className={styles.agxPanelDur}>
           <legend>Duración</legend>
           {DURACIONES.map((d) => (
             <button
               key={d}
               type="button"
-              className={d === dur ? "on" : ""}
+              className={d === dur ? styles.on : ""}
               aria-pressed={d === dur}
               onClick={() => setDur(d)}
             >
@@ -200,16 +201,16 @@ export default function EventPanel({ ctx, onClose, onSaved }: EventPanelProps) {
         />
 
         {error ? (
-          <p className="agx-panel-error" role="alert">
+          <p className={styles.agxPanelError} role="alert">
             {error}
           </p>
         ) : null}
 
-        <div className="agx-panel-acciones">
-          <button type="submit" className="agx-panel-save" disabled={guardando}>
+        <div className={styles.agxPanelAcciones}>
+          <button type="submit" className={styles.agxPanelSave} disabled={guardando}>
             Guardar
           </button>
-          <button type="button" className="agx-panel-cancel" onClick={onClose} disabled={guardando}>
+          <button type="button" className={styles.agxPanelCancel} onClick={onClose} disabled={guardando}>
             Cancelar
           </button>
         </div>

@@ -1,0 +1,105 @@
+/* Diálogos de acción "Mover a…" y "Cambiar duración…": `position: fixed`
+   anclados al rect del bloque y clameados a la ventana. Comparten la base del
+   menú (`EventMenu.module.css`); acá va solo lo del modal y sus controles. */
+[data-agenda] .agx-modal {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 208px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+  padding: 5px;
+}
+[data-agenda] .agx-modal {
+  min-width: 264px;
+  padding: 12px;
+  gap: 7px;
+}
+[data-agenda] .agx-modal-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--fg);
+}
+[data-agenda] .agx-modal-sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+}
+[data-agenda] .agx-modal-lab {
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-dim);
+}
+[data-agenda] .agx-modal-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+[data-agenda] .agx-modal-group button {
+  min-width: 24px;
+  min-height: 28px;
+  padding: 5px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+[data-agenda] .agx-modal-group button:hover {
+  border-color: var(--border-2);
+}
+[data-agenda] .agx-modal-group button.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+[data-agenda] .agx-modal-group button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+[data-agenda] .agx-modal-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+[data-agenda] .agx-modal-acciones button {
+  min-height: 30px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+[data-agenda] .agx-modal-aplicar {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+[data-agenda] .agx-modal-aplicar:hover {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+[data-agenda] .agx-modal-cancelar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--fg);
+}
+[data-agenda] .agx-modal-cancelar:hover {
+  border-color: var(--border-2);
+}

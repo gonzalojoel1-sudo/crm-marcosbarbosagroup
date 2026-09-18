@@ -19,6 +19,10 @@ import { END_H, START_H } from "./agenda/geometry";
 import { ZOOM_STEPS, type AgendaEvent, type AgendaTask, type DensityStep } from "./agenda/types";
 import { useViewParam } from "./agenda/useViewParam";
 import { announce } from "./agenda/announcer";
+// El CSS del shell se importa PRIMERO: `[data-agenda].agx :focus-visible` tiene
+// que quedar antes que los módulos de los componentes, como el `.agx` global
+// original, para que los empates de especificidad resuelvan igual.
+import styles from "./agenda/Agenda.module.css";
 import EventPanel, { type PanelContext, type SavedInfo } from "./agenda/EventPanel";
 import EventMenu from "./agenda/EventMenu";
 import MoveDialog from "./agenda/MoveDialog";
@@ -624,7 +628,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   }
 
   return (
-    <div className="agx" ref={rootRef} style={{ height }}>
+    <div className={styles.agx} data-agenda ref={rootRef} style={{ height }}>
       <Toolbar
         view={view}
         onView={setView}
@@ -638,8 +642,8 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
         onNew={crearDesdeBoton}
       />
 
-      <div className="agx-body">
-        <div className="agx-main">
+      <div className={styles.agxBody}>
+        <div className={styles.agxMain}>
           {view === "semana" ? (
             <WeekView
               days={days}

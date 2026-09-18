@@ -3,6 +3,7 @@ import { DOW_SHORT, dayLong, fmtMin, weekdayIndex, ymd } from "./date";
 import { END_H, START_H } from "./geometry";
 import type { AgendaEvent } from "./types";
 import { placeFloating, type Anchor } from "./floating";
+import styles from "./Dialog.module.css";
 
 interface MoveDialogProps {
   event: AgendaEvent;
@@ -81,7 +82,7 @@ export default function MoveDialog({
 
   return (
     <div
-      className="agx-modal"
+      className={styles.agxModal}
       role="dialog"
       aria-modal="false"
       aria-labelledby="agx-mover-titulo"
@@ -89,17 +90,17 @@ export default function MoveDialog({
       onKeyDown={onKeyDown}
       style={{ left: anchor.x, top: anchor.y }}
     >
-      <h2 className="agx-modal-title" id="agx-mover-titulo">
+      <h2 className={styles.agxModalTitle} id="agx-mover-titulo">
         Mover · {event.subject}
       </h2>
-      <p className="agx-modal-sub" id="agx-mover-hora">
+      <p className={styles.agxModalSub} id="agx-mover-hora">
         {dayLong(days[dia])}, {fmtMin(min)} – {fmtMin(min + durMin)}
       </p>
 
-      <span className="agx-modal-lab" id="agx-mover-pasos-lab">
+      <span className={styles.agxModalLab} id="agx-mover-pasos-lab">
         Ajustar hora
       </span>
-      <div className="agx-modal-group" role="group" aria-labelledby="agx-mover-pasos-lab">
+      <div className={styles.agxModalGroup} role="group" aria-labelledby="agx-mover-pasos-lab">
         {PASOS.map((p) => {
           const ok = pasoOk(p);
           return (
@@ -118,16 +119,16 @@ export default function MoveDialog({
         })}
       </div>
 
-      <span className="agx-modal-lab" id="agx-mover-dia-lab">
+      <span className={styles.agxModalLab} id="agx-mover-dia-lab">
         Mover al día
       </span>
-      <div className="agx-modal-group" role="group" aria-labelledby="agx-mover-dia-lab">
+      <div className={styles.agxModalGroup} role="group" aria-labelledby="agx-mover-dia-lab">
         {days.map((d, i) => (
           <button
             key={ymd(d)}
             type="button"
             data-dia={i}
-            className={i === dia ? "on" : ""}
+            className={i === dia ? styles.on : ""}
             aria-pressed={i === dia}
             aria-label={dayLong(d)}
             onClick={() => setDia(i)}
@@ -137,10 +138,10 @@ export default function MoveDialog({
         ))}
       </div>
 
-      <div className="agx-modal-acciones">
+      <div className={styles.agxModalAcciones}>
         <button
           type="button"
-          className="agx-modal-aplicar"
+          className={styles.agxModalAplicar}
           onClick={() => {
             const d = days[dia];
             if (d) onApply(d, min);
@@ -148,7 +149,7 @@ export default function MoveDialog({
         >
           Aplicar
         </button>
-        <button type="button" className="agx-modal-cancelar" onClick={onClose}>
+        <button type="button" className={styles.agxModalCancelar} onClick={onClose}>
           Cancelar
         </button>
       </div>

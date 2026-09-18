@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { AgendaEvent } from "./types";
 import { placeFloating, type Anchor } from "./floating";
+import styles from "./EventMenu.module.css";
 
 export type MenuAction = "editar" | "mover" | "duracion" | "duplicar" | "eliminar";
 
@@ -115,7 +116,7 @@ export default function EventMenu({
 
   return (
     <div
-      className="agx-menu"
+      className={styles.agxMenu}
       role="menu"
       aria-label={`Acciones para ${event.subject}`}
       ref={rootRef}
@@ -123,12 +124,12 @@ export default function EventMenu({
       style={{ left: anchor.x, top: anchor.y }}
     >
       {confirm ? (
-        <div className="agx-confirm" role="group" aria-label={`Confirmar eliminación de ${event.subject}`}>
-          <p className="agx-confirm-p">¿Eliminar {event.subject}?</p>
-          <button ref={siRef} type="button" className="agx-confirm-si" onClick={onEliminar}>
+        <div className={styles.agxConfirm} role="group" aria-label={`Confirmar eliminación de ${event.subject}`}>
+          <p className={styles.agxConfirmP}>¿Eliminar {event.subject}?</p>
+          <button ref={siRef} type="button" className={styles.agxConfirmSi} onClick={onEliminar}>
             Sí, eliminar
           </button>
-          <button ref={noRef} type="button" className="agx-confirm-no" onClick={() => onClose(true)}>
+          <button ref={noRef} type="button" className={styles.agxConfirmNo} onClick={() => onClose(true)}>
             Cancelar
           </button>
         </div>
@@ -139,7 +140,7 @@ export default function EventMenu({
             type="button"
             role="menuitem"
             data-accion={a.id}
-            className="agx-menu-item"
+            className={styles.agxMenuItem}
             ref={(el) => {
               itemRefs.current[i] = el;
             }}
@@ -147,7 +148,7 @@ export default function EventMenu({
           >
             <span className="agx-menu-label">{a.label}</span>
             {a.tecla ? (
-              <span className="agx-menu-tecla" aria-hidden="true">
+              <span className={styles.agxMenuTecla} aria-hidden="true">
                 {a.tecla}
               </span>
             ) : null}

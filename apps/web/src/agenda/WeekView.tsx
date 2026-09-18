@@ -35,6 +35,8 @@ import {
   type Placed,
 } from "./geometry";
 import type { AgendaEvent, AgendaTask, DensityStep } from "./types";
+import styles from "./WeekView.module.css";
+import taskStyles from "./Task.module.css";
 
 const HOUR_LIST = Array.from({ length: END_H - START_H + 1 }, (_, i) => START_H + i);
 
@@ -429,14 +431,14 @@ export default function WeekView({
   return (
     <>
       {hasAllDay ? (
-        <div className="agx-allday" role="group" aria-label="Reuniones de todo el día">
-          <div className="agx-allday-lab" aria-hidden="true">
+        <div className={styles.agxAllday} role="group" aria-label="Reuniones de todo el día">
+          <div className={styles.agxAlldayLab} aria-hidden="true">
             Todo el día
           </div>
           {days.map((date, i) => (
-            <div className="agx-allday-cell" key={ymd(date)}>
+            <div className={styles.agxAlldayCell} key={ymd(date)}>
               {allDayByDay[i].map((e) => (
-                <span className="agx-allday-ev" key={e.name} title={e.subject}>
+                <span className={styles.agxAlldayEv} key={e.name} title={e.subject}>
                   <span className="sr-only">
                     {accessibleName(dayLong(date), 0, 0, e.subject, true, e.category)}
                   </span>
@@ -449,28 +451,28 @@ export default function WeekView({
       ) : null}
 
       {hasTasks ? (
-        <div className="agx-tasks" role="group" aria-label="Tareas de la semana">
-          <div className="agx-tasks-lab" aria-hidden="true">
+        <div className={taskStyles.agxTasks} role="group" aria-label="Tareas de la semana">
+          <div className={taskStyles.agxTasksLab} aria-hidden="true">
             Tareas
           </div>
           {days.map((date, i) => (
-            <div className="agx-tasks-cell" key={ymd(date)}>
+            <div className={taskStyles.agxTasksCell} key={ymd(date)}>
               {tasksByDay[i].map((t) => {
                 const dueMin = t.due ? minutesOfDay(t.due) : 0;
                 return (
                   <button
                     type="button"
-                    className="agx-task"
+                    className={taskStyles.agxTask}
                     key={t.name}
                     onClick={() => onCompleteTask(t)}
                     title={`Tarea: ${t.subject} · ${fmtMin(dueMin)} · marcar como hecha`}
                     aria-label={accessibleTaskName(dayLong(date), dueMin, t.subject, t.priority)}
                   >
-                    <IconCheck className="agx-task-ico" />
-                    <span className="agx-task-t" aria-hidden="true">
+                    <IconCheck className={taskStyles.agxTaskIco} />
+                    <span className={taskStyles.agxTaskT} aria-hidden="true">
                       {t.subject}
                     </span>
-                    <span className="agx-task-h" aria-hidden="true">
+                    <span className={taskStyles.agxTaskH} aria-hidden="true">
                       {fmtMin(dueMin)}
                     </span>
                   </button>
@@ -482,33 +484,33 @@ export default function WeekView({
       ) : null}
 
       <div
-        className="agx-gridwrap"
+        className={styles.agxGridwrap}
         ref={wrapRef}
         tabIndex={0}
         role="region"
         aria-label={`Agenda de la semana del ${weekLabel}`}
       >
-        <div className="agx-heads" ref={headsRef}>
-          <div className="agx-colhead gutter" aria-hidden="true" />
+        <div className={styles.agxHeads} ref={headsRef}>
+          <div className={styles.agxColhead} aria-hidden="true" />
           {days.map((date) => {
             const today = sameDay(date, now);
             return (
-              <div className={`agx-colhead${today ? " today" : ""}`} key={ymd(date)}>
-                <span className="agx-dow">{DOW_SHORT[weekdayIndex(date)]}</span>
-                <span className="agx-dom">{date.getDate()}</span>
+              <div className={`${styles.agxColhead}${today ? ` ${styles.today}` : ""}`} key={ymd(date)}>
+                <span className={styles.agxDow}>{DOW_SHORT[weekdayIndex(date)]}</span>
+                <span className={styles.agxDom}>{date.getDate()}</span>
               </div>
             );
           })}
         </div>
 
-        <div className="agx-days" style={{ height: gridH }}>
-          <div className="agx-gutter" aria-hidden="true" style={{ height: gridH }}>
+        <div className={styles.agxDays} style={{ height: gridH }}>
+          <div className={styles.agxGutter} aria-hidden="true" style={{ height: gridH }}>
             {HOUR_LIST.map((h) => {
               const transform =
                 h === START_H ? "translateY(0)" : h === END_H ? "translateY(-100%)" : "translateY(-50%)";
               return (
                 <span
-                  className="agx-hourlab"
+                  className={styles.agxHourlab}
                   key={h}
                   style={{ top: minutesToY(h * 60, hourH), transform }}
                 >
@@ -522,14 +524,14 @@ export default function WeekView({
             const today = sameDay(date, now);
             return (
               <div
-                className={`agx-col${today ? " today" : ""}`}
+                className={`${styles.agxCol}${today ? ` ${styles.today}` : ""}`}
                 key={ymd(date)}
                 data-day={dayIdx}
                 onPointerDown={(e) => onColPointerDown(e, dayIdx)}
               >
                 {HOUR_LIST.map((h) => (
                   <div
-                    className="agx-hl"
+                    className={styles.agxHl}
                     aria-hidden="true"
                     key={h}
                     style={{ top: minutesToY(h * 60, hourH) }}
@@ -544,7 +546,7 @@ export default function WeekView({
                   return (
                     <button
                       type="button"
-                      className="agx-ev"
+                      className={styles.agxEv}
                       key={`${p.event.name}#${p.startMin}#${p.endMin}`}
                       data-ev={p.event.name}
                       data-compact={density === "compact" ? "" : undefined}
@@ -576,28 +578,28 @@ export default function WeekView({
                         p.event.category,
                       )}
                     >
-                      <span className="agx-ev-in">
-                        <span className="agx-ev-m">
+                      <span className={styles.agxEvIn}>
+                        <span className={styles.agxEvM}>
                           {fmtMin(p.startMin)}
-                          <span className="to"> – {fmtMin(p.endMin)}</span>
+                          <span className={styles.to}> – {fmtMin(p.endMin)}</span>
                         </span>
-                        <span className="agx-ev-t">{p.event.subject}</span>
+                        <span className={styles.agxEvT}>{p.event.subject}</span>
                       </span>
-                      <span className="agx-grip" data-grip aria-hidden="true" />
+                      <span className={styles.agxGrip} data-grip aria-hidden="true" />
                     </button>
                   );
                 })}
 
                 {dragCreate && dragCreate.day === dayIdx ? (
                   <div
-                    className="agx-ghost"
+                    className={styles.agxGhost}
                     aria-hidden="true"
                     style={{
                       top: minutesToY(dragCreate.min, hourH),
                       height: blockHeight(dragCreate.dur, hourH),
                     }}
                   >
-                    <span className="agx-ghost-m">
+                    <span className={styles.agxGhostM}>
                       {fmtMin(dragCreate.min)} – {fmtMin(dragCreate.min + dragCreate.dur)}
                     </span>
                   </div>
@@ -605,12 +607,12 @@ export default function WeekView({
 
                 {today ? (
                   <div
-                    className="agx-now"
+                    className={styles.agxNow}
                     aria-hidden="true"
                     style={{ top: minutesToY(nowMin, hourH) }}
                   >
-                    <span className="agx-now-knob" />
-                    <span className="agx-now-bar" />
+                    <span className={styles.agxNowKnob} />
+                    <span className={styles.agxNowBar} />
                   </div>
                 ) : null}
               </div>
@@ -620,7 +622,7 @@ export default function WeekView({
       </div>
 
       {dragLabel ? (
-        <div className="agx-droplab" aria-hidden="true" style={{ left: drag!.x + 14, top: drag!.y + 14 }}>
+        <div className={styles.agxDroplab} aria-hidden="true" style={{ left: drag!.x + 14, top: drag!.y + 14 }}>
           <b>{dragLabel}</b>
         </div>
       ) : null}

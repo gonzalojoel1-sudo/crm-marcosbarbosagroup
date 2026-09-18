@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node gen-shell.mjs",
+    "build": "npm run lint && vite build && node gen-shell.mjs",
+    "lint": "stylelint \"src/agenda/**/*.module.css\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

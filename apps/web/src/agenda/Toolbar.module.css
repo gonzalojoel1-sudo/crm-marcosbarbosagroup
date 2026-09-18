@@ -1,0 +1,123 @@
+[data-agenda] .agx-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: nowrap;
+}
+[data-agenda] .agx-bar-left {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+[data-agenda] .agx-title {
+  margin: 0;
+  font-family: var(--display);
+  font-optical-sizing: auto;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+[data-agenda] .agx-count {
+  font-size: 12.5px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+[data-agenda] .agx-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+[data-agenda] .agx-seg,
+[data-agenda] .agx-zoom,
+[data-agenda] .agx-pager {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 2px;
+}
+[data-agenda] .agx-seg button,
+[data-agenda] .agx-zoom button {
+  background: none;
+  border: 0;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  min-height: 24px;
+}
+[data-agenda] .agx-seg button.on,
+[data-agenda] .agx-zoom button.on {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+[data-agenda] .agx-pager-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: 0;
+  color: var(--fg-dim);
+  border-radius: 7px;
+  cursor: pointer;
+}
+[data-agenda] .agx-pager-btn:hover {
+  color: var(--fg);
+  background: var(--surface-2);
+}
+[data-agenda] .agx-today {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  min-height: 28px;
+}
+[data-agenda] .agx-today:hover {
+  color: var(--fg);
+  border-color: var(--border-2);
+}
+/* Camino de teclado y de puntero para crear (requisito de 2.5.7): un control
+   real, ≥24×24 px, que abre el mismo panel que el click en el hueco. */
+[data-agenda] .agx-new {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: var(--bg);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  min-height: 28px;
+}
+[data-agenda] .agx-new:hover {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+}
+
+@media (max-width: 820px) {
+  [data-agenda] .agx-bar {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  [data-agenda] .agx-bar-right {
+    flex-wrap: wrap;
+  }
+}

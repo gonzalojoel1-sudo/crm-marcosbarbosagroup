@@ -1,0 +1,308 @@
+/* ── Semana ── */
+[data-agenda] .agx-gridwrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+[data-agenda] .agx-heads {
+  display: grid;
+  grid-template-columns: 52px repeat(5, 1fr);
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+[data-agenda] .agx-colhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  padding: 11px 0;
+}
+[data-agenda] .agx-colhead .agx-dow {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--fg-faint);
+}
+[data-agenda] .agx-colhead .agx-dom {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+[data-agenda] .agx-colhead.today .agx-dom {
+  color: var(--accent-2);
+}
+[data-agenda] .agx-days {
+  display: grid;
+  grid-template-columns: 52px repeat(5, 1fr);
+  position: relative;
+}
+[data-agenda] .agx-gutter {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg);
+}
+[data-agenda] .agx-hourlab {
+  position: absolute;
+  right: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-faint);
+}
+[data-agenda] .agx-col {
+  position: relative;
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+}
+[data-agenda] .agx-col:last-child {
+  border-right: 0;
+}
+[data-agenda] .agx-col.today {
+  background: rgba(244, 241, 234, 0.022);
+}
+[data-agenda] .agx-hl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px solid rgba(244, 241, 234, 0.12);
+  pointer-events: none;
+}
+[data-agenda] .agx-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+[data-agenda] .agx-now-bar {
+  display: block;
+  height: 1.5px;
+  background: var(--accent);
+}
+[data-agenda] .agx-now-knob {
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* Bloque: color sólido, texto blanco (contraste ≥ 4.5:1). El rango completo
+   entra cuando hay lugar; en bloque bajo queda la hora de inicio; el título
+   nunca desaparece. */
+[data-agenda] .agx-ev {
+  --agx-ev-color: #a0431c;
+  position: absolute;
+  left: calc(var(--lane, 0) * (100% / var(--lanes, 1)) + 4px);
+  width: calc(100% / var(--lanes, 1) - 8px);
+  z-index: 1;
+  overflow: visible; /* deja ver el asa de 24 px que baja del bloque */
+  background: var(--agx-ev-color);
+  border: 0;
+  border-radius: var(--r);
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: #fff;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 2px 6px rgba(0, 0, 0, 0.38);
+}
+/* Al pasar el puntero (o enfocar), el bloque sube por encima de sus vecinos:
+   el asa de redimensionar cruza el borde inferior sin que el vecino la tape. */
+[data-agenda] .agx-ev:hover,
+[data-agenda] .agx-ev:focus-visible {
+  z-index: 3;
+}
+/* El recorte del texto vive en la capa interna: el botón ya no recorta, así el
+   asa puede salir 12 px por debajo del bloque (área real de 24 px de alto). */
+[data-agenda] .agx-ev-in {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 7px 10px;
+  border-radius: inherit;
+}
+[data-agenda] .agx-ev:hover {
+  filter: brightness(1.07);
+}
+/* Asa de duración: 24×24 px de área de impacto (SC 2.5.8), sin agrandar el
+   glifo. Centrada en el borde inferior: 12 px adentro y 12 px afuera. */
+[data-agenda] .agx-grip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -12px;
+  height: 24px;
+  border-radius: 0 0 var(--r) var(--r);
+  cursor: ns-resize;
+  touch-action: none;
+}
+[data-agenda] .agx-grip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 11px;
+  width: 26px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+  opacity: 0;
+}
+[data-agenda] .agx-ev:hover .agx-grip::after,
+[data-agenda] .agx-ev:focus-visible .agx-grip::after {
+  opacity: 1;
+}
+[data-agenda] .agx-ev .agx-ev-m {
+  order: 2;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+[data-agenda] .agx-ev .agx-ev-t {
+  order: 1;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #fff;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+[data-agenda] .agx-ev[data-compact] {
+  border-radius: 9px;
+}
+[data-agenda] .agx-ev[data-compact] .agx-ev-in {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 9px;
+}
+[data-agenda] .agx-ev[data-compact] .agx-grip {
+  border-radius: 0 0 9px 9px;
+}
+[data-agenda] .agx-ev[data-compact] .agx-ev-m {
+  order: 1;
+  flex: none;
+}
+[data-agenda] .agx-ev[data-compact] .to {
+  display: none;
+}
+[data-agenda] .agx-ev[data-compact] .agx-ev-t {
+  order: 2;
+  flex: 1;
+  min-width: 0;
+  -webkit-line-clamp: 1;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+[data-agenda] .agx-ev[data-tiny] .agx-ev-in {
+  flex-direction: row;
+  align-items: center;
+  padding: 3px 9px;
+}
+[data-agenda] .agx-ev[data-tiny] .agx-ev-m {
+  display: none;
+}
+[data-agenda] .agx-ev[data-tiny] .agx-ev-t {
+  -webkit-line-clamp: 1;
+  font-size: 12px;
+}
+[data-agenda] .agx-ev[data-narrow] .agx-ev-in {
+  padding: 6px 8px;
+}
+[data-agenda] .agx-ev[data-narrow] .agx-ev-m {
+  display: none;
+}
+[data-agenda] .agx-ev[data-narrow] .agx-ev-t {
+  -webkit-line-clamp: 2;
+  font-size: 12.5px;
+}
+
+/* Fantasma del arrastre de creación y etiqueta de destino. Decorativos: no
+   reciben puntero (pointer-events: none), así el gesto los atraviesa. */
+[data-agenda] .agx-ghost {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  z-index: 2;
+  overflow: hidden;
+  padding: 6px 10px;
+  border-radius: var(--r);
+  background: color-mix(in srgb, var(--accent) 20%, #141417);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+  color: #fff;
+  pointer-events: none;
+}
+[data-agenda] .agx-ghost-m {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+}
+[data-agenda] .agx-droplab {
+  position: fixed;
+  z-index: 40;
+  padding: 4px 8px;
+  border: 1px solid var(--border-2);
+  border-radius: 8px;
+  background: var(--surface-2);
+  box-shadow: var(--shadow);
+  color: var(--fg);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Fila de todo el día (all_day): franja fija arriba de la grilla. */
+[data-agenda] .agx-allday {
+  display: grid;
+  grid-template-columns: 52px repeat(5, 1fr);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+[data-agenda] .agx-allday-lab {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 5px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+[data-agenda] .agx-allday-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 4px;
+}
+[data-agenda] .agx-allday-ev {
+  display: block;
+  min-height: 24px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--fg);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

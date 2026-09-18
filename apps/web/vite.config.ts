@@ -17,4 +17,13 @@ export default defineConfig({
       },
     },
   },
+  css: {
+    modules: {
+      // Se conservan los nombres `agx-*`: la guarda de fidelidad y los scripts
+      // E2E consultan esas clases semánticas. El aislamiento NO viene del hash
+      // sino de anclar cada selector a `[data-agenda]` (ver Agenda.module.css).
+      generateScopedName: "[local]",
+      localsConvention: "dashes",
+    },
+  },
 });

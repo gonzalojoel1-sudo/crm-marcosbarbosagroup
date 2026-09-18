@@ -3,6 +3,7 @@ import { dayLong, fmtMin } from "./date";
 import { END_H } from "./geometry";
 import type { AgendaEvent } from "./types";
 import { placeFloating, type Anchor } from "./floating";
+import styles from "./Dialog.module.css";
 
 interface DurationDialogProps {
   event: AgendaEvent;
@@ -72,7 +73,7 @@ export default function DurationDialog({
 
   return (
     <div
-      className="agx-modal"
+      className={styles.agxModal}
       role="dialog"
       aria-modal="false"
       aria-labelledby="agx-dur-titulo"
@@ -80,17 +81,17 @@ export default function DurationDialog({
       onKeyDown={onKeyDown}
       style={{ left: anchor.x, top: anchor.y }}
     >
-      <h2 className="agx-modal-title" id="agx-dur-titulo">
+      <h2 className={styles.agxModalTitle} id="agx-dur-titulo">
         Cambiar duración · {event.subject}
       </h2>
-      <p className="agx-modal-sub" id="agx-dur-hora">
+      <p className={styles.agxModalSub} id="agx-dur-hora">
         {dayLong(day)}, {fmtMin(startMin)} – {fmtMin(startMin + dur)}
       </p>
 
-      <span className="agx-modal-lab" id="agx-dur-presets-lab">
+      <span className={styles.agxModalLab} id="agx-dur-presets-lab">
         Duración
       </span>
-      <div className="agx-modal-group" role="group" aria-labelledby="agx-dur-presets-lab">
+      <div className={styles.agxModalGroup} role="group" aria-labelledby="agx-dur-presets-lab">
         {PRESETS.map((v) => {
           const ok = presetOk(v);
           return (
@@ -98,7 +99,7 @@ export default function DurationDialog({
               key={v}
               type="button"
               data-dpreset={v}
-              className={v === dur ? "on" : ""}
+              className={v === dur ? styles.on : ""}
               aria-pressed={v === dur}
               aria-label={`${v} minutos`}
               aria-disabled={!ok}
@@ -111,10 +112,10 @@ export default function DurationDialog({
         })}
       </div>
 
-      <span className="agx-modal-lab" id="agx-dur-pasos-lab">
+      <span className={styles.agxModalLab} id="agx-dur-pasos-lab">
         Ajustar
       </span>
-      <div className="agx-modal-group" role="group" aria-labelledby="agx-dur-pasos-lab">
+      <div className={styles.agxModalGroup} role="group" aria-labelledby="agx-dur-pasos-lab">
         {[-15, 15].map((delta) => {
           const ok = pasoOk(delta);
           const label = delta < 0 ? "−15 min" : "+15 min";
@@ -134,11 +135,11 @@ export default function DurationDialog({
         })}
       </div>
 
-      <div className="agx-modal-acciones">
-        <button type="button" className="agx-modal-aplicar" onClick={() => onApply(dur)}>
+      <div className={styles.agxModalAcciones}>
+        <button type="button" className={styles.agxModalAplicar} onClick={() => onApply(dur)}>
           Aplicar
         </button>
-        <button type="button" className="agx-modal-cancelar" onClick={onClose}>
+        <button type="button" className={styles.agxModalCancelar} onClick={onClose}>
           Cancelar
         </button>
       </div>

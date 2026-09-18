@@ -5,6 +5,8 @@ import { categoryOf } from "./categories";
 import { accessibleTaskName } from "./tasks";
 import { IconCheck } from "../icons";
 import type { AgendaEvent, AgendaTask } from "./types";
+import styles from "./ListView.module.css";
+import taskStyles from "./Task.module.css";
 
 interface ListViewProps {
   days: Date[];
@@ -113,7 +115,7 @@ export default function ListView({
 
   return (
     <div
-      className="agx-lista"
+      className={styles.agxLista}
       role="region"
       aria-label="Lista de reuniones de la semana"
       ref={containerRef}
@@ -124,25 +126,25 @@ export default function ListView({
         const today = sameDay(g.date, now);
         return (
           <section
-            className={`agx-ldia${today ? " today" : ""}`}
+            className={`${styles.agxLdia}${today ? ` ${styles.today}` : ""}`}
             aria-labelledby={id}
             aria-current={today ? "date" : undefined}
             key={ymd(g.date)}
           >
-            <h3 className="agx-ldia-h" id={id}>
-              <span className="agx-ldia-n">{dayLong(g.date)}</span>
-              <span className="agx-ldia-c">{countLabel(g.events.length)}</span>
+            <h3 className={styles.agxLdiaH} id={id}>
+              <span className={styles.agxLdiaN}>{dayLong(g.date)}</span>
+              <span className={styles.agxLdiaC}>{countLabel(g.events.length)}</span>
             </h3>
-            <div className="agx-ldia-body">
+            <div className={styles.agxLdiaBody}>
               <button
                 type="button"
-                className="agx-ldia-nueva"
+                className={styles.agxLdiaNueva}
                 onClick={() => onNewDay(i)}
               >
                 Nueva reunión
               </button>
               {g.events.length ? (
-                <ul className="agx-levs">
+                <ul className={styles.agxLevs}>
                   {g.events.map((e) => {
                     const { startMin, endMin } = eventMinutes(e);
                     const time = e.allDay ? "Todo el día" : `${fmtMin(startMin)} – ${fmtMin(endMin)}`;
@@ -150,7 +152,7 @@ export default function ListView({
                       <li key={`${e.name}#${startMin}#${endMin}`}>
                         <button
                           type="button"
-                          className="agx-lev"
+                          className={styles.agxLev}
                           data-ev={e.name}
                           data-day={i}
                           tabIndex={effective === e.name ? 0 : -1}
@@ -168,12 +170,12 @@ export default function ListView({
                             e.category,
                           )}
                         >
-                          <span className="agx-lev-h">{time}</span>
-                          <span className="agx-lev-t">{e.subject}</span>
+                          <span className={styles.agxLevH}>{time}</span>
+                          <span className={styles.agxLevT}>{e.subject}</span>
                           {e.category ? (
-                            <span className="agx-lev-c">
+                            <span className={styles.agxLevC}>
                               <i
-                                className="agx-lev-dot"
+                                className={styles.agxLevDot}
                                 style={{ background: categoryOf(e.category).color }}
                                 aria-hidden="true"
                               />
@@ -186,17 +188,17 @@ export default function ListView({
                   })}
                 </ul>
               ) : (
-                <p className="agx-lvy">Sin reuniones</p>
+                <p className={styles.agxLvy}>Sin reuniones</p>
               )}
               {tasksByDay[i].length ? (
-                <ul className="agx-ltasks" aria-label="Tareas del día">
+                <ul className={taskStyles.agxLtasks} aria-label="Tareas del día">
                   {tasksByDay[i].map((t) => {
                     const dueMin = t.due ? minutesOfDay(t.due) : 0;
                     return (
                       <li key={t.name}>
                         <button
                           type="button"
-                          className="agx-task"
+                          className={taskStyles.agxTask}
                           onClick={() => onCompleteTask(t)}
                           title={`Tarea: ${t.subject} · ${fmtMin(dueMin)} · marcar como hecha`}
                           aria-label={accessibleTaskName(
@@ -206,11 +208,11 @@ export default function ListView({
                             t.priority,
                           )}
                         >
-                          <IconCheck className="agx-task-ico" />
-                          <span className="agx-task-t" aria-hidden="true">
+                          <IconCheck className={taskStyles.agxTaskIco} />
+                          <span className={taskStyles.agxTaskT} aria-hidden="true">
                             {t.subject}
                           </span>
-                          <span className="agx-task-h" aria-hidden="true">
+                          <span className={taskStyles.agxTaskH} aria-hidden="true">
                             {fmtMin(dueMin)}
                           </span>
                         </button>

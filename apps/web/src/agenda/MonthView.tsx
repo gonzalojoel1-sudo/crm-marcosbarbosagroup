@@ -3,6 +3,7 @@ import { accessibleName, addDays, dayLong, fmtMin, sameDay, startOfWeek, ymd } f
 import { eventMinutes } from "./geometry";
 import { categoryOf } from "./categories";
 import type { AgendaEvent } from "./types";
+import styles from "./MonthView.module.css";
 
 const WEEKDAY_COLS = ["lunes", "martes", "miércoles", "jueves", "viernes"];
 
@@ -45,8 +46,8 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
       .sort((a, b) => a.start.getTime() - b.start.getTime());
 
   return (
-    <div className="agx-meswrap">
-      <table className="agx-mes">
+    <div className={styles.agxMeswrap}>
+      <table className={styles.agxMes}>
         <caption className="sr-only">{label}. Se muestran los días de lunes a viernes.</caption>
         <thead>
           <tr>
@@ -62,41 +63,41 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
             <tr key={wi}>
               {week.map((date, ci) => {
                 if (!date) {
-                  return <td className="agx-mcell empty" aria-hidden="true" key={ci} />;
+                  return <td className={styles.agxMcell} aria-hidden="true" key={ci} />;
                 }
                 const today = sameDay(date, now);
                 const dayEvents = eventsOf(date);
                 return (
                   <td
-                    className={`agx-mcell${today ? " hoy" : ""}`}
+                    className={`${styles.agxMcell}${today ? ` ${styles.hoy}` : ""}`}
                     aria-current={today ? "date" : undefined}
                     key={ymd(date)}
                   >
-                    <span className="agx-mnum">{date.getDate()}</span>
+                    <span className={styles.agxMnum}>{date.getDate()}</span>
                     {dayEvents.slice(0, 3).map((e) => {
                       const { startMin, endMin } = eventMinutes(e);
                       const time = e.allDay ? "Todo el día" : fmtMin(startMin);
                       return (
-                        <span className="agx-mev" key={e.name} title={`${e.subject} · ${time}`}>
+                        <span className={styles.agxMev} key={e.name} title={`${e.subject} · ${time}`}>
                           <span
-                            className="agx-mev-d"
+                            className={styles.agxMevD}
                             style={{ background: categoryOf(e.category).color }}
                             aria-hidden="true"
                           />
                           <span className="sr-only">
                             {accessibleName(dayLong(date), startMin, endMin, e.subject, e.allDay, e.category)}
                           </span>
-                          <span className="agx-mev-h" aria-hidden="true">
+                          <span className={styles.agxMevH} aria-hidden="true">
                             {time}
                           </span>
-                          <span className="agx-mev-t" aria-hidden="true">
+                          <span className={styles.agxMevT} aria-hidden="true">
                             {e.subject}
                           </span>
                         </span>
                       );
                     })}
                     {dayEvents.length > 3 ? (
-                      <button type="button" className="agx-mmas" onClick={onShowList}>
+                      <button type="button" className={styles.agxMmas} onClick={onShowList}>
                         +{dayEvents.length - 3} más
                       </button>
                     ) : null}
