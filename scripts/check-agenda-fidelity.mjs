@@ -48,9 +48,17 @@ if (app) {
     mal(`--mono empieza con "${pilaMono}" — "JetBrains Mono" tiene que ir PRIMERO o el shell no la usa`);
   else bien('--mono lista "JetBrains Mono" primero');
 }
+// Se mira el <link> real a Google Fonts, no un `includes` que tambien matchea un
+// comentario. Y se verifica el shell GENERADO, no solo el script que lo produce:
+// si no, el artefacto commiteado puede quedar viejo y la guarda seguir verde.
+const requeridas = [
+  { nombre: "Fraunces", re: /family=Fraunces[:&]/ },
+  { nombre: "JetBrains Mono", re: /family=JetBrains\+Mono[:&]/ },
+];
 for (const [archivo, etiqueta] of [
   ["apps/web/gen-shell.mjs", "el shell"],
   ["apps/web/index.html", "el dev server"],
+  ["apps/crm_core/crm_core/www/hoy.html", "el shell generado"],
 ]) {
   let txt = "";
   try {
@@ -59,24 +67,64 @@ for (const [archivo, etiqueta] of [
     mal(`no puedo leer ${archivo}`);
     continue;
   }
-  for (const familia of ["Fraunces", "JetBrains+Mono"]) {
-    if (!txt.includes(familia)) mal(`${etiqueta} (${archivo}) no carga ${familia} — fallback silencioso`);
-    else bien(`${etiqueta} carga ${familia}`);
+  const hrefs = [...txt.matchAll(/<link[^>]+href="([^"]*fonts\.googleapis\.com[^"]*)"/g)].map((m) => m[1]);
+  if (!hrefs.length) {
+    mal(`${etiqueta} (${archivo}) no tiene ningun <link> a Google Fonts`);
+    continue;
+  }
+  for (const { nombre, re } of requeridas) {
+    if (!hrefs.some((h) => re.test(h))) mal(`${etiqueta} (${archivo}) no carga ${nombre} — fallback silencioso`);
+    else bien(`${etiqueta} carga ${nombre}`);
   }
 }
 
 // (c) la paleta de categorias, byte por byte contra el CATS del prototipo.
 seccion("(c) la paleta de categorias");
-const proto = readFileSync("prototypes/agenda/index.html", "utf8");
-const cats = readFileSync("apps/web/src/agenda/categories.ts", "utf8");
-const bloqueCats = /const\s+CATS\s*=\s*\{([\s\S]*?)\};/.exec(proto)?.[1] || "";
-const coloresProto = [...bloqueCats.matchAll(/color:\s*"([^"]+)"/g)].map((m) => m[1]);
-const coloresCats = [...cats.matchAll(/color:\s*"(oklch\([^"]+\))"/g)].map((m) => m[1]);
+const PROTOTIPO = "prototypes/agenda/index.html";
+const CATS_TS = "apps/web/src/agenda/categories.ts";
+const leerTexto = (ruta) => {
+  try {
+    return readFileSync(ruta, "utf8");
+  } catch {
+    mal(`no puedo leer ${ruta}`);
+    return null;
+  }
+};
+// Matching de llaves: una categoria nueva no puede quedar afuera del bloque.
+function bloqueDeMapa(texto, nombre) {
+  const m = new RegExp(`const\\s+${nombre}\\b[^=]*=\\s*\\{`).exec(texto);
+  if (!m) return null;
+  let i = m.index + m[0].length;
+  const desde = i;
+  let nivel = 1;
+  while (i < texto.length && nivel > 0) {
+    if (texto[i] === "{") nivel++;
+    else if (texto[i] === "}") nivel--;
+    i++;
+  }
+  return texto.slice(desde, i - 1);
+}
+const proto = leerTexto(PROTOTIPO);
+const cats = leerTexto(CATS_TS);
+const bloqueProto = proto ? /const\s+CATS\s*=\s*\{([\s\S]*?)\};/.exec(proto)?.[1] : null;
+const bloqueCats = cats ? bloqueDeMapa(cats, "CATEGORIES") : null;
+if (proto && !bloqueProto) mal(`no encontre el CATS en ${PROTOTIPO}: no puedo verificar la paleta`);
+if (cats && !bloqueCats) mal(`no encontre el CATEGORIES en ${CATS_TS}: no puedo verificar la paleta`);
+const coloresProto = bloqueProto ? [...bloqueProto.matchAll(/color:\s*"([^"]+)"/g)].map((m) => m[1]) : [];
+// TODA categoria, en cualquier formato (oklch, hex, rgb, var…): mirar solo
+// `oklch(...)` era la verificacion vacia que dejaba pasar un color re-derivado.
+const coloresCats = bloqueCats ? [...bloqueCats.matchAll(/color:\s*"([^"]+)"/g)].map((m) => m[1]) : [];
+if (bloqueProto && !coloresProto.length) mal(`el CATS de ${PROTOTIPO} no tiene colores: la verificacion quedaria vacia`);
+if (bloqueCats && !coloresCats.length) mal(`el CATEGORIES de ${CATS_TS} no tiene colores: la verificacion quedaria vacia`);
 const reDerivados = coloresCats.filter((c) => !coloresProto.includes(c));
 const perdidos = coloresProto.filter((c) => !coloresCats.includes(c));
-if (reDerivados.length) mal(`categorias re-derivadas (no estan en el CATS del prototipo): ${reDerivados.join(", ")}`);
-if (perdidos.length) mal(`categorias del prototipo que faltan en categories.ts: ${perdidos.join(", ")}`);
-if (!reDerivados.length && !perdidos.length)
+for (const c of reDerivados)
+  mal(
+    `categoria re-derivada: "${c}" no esta en el CATS de ${PROTOTIPO}. ` +
+      `El color tiene que salir de ahi byte por byte (no se re-deriva a mano).`,
+  );
+for (const c of perdidos) mal(`el prototipo define "${c}" y ${CATS_TS} no lo tiene: copiarlo tal cual`);
+if (coloresProto.length && !reDerivados.length && !perdidos.length)
   bien(`las ${coloresProto.length} categorias coinciden byte por byte con el prototipo`);
 
 // (d) las fuentes de marca, COMPUTADAS en un navegador contra el shell construido.

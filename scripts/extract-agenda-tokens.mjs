@@ -63,13 +63,19 @@ function tokensDelPrototipo(html) {
     process.exit(1);
   }
   const cuerpo = bloquesDe(css, "body").flatMap(declaraciones);
-  const familias = ["--display", "--mono"]
-    .map((nombre) => {
-      const token = cuerpo.find((d) => d.nombre === nombre);
-      if (!token) console.error(`aviso: el prototipo no define ${nombre} en body`);
-      return token;
-    })
-    .filter(Boolean);
+  const familias = ["--display", "--mono"].map((nombre) => {
+    const token = cuerpo.find((d) => d.nombre === nombre);
+    // Sin las familias la extraccion es parcial: escribir tokens.css seria un
+    // exito silencioso que despues se ve como fallback de tipografia.
+    if (!token) {
+      console.error(
+        `${PROTO} no define ${nombre} en body: extraccion parcial, no escribo ${SALIDA}. ` +
+          `Agregalo al prototipo (es la fuente) y volve a correr el script.`,
+      );
+      process.exit(1);
+    }
+    return token;
+  });
 
   const vistos = new Set();
   return [...raiz, ...familias].filter((d) => {
