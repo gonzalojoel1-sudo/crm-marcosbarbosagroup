@@ -18,6 +18,13 @@ export const CATEGORIES: Record<string, Category> = {
   Software: { label: "Software", color: "oklch(0.58 0.155 330)" },
 };
 
+// El orden del prototipo (`Object.entries(CATS)`): lo usan la sidebar y la leyenda.
+export const CATEGORY_ORDER = ["Consultora", "Ministerial", "Personal", "Trabajo", "Software"];
+
+// Los tres orígenes del prototipo. La UI los muestra siempre; el conteo sale de
+// `AgendaEvent.origin` (hoy vacío porque el DTO no lo expone: ver reporte R4).
+export const ORIGINS = ["CRM", "Reserva web", "Google"];
+
 // La API nunca manda vacío (cae a "Trabajo"), pero el tipo es opcional: sin valor
 // se usa un gris neutro que también pasa 4.5:1 con texto blanco.
 const FALLBACK: Category = { label: "", color: "#6b7280" };

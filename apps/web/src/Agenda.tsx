@@ -32,6 +32,9 @@ import Toolbar from "./agenda/Toolbar";
 import WeekView from "./agenda/WeekView";
 import ListView from "./agenda/ListView";
 import MonthView from "./agenda/MonthView";
+import Sidebar from "./agenda/Sidebar";
+import MiniMonth from "./agenda/MiniMonth";
+import { CATEGORY_ORDER, ORIGINS } from "./agenda/categories";
 
 // Duración real del evento en minutos, con el piso de 15 que usan los diálogos.
 function durDe(ev: AgendaEvent): number {
@@ -44,6 +47,12 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   const [zoom, setZoom] = useState<DensityStep>(ZOOM_STEPS[2]); // Zoom-Amplio por defecto
   const [data, setData] = useState<AgendaData | null>(null);
   const [now] = useState(() => new Date());
+  // Sidebar: agendas (categorías) y orígenes apagados. El prototipo los guarda en
+  // dos Set (`HIDDEN` / `HIDDEN_ORIGIN`, `index.html:617-618`).
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(() => new Set());
+  const [hiddenOrigins, setHiddenOrigins] = useState<Set<string>>(() => new Set());
+  // El botón Panel del encabezado pliega el mini-mes (arranca visible).
+  const [miniOpen, setMiniOpen] = useState(true);
   const [panel, setPanel] = useState<PanelContext | null>(null);
   const [menu, setMenu] = useState<{
     event: AgendaEvent;
@@ -109,11 +118,60 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
         end: parseDT(e.ends_on),
         allDay: Boolean(e.all_day),
         category: e.categoria,
+        // El DTO todavía no expone `origin`; si el backend lo agrega, viaja acá
+        // sin tocar nada más y el filtro de Origen empieza a discriminar.
+        origin: (e as EventDTO & { origin?: string }).origin,
       })),
     [data],
   );
 
   const days = useMemo(() => Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+
+  // El predicado del prototipo (`index.html:620`): un evento se oculta por su
+  // agenda; si no tiene agenda (importado), por su origen. Acá la categoría
+  // siempre llega (la API usa default), así que el origen aplica a lo que el
+  // backend marque sin categoría. Filtra las TRES vistas.
+  const visibleEvents = useMemo(
+    () =>
+      events.filter(
+        (e) =>
+          !(e.category ? hiddenCategories.has(e.category) : hiddenOrigins.has(e.origin ?? "")),
+      ),
+    [events, hiddenCategories, hiddenOrigins],
+  );
+
+  // Los contadores de la sidebar salen de TODOS los eventos, como el prototipo.
+  const categoryCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const key of CATEGORY_ORDER) out[key] = events.filter((e) => e.category === key).length;
+    return out;
+  }, [events]);
+  const originCounts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const origin of ORIGINS) {
+      const prefijo = origin.split(" ")[0];
+      out[origin] = events.filter((e) => (e.origin ?? "").startsWith(prefijo)).length;
+    }
+    return out;
+  }, [events]);
+  const eventDays = useMemo(() => new Set(events.map((e) => ymd(e.start))), [events]);
+
+  function toggleCategory(key: string) {
+    setHiddenCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+  function toggleOrigin(origin: string) {
+    setHiddenOrigins((prev) => {
+      const next = new Set(prev);
+      if (next.has(origin)) next.delete(origin);
+      else next.add(origin);
+      return next;
+    });
+  }
 
   // Las tareas tienen vencimiento, no duración: no entran a la grilla temporal.
   // `get_agenda` sólo devuelve las que tienen fecha, así que `due` nunca es null;
@@ -139,8 +197,8 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
       ? `${capitalize(MON_FULL[anchor.getMonth()])} de ${anchor.getFullYear()}`
       : rangeTitle(days[0], days[4]);
 
-  const n = events.length;
-  const allDayCount = events.filter((e) => e.allDay).length;
+  const n = visibleEvents.length;
+  const allDayCount = visibleEvents.filter((e) => e.allDay).length;
   const taskCount = tasks.filter((t) => t.due).length;
   const count = `${n} ${n === 1 ? "reunión" : "reuniones"}${
     allDayCount ? ` · ${allDayCount} de todo el día` : ""
@@ -628,62 +686,83 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   }
 
   return (
-    <div className={styles.agx} data-agenda ref={rootRef} style={{ height }}>
-      <Toolbar
-        view={view}
-        onView={setView}
-        density={zoom}
-        onDensity={setZoom}
-        title={title}
-        count={count}
-        onPrev={() => move(-1)}
-        onNext={() => move(1)}
-        onToday={() => setAnchor(new Date())}
-        onNew={crearDesdeBoton}
-      />
-
+    <div
+      className={styles.agx}
+      data-agenda
+      data-mini={miniOpen ? undefined : "off"}
+      ref={rootRef}
+      style={{ height }}
+    >
       <div className={styles.agxBody}>
+        <Sidebar
+          categoryCounts={categoryCounts}
+          originCounts={originCounts}
+          hiddenCategories={hiddenCategories}
+          hiddenOrigins={hiddenOrigins}
+          onToggleCategory={toggleCategory}
+          onToggleOrigin={toggleOrigin}
+        />
+
         <div className={styles.agxMain}>
-          {view === "semana" ? (
-            <WeekView
-              days={days}
-              events={events}
-              zoom={zoom}
-              now={now}
-              weekLabel={weekLabel}
-              onCreateSlot={(dayIdx, startMin, durMin) =>
-                openPanel({ mode: "crear", day: days[dayIdx], startMin, durMin })
-              }
-              onMoveEvent={moverConArrastre}
-              onResizeEvent={redimensionarConArrastre}
-              onOpenMenu={openMenu}
-              expandedName={menu?.event.name ?? null}
-              tasksByDay={tasksByDay}
-              onCompleteTask={completarTarea}
-            />
-          ) : view === "lista" ? (
-            <ListView
-              days={days}
-              events={events}
-              now={now}
-              onNewDay={crearEnDia}
-              onOpenMenu={openMenu}
-              expandedName={menu?.event.name ?? null}
-              tasksByDay={tasksByDay}
-              onCompleteTask={completarTarea}
-            />
-          ) : (
-            <MonthView
-              anchor={anchor}
-              events={events}
-              now={now}
-              label={title}
-              onShowList={() => setView("lista")}
-            />
-          )}
+          <Toolbar
+            view={view}
+            onView={setView}
+            density={zoom}
+            onDensity={setZoom}
+            title={title}
+            count={count}
+            onPrev={() => move(-1)}
+            onNext={() => move(1)}
+            onToday={() => setAnchor(new Date())}
+            onNew={crearDesdeBoton}
+            panelOpen={miniOpen}
+            onTogglePanel={() => setMiniOpen((v) => !v)}
+          />
+
+          <div className={styles.agxContent}>
+            {view === "semana" ? (
+              <WeekView
+                days={days}
+                events={visibleEvents}
+                zoom={zoom}
+                now={now}
+                weekLabel={weekLabel}
+                onCreateSlot={(dayIdx, startMin, durMin) =>
+                  openPanel({ mode: "crear", day: days[dayIdx], startMin, durMin })
+                }
+                onMoveEvent={moverConArrastre}
+                onResizeEvent={redimensionarConArrastre}
+                onOpenMenu={openMenu}
+                expandedName={menu?.event.name ?? null}
+                tasksByDay={tasksByDay}
+                onCompleteTask={completarTarea}
+              />
+            ) : view === "lista" ? (
+              <ListView
+                days={days}
+                events={visibleEvents}
+                now={now}
+                onNewDay={crearEnDia}
+                onOpenMenu={openMenu}
+                expandedName={menu?.event.name ?? null}
+                tasksByDay={tasksByDay}
+                onCompleteTask={completarTarea}
+              />
+            ) : (
+              <MonthView
+                anchor={anchor}
+                events={visibleEvents}
+                now={now}
+                label={title}
+                onShowList={() => setView("lista")}
+              />
+            )}
+
+            {panel ? <EventPanel ctx={panel} onClose={closePanel} onSaved={handleSaved} /> : null}
+          </div>
         </div>
 
-        {panel ? <EventPanel ctx={panel} onClose={closePanel} onSaved={handleSaved} /> : null}
+        <MiniMonth anchor={anchor} rangeDays={days} today={now} eventDays={eventDays} />
       </div>
 
       {menu ? (

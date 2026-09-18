@@ -93,6 +93,22 @@
   color: var(--fg);
   border-color: var(--border-2);
 }
+/* El toggle del panel del mes (`index.html:1533`): mismo `.btn` del prototipo. */
+[data-agenda] .agx-panel-toggle {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  min-height: 28px;
+}
+[data-agenda] .agx-panel-toggle:hover {
+  color: var(--fg);
+  border-color: var(--border-2);
+}
 /* Camino de teclado y de puntero para crear (requisito de 2.5.7): un control
    real, ≥24×24 px, que abre el mismo panel que el click en el hueco. */
 [data-agenda] .agx-new {

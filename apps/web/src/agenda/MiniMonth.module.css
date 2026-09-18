@@ -1,0 +1,87 @@
+/* El panel derecho. Valores del prototipo (`index.html:71-72`, `:181-189`).
+   Selectores anclados a `[data-agenda]` como el resto de los módulos. */
+[data-agenda] .agx-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+/* Por debajo de 1560px el panel se pliega, como el prototipo (`index.html:74`).
+   Va acá, junto a la regla base: mismo selector y más adelante en el bundle. */
+@media (max-width: 1559px) {
+  [data-agenda] .agx-mini {
+    display: none;
+  }
+}
+
+[data-agenda] .agx-block-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+
+[data-agenda] .agx-mgrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+[data-agenda] .agx-mgrid span {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+  color: var(--fg-dim);
+  padding: 3px 0;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+[data-agenda] .agx-mgrid span.agx-h {
+  color: var(--fg-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+[data-agenda] .agx-mgrid span.agx-inrange {
+  background: var(--surface);
+  color: var(--fg);
+}
+[data-agenda] .agx-mgrid span.agx-today {
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-weight: 600;
+}
+[data-agenda] .agx-mgrid span.agx-has-ev::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--fg-faint);
+  margin: 2px auto 0;
+}
+
+[data-agenda] .agx-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+[data-agenda] .agx-legend div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+[data-agenda] .agx-legend i {
+  width: 16px;
+  height: 9px;
+  border-radius: 3px;
+  display: block;
+}

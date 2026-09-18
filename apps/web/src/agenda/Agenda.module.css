@@ -28,9 +28,17 @@
 [data-agenda] .agx-body {
   flex: 1;
   min-height: 0;
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: 212px minmax(0, 1fr) 208px;
+  gap: 14px;
+}
+/* El botón Panel pliega el mini-mes (`index.html:68-69`): el ancho va a las
+   columnas de días. */
+[data-agenda][data-mini="off"] .agx-body {
+  grid-template-columns: 200px minmax(0, 1fr);
+}
+[data-agenda][data-mini="off"] .agx-mini {
+  display: none;
 }
 [data-agenda] .agx-main {
   flex: 1;
@@ -39,12 +47,36 @@
   display: flex;
   flex-direction: column;
 }
+[data-agenda] .agx-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+/* La vista tiene que poder encogerse cuando el panel lateral está abierto. */
+[data-agenda] .agx-content > * {
+  min-width: 0;
+}
+
+/* Por debajo de 1560px el panel lateral se pliega: el ancho va a las columnas
+   de días. Regla copiada del prototipo (`index.html:74`). El `display:none` del
+   mini vive en MiniMonth.module.css, junto a su regla base, para que no lo pise
+   el orden del bundle. */
+@media (max-width: 1559px) {
+  [data-agenda] .agx-body {
+    grid-template-columns: 200px minmax(0, 1fr);
+  }
+}
 
 @media (max-width: 820px) {
   [data-agenda].agx {
     padding: 10px 12px;
   }
   [data-agenda] .agx-body {
-    flex-wrap: wrap;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-agenda] .agx-side {
+    max-height: 40vh;
   }
 }

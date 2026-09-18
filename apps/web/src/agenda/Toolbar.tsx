@@ -19,6 +19,8 @@ interface ToolbarProps {
   onNext: () => void;
   onToday: () => void;
   onNew: () => void;
+  panelOpen: boolean;
+  onTogglePanel: () => void;
 }
 
 export default function Toolbar({
@@ -32,6 +34,8 @@ export default function Toolbar({
   onNext,
   onToday,
   onNew,
+  panelOpen,
+  onTogglePanel,
 }: ToolbarProps) {
   return (
     <div className={styles.agxBar}>
@@ -53,6 +57,18 @@ export default function Toolbar({
             </button>
           ))}
         </div>
+        {view === "semana" ? (
+          <button
+            type="button"
+            className={styles.agxPanelToggle}
+            title="Mostrar u ocultar el panel del mes"
+            aria-pressed={!panelOpen}
+            aria-label="Panel del mes"
+            onClick={onTogglePanel}
+          >
+            Panel
+          </button>
+        ) : null}
         {view === "semana" ? (
           <div className={styles.agxZoom} role="group" aria-label="Densidad del calendario">
             {ZOOM_STEPS.map((s) => (

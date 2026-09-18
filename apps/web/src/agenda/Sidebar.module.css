@@ -1,0 +1,80 @@
+/* La barra izquierda. Selectores anclados a `[data-agenda]` como el resto de los
+   módulos: ninguna regla global la pisa. Valores del prototipo (`index.html:71-91`). */
+[data-agenda] .agx-side {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+[data-agenda] .agx-block-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+
+[data-agenda] .agx-cal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  width: 100%;
+  border-radius: 8px;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+[data-agenda] .agx-cal:hover {
+  background: var(--surface);
+}
+[data-agenda] .agx-cal .agx-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: none;
+}
+[data-agenda] .agx-cal .agx-name {
+  font-size: 13px;
+  color: var(--fg);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-agenda] .agx-cal .agx-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+[data-agenda] .agx-cal[data-off] .agx-name,
+[data-agenda] .agx-cal[data-off] .agx-count {
+  color: var(--fg-faint);
+}
+[data-agenda] .agx-cal[data-off] .agx-dot {
+  opacity: 0.3;
+}
+
+[data-agenda] .agx-buscador {
+  width: 100%;
+  text-align: left;
+  color: var(--fg-dim);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  cursor: default;
+}
