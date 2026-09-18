@@ -20,6 +20,7 @@
   font-weight: 400;
   letter-spacing: -0.015em;
   white-space: nowrap;
+  flex: none;
 }
 [data-agenda] .agx-count {
   font-size: 12.5px;

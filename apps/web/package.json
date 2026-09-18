@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run lint && vite build && node gen-shell.mjs",
-    "lint": "stylelint \"src/agenda/**/*.module.css\"",
+    "build": "npm run lint && vite build && node gen-shell.mjs && node ../../scripts/check-agenda-fidelity.mjs --static",
+    "lint": "stylelint \"src/agenda/**/*.module.css\" && node ../../scripts/check-agenda-fidelity.mjs --static",
+    "fidelity": "node ../../scripts/check-agenda-fidelity.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "stylelint": "^16.26.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
   }

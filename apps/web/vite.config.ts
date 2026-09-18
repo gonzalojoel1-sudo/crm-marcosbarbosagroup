@@ -19,9 +19,11 @@ export default defineConfig({
   },
   css: {
     modules: {
-      // Se conservan los nombres `agx-*`: la guarda de fidelidad y los scripts
-      // E2E consultan esas clases semánticas. El aislamiento NO viene del hash
-      // sino de anclar cada selector a `[data-agenda]` (ver Agenda.module.css).
+      // Se conservan los nombres `agx-*` SIN hashear: la guarda de fidelidad y los
+      // E2E consultan esas clases semánticas. OJO: por eso esto NO encapsula — una
+      // regla global `.agx-*` igual matchea el elemento; `[data-agenda]` solo le
+      // sube la especificidad a las reglas de la agenda. La garantía real es que
+      // `styles.css` no tenga reglas `.agx` (la verifica check-agenda-fidelity.mjs).
       generateScopedName: "[local]",
       localsConvention: "dashes",
     },

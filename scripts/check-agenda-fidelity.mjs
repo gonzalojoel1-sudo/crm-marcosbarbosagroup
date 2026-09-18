@@ -2,11 +2,30 @@
 //
 // Falla (exit 1) por lo que ya se rompió una vez:
 //   (a) los tokens derivaron del prototipo  -> los re-extrae el propio extractor
-//   (b) las fuentes de marca no se cargan    -> fallback silencioso que ninguna captura ve
+//   (b) las fuentes de marca no se cargan    -> ESTA es la aserción que caza el
+//       fallo real: mira el <link> del shell. `getComputedStyle` devuelve la
+//       familia PEDIDA aunque la cara nunca se descargue, y `document.fonts.check`
+//       da true cuando la familia NO está declarada; por eso (b) es la que manda.
 //   (c) una categoria se re-derivo           -> el color tiene que aparecer byte por byte
-//   (d) la fuente computada no es la marca    -> hay que probarlo en un navegador real
-import { readFileSync } from "node:fs";
+//   (d) la fuente DECLARADA pero no descargada -> cubre ese caso; necesita Chromium
+//       y red (fonts.googleapis.com), así que NO corre en cada build
+//   (e) el CSS global volvió a tener reglas .agx -> el scope `[data-agenda]` NO
+//       encapsula (una regla global `.agx-*` igual matchea): la garantía real de
+//       D2 es que `styles.css` no defina nada de la agenda
+//   (f) un archivo de la agenda importó `styles.css` (el CSS global)
+//
+// `--static` corre (a)(b)(c)(e)(f) sin navegador: es lo que invocan el build y el
+// lint, así una fuga estructural falla en CI. El modo completo (con (d)) se corre
+// a demanda con `npm run fidelity`.
+import { readFileSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Rutas relativas a la RAÍZ del repo, no al cwd: el build corre desde apps/web.
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+process.chdir(ROOT);
+const ESTATICO = process.argv.includes("--static");
 
 let fallos = 0;
 // Todo por el mismo stream para que el orden de las secciones se vea bien al pipear.
@@ -28,9 +47,10 @@ try {
   mal("los tokens derivaron del prototipo:\n" + detalle.split("\n").map((l) => "      " + l).join("\n"));
 }
 
-// (b) las fuentes de marca tienen que estar DECLARADAS y cargadas.
-// No alcanza con que el CSS las pida: el fallo real fue que el shell nunca las
-// cargaba y todo caia a Outfit / a la mono del sistema, sin ningun aviso.
+// (b) las fuentes de marca tienen que estar DECLARADAS en el shell. Esta es la
+// aserción load-bearing: el fallo que ocurrió fue que el shell nunca cargaba las
+// fuentes y todo caía a Outfit / a la mono del sistema, sin ningún aviso. (d)
+// cubre el caso más finito de "declarada pero nunca descargada".
 seccion("(b) las fuentes de marca");
 let app = "";
 try {
@@ -128,9 +148,11 @@ if (coloresProto.length && !reDerivados.length && !perdidos.length)
   bien(`las ${coloresProto.length} categorias coinciden byte por byte con el prototipo`);
 
 // (d) las fuentes de marca, COMPUTADAS en un navegador contra el shell construido.
-// getComputedStyle devuelve la familia PEDIDA aunque la cara nunca se haya
-// descargado; document.fonts.check es lo unico que prueba que existe de verdad.
-// Hacen falta las dos: por separado, ninguna caza el fallback silencioso.
+// `getComputedStyle` devuelve la familia PEDIDA aunque la cara nunca se descargue,
+// y `document.fonts.check` da true si la familia ni siquiera está declarada: por
+// eso (d) NO prueba por sí solo el fallback (eso lo hace (b)). Cubre el caso más
+// finito: "declarada pero nunca descargada". Necesita Chromium + red; --static lo saltea.
+if (!ESTATICO) {
 seccion("(d) las fuentes computadas en el navegador");
 const SHELL = "apps/crm_core/crm_core/www/hoy.html";
 try {
@@ -187,6 +209,45 @@ try {
         .join("\n"),
   );
 }
+}
 
-log(fallos ? `\nFIDELIDAD: ${fallos} problema(s). Corregir lo marcado ✗ y volver a correr.` : "\nFIDELIDAD: OK");
+// (e) el stylesheet global NO puede volver a definir la agenda. Esta es la
+// garantía REAL de D2: `[data-agenda]` sube especificidad, pero no encapsula; lo
+// que protege es que `styles.css` no tenga reglas de la agenda.
+seccion("(e) el CSS global no tiene reglas de la agenda");
+try {
+  const css = readFileSync("apps/web/src/styles.css", "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const reglas = [...css.matchAll(/\.agx[\w-]*/g)].map((m) => m[0]);
+  if (reglas.length)
+    mal(
+      `styles.css define ${reglas.length} selector(es) de la agenda (${[...new Set(reglas)].join(", ")}). ` +
+        `Los estilos van en apps/web/src/agenda/*.module.css con scope [data-agenda].`,
+    );
+  else bien("styles.css no define ningún selector .agx");
+} catch {
+  mal("no puedo leer apps/web/src/styles.css");
+}
+
+// (f) ningún archivo de la agenda importa el stylesheet global.
+seccion("(f) ningún archivo de la agenda importa el CSS global");
+try {
+  const DIR = "apps/web/src/agenda";
+  // Sin comentarios: acá sí se puede nombrar `styles.css` para explicar por qué no
+  // se lo importa. Lo que no se permite es un import real.
+  const sinComentarios = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  const archivos = readdirSync(DIR, { withFileTypes: true })
+    .filter((d) => d.isFile() && /\.(?:tsx?|css)$/.test(d.name))
+    .map((d) => `${DIR}/${d.name}`);
+  const culpables = archivos.filter((f) => /styles\.css/.test(sinComentarios(readFileSync(f, "utf8"))));
+  if (culpables.length) mal(`${culpables.join(", ")} importa(n) styles.css (el CSS global)`);
+  else bien(`los ${archivos.length} archivos de la agenda no importan styles.css`);
+} catch (e) {
+  mal("no pude revisar apps/web/src/agenda: " + e.message);
+}
+
+log(
+  fallos
+    ? `\nFIDELIDAD: ${fallos} problema(s). Corregir lo marcado ✗ y volver a correr.`
+    : `\nFIDELIDAD: OK${ESTATICO ? " (estático)" : ""}`,
+);
 process.exit(fallos ? 1 : 0);

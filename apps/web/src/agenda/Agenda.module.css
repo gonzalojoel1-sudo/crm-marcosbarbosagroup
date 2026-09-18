@@ -1,7 +1,12 @@
 /* Shell de la agenda. Cada selector va anclado a `[data-agenda]` (la raíz que
-   monta Agenda.tsx): así ninguna regla global puede pisarlo y ninguna regla de
-   acá puede escaparse del subárbol. NO se usan @layer: el CSS sin capas le gana
-   a las capas, y acá la protección es el scope, no la precedencia. */
+   monta Agenda.tsx). OJO, esto NO es encapsulamiento: los nombres de clase no se
+   hashean (la guarda de fidelidad y los E2E consultan `.agx-*`), así que una
+   regla global `.agx-*` IGUAL matchea el elemento; el scope solo la hace perder
+   por especificidad frente a reglas de la misma propiedad, y no frena selectores
+   de elemento (`button`, `*`) ni clases globales de mayor especificidad (así se
+   colaba `.empty`). La garantía que sí vale es otra: `styles.css` no define
+   ninguna regla de la agenda, y `scripts/check-agenda-fidelity.mjs` (sección e)
+   lo verifica. NO se usan @layer: el CSS sin capas le gana a las capas. */
 [data-agenda].agx {
   position: relative;
   z-index: 1;
