@@ -3,7 +3,7 @@
    para no leerse como un bloque de reunión, que es sólido y lleva categoría. */
 [data-agenda] .agx-tasks {
   display: grid;
-  grid-template-columns: 52px repeat(5, 1fr);
+  grid-template-columns: 52px repeat(7, 1fr);
   border-bottom: 1px solid var(--border);
   flex: none;
   max-height: 96px;

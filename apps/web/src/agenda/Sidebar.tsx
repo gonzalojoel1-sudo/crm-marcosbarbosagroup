@@ -8,6 +8,9 @@ interface SidebarProps {
   hiddenOrigins: Set<string>;
   onToggleCategory: (key: string) => void;
   onToggleOrigin: (origin: string) => void;
+  showWeekend: boolean;
+  weekendCount: number;
+  onToggleWeekend: () => void;
 }
 
 /**
@@ -24,6 +27,9 @@ export default function Sidebar({
   hiddenOrigins,
   onToggleCategory,
   onToggleOrigin,
+  showWeekend,
+  weekendCount,
+  onToggleWeekend,
 }: SidebarProps) {
   return (
     <aside className={styles.agxSide}>
@@ -74,6 +80,26 @@ export default function Sidebar({
             </button>
           );
         })}
+      </div>
+
+      <div>
+        <h2 className={styles.agxBlockTitle}>Semana</h2>
+        <button
+          type="button"
+          className={styles.agxCal}
+          data-weekend
+          data-off={!showWeekend || undefined}
+          aria-pressed={showWeekend}
+          onClick={onToggleWeekend}
+        >
+          <span
+            className={styles.agxDot}
+            style={{ background: "var(--fg-faint)" }}
+            aria-hidden="true"
+          />
+          <span className={styles.agxName}>Fin de semana</span>
+          <span className={styles.agxCount}>{weekendCount}</span>
+        </button>
       </div>
 
       <div>

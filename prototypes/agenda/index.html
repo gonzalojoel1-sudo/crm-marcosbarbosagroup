@@ -31,6 +31,9 @@
   --busy-fg: rgba(244, 241, 234, 0.55);
   --busy-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 2px 6px rgba(0,0,0,.3);
   --r: 12px;
+  /* Fin de semana (sáb/dom): una columna apenas más hundida que el resto, sin
+     gritar. El toggle de la sidebar puede esconderla, pero el default la muestra. */
+  --weekend-bg: rgba(0, 0, 0, 0.18);
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
   --ease: cubic-bezier(.23, 1, .32, 1);
 }
@@ -134,6 +137,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 /* la sombra aparece solo cuando hay algo scrolleado debajo */
 .gridwrap[data-scrolled] .heads { box-shadow: 0 10px 14px -12px rgba(0,0,0,.85); }
 .days { display: grid; position: relative; flex: 1; min-height: 0; }
+.col.weekend-col { background: var(--weekend-bg); }
 .col.today-col { background: rgba(244,241,234,.022); }
 .gutter { position: relative; position: sticky; left: 0; z-index: 3; background: var(--bg); }
 .hourlab {
@@ -145,6 +149,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .colhead { display: flex; align-items: baseline; justify-content: center; gap: 5px; }
 .colhead .dow { font-family: var(--mono); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: .08em; color: var(--fg-faint); }
 .colhead .dom { font-size: 18px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.colhead.weekend .dom { color: var(--fg-dim); }
 .colhead.today .dom { color: var(--accent-2); }
 .hourline { position: absolute; left: 0; right: 0; pointer-events: none; }
 
@@ -258,7 +263,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 [data-variant="franja"] .heads, [data-variant="franja"] .days,
 [data-variant="pliegue"] .heads, [data-variant="pliegue"] .days,
-[data-variant="zoom"] .heads, [data-variant="zoom"] .days { grid-template-columns: 52px repeat(5, 1fr); }
+[data-variant="zoom"] .heads, [data-variant="zoom"] .days { grid-template-columns: 52px repeat(7, 1fr); }
 [data-variant="franja"] .colhead, [data-variant="pliegue"] .colhead, [data-variant="zoom"] .colhead { padding: 11px 0; }
 [data-variant="franja"] .hourline, [data-variant="pliegue"] .hourline, [data-variant="zoom"] .hourline { border-top: 1px solid rgba(244,241,234,.12); }
 [data-variant="franja"] .hourline.half, [data-variant="pliegue"] .hourline.half, [data-variant="zoom"] .hourline.half { border-top: 0; }
@@ -402,7 +407,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 #mover-dialog .mv-hora { margin: 0; font-family: var(--mono); font-size: 11.5px; color: var(--fg-dim); font-variant-numeric: tabular-nums; }
 #mover-dialog .mv-lab { display: block; font-size: 11px; color: var(--fg-dim); }
 #mover-dialog .mv-pasos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
-#mover-dialog .mv-dias { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+#mover-dialog .mv-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 /* pasos y destinos de día son <button>: el mismo control sirve al puntero y al teclado */
 #mover-dialog button[data-paso],
 #mover-dialog button[data-dia] {
@@ -544,8 +549,13 @@ const CATS = {
 };
 // El mismo tinte que usan los bloques: la leyenda muestra lo que se ve, no el color crudo.
 const tint = (c) => c;   // los puntos muestran el color real del bloque
-const DAYS = ["Lun 15", "Mar 16", "Mié 17", "Jue 18", "Vie 19"];
-const DIAS_LARGOS = ["lunes 15", "martes 16", "miércoles 17", "jueves 18", "viernes 19"];
+const DAYS = ["Lun 15", "Mar 16", "Mié 17", "Jue 18", "Vie 19", "Sáb 20", "Dom 21"];
+const DIAS_LARGOS = ["lunes 15", "martes 16", "miércoles 17", "jueves 18", "viernes 19", "sábado 20", "domingo 21"];
+// El fin de semana empieza en el índice 5 (sábado). Nada fuera de estos índices
+// puede quedar sin dibujar: el default (mostrado) son los siete días.
+const FIN_DE_SEMANA = 5;
+let HIDDEN_WEEKEND = false;   // toggle de la sidebar: ocultar sábado y domingo
+const diasVisibles = () => DAYS.map((_, i) => i).filter((i) => !HIDDEN_WEEKEND || i < FIN_DE_SEMANA);
 const START_H = 5, END_H = 21, SLOTS_PER_H = 4;
 
 let EVENTS = [
@@ -605,13 +615,14 @@ const VIEWS = ["semana", "lista", "mes"];
 let VIEW = VIEWS.includes(new URLSearchParams(location.search).get("view"))
   ? new URLSearchParams(location.search).get("view") : "semana";
 // El mes cuadra con la semana: el 15 es lunes, asi que el 1 tambien. Se muestran
-// solo los dias de semana (Lun a Vie), igual que la grilla: la semana de 15-19 es una fila.
-const MES = { dias: 30, hoy: 16, cols: ["lunes", "martes", "miércoles", "jueves", "viernes"] };
+// los siete dias; el toggle de la sidebar puede esconder el fin de semana.
+const MES = { dias: 30, hoy: 16, cols: ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"] };
+const colsDelMes = () => HIDDEN_WEEKEND ? MES.cols.slice(0, FIN_DE_SEMANA) : MES.cols;
 const semanasDelMes = () => {
   const filas = [];
   for (let d = 1; d <= MES.dias; d++) {
     const wd = (d - 1) % 7;
-    if (wd > 4) continue;                       // fin de semana: no se muestra
+    if (HIDDEN_WEEKEND && wd >= FIN_DE_SEMANA) continue;   // fin de semana: apagado por el toggle
     const w = Math.floor((d - 1) / 7);
     (filas[w] = filas[w] || []).push(d);
   }
@@ -822,7 +833,7 @@ function renderCol(day, g) {
       if (h < END_H) lines.push(`<div class="hourline half" aria-hidden="true" style="top:${g.yOf(m + 30)}px"></div>`);
     }
   }
-  return `<div class="col${day === 1 ? " today-col" : ""}" data-day="${day}" style="height:${g.gridH}px">
+  return `<div class="col${day === 1 ? " today-col" : ""}${day >= FIN_DE_SEMANA ? " weekend-col" : ""}" data-day="${day}" style="height:${g.gridH}px">
     ${lines.join("")}
     <div class="slots"></div>
     ${evs.map((e) => renderEvent(e, g)).join("")}
@@ -833,11 +844,12 @@ function renderCol(day, g) {
    (semanas como filas, dias de semana como columnas). Nada de role=grid. */
 function renderMonth() {
   const filas = semanasDelMes();
+  const cols = colsDelMes();
   const evsDe = (d) => EVENTS.filter((e) => e.day === d - 15 && !oculto(e)).sort((a, b) => a.min - b.min);
-  return `<div class="meswrap" role="region" aria-label="Septiembre de 2026, de lunes a viernes">
+  return `<div class="meswrap" role="region" aria-label="Septiembre de 2026, de lunes a ${HIDDEN_WEEKEND ? "viernes" : "domingo"}">
     <table class="mes">
-      <caption class="sr-only">Septiembre de 2026. Se muestran los días de lunes a viernes.</caption>
-      <thead><tr>${MES.cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
+      <caption class="sr-only">Septiembre de 2026. Se muestran los días de lunes a ${HIDDEN_WEEKEND ? "viernes" : "domingo"}.</caption>
+      <thead><tr>${cols.map((c) => `<th scope="col">${c}</th>`).join("")}</tr></thead>
       <tbody>${filas.map((semana) => `<tr>
         ${semana.map((d) => {
           const evs = evsDe(d);
@@ -852,7 +864,7 @@ function renderMonth() {
             ${evs.length > 3 ? `<button class="mmas" data-ver-lista>+${evs.length - 3} más</button>` : ""}
           </td>`;
         }).join("")}
-        ${Array.from({ length: 5 - semana.length }, () => '<td class="mcell vacia" aria-hidden="true"></td>').join("")}
+        ${Array.from({ length: cols.length - semana.length }, () => '<td class="mcell vacia" aria-hidden="true"></td>').join("")}
       </tr>`).join("")}</tbody>
     </table>
   </div>`;
@@ -863,30 +875,31 @@ function renderMonth() {
    compuesto APG: un solo tab stop (roving tabindex), flechas adentro y cada fila
    abre el MISMO menú que un bloque de la grilla. */
 function renderList() {
-  const filas = DAYS.map((_, i) =>
-    EVENTS.filter((e) => e.day === i && !oculto(e)).sort((a, b) => a.min - b.min));
+  const visibles = diasVisibles();
+  const filas = visibles.map((dia) =>
+    EVENTS.filter((e) => e.day === dia && !oculto(e)).sort((a, b) => a.min - b.min));
   const plano = filas.flat();
   // La fila tabbable es la que el usuario dejó enfocada; si desapareció (se ocultó
   // su agenda, se borró), recae en la primera fila visible.
   ROVING = ROVING && plano.includes(ROVING) ? ROVING : (plano[0] || null);
   return `<div class="lista" id="grilla" role="region" aria-label="Lista de reuniones de la semana" tabindex="-1">${
-    DAYS.map((_, i) => {
+    visibles.map((dia, i) => {
       const evs = filas[i];
-      const id = `ldia-${i}`;
-      return `<section class="ldia" aria-labelledby="${id}"${i === 1 ? ' data-today=""' : ""}>
+      const id = `ldia-${dia}`;
+      return `<section class="ldia" aria-labelledby="${id}"${dia === 1 ? ' data-today=""' : ""}>
         <h3 class="ldia-h" id="${id}">
-          <span class="ldia-n">${DIAS_LARGOS[i]} de septiembre</span>
+          <span class="ldia-n">${DIAS_LARGOS[dia]} de septiembre</span>
           <span class="ldia-c">${evs.length ? `${evs.length} reunión${evs.length > 1 ? "es" : ""}` : "sin reuniones"}</span>
         </h3>
         <div class="ldia-cuerpo">
-          <button class="ldia-nueva btn" data-nueva-dia="${i}">Nueva reunión</button>
+          <button class="ldia-nueva btn" data-nueva-dia="${dia}">Nueva reunión</button>
           ${evs.length
           ? `<ul class="levs">${evs.map((e) => {
               const abierto = MENU && MENU.i === EVENTS.indexOf(e);
               return `<li>
               <button class="lev${e.busy ? " busy" : ""}" data-i="${EVENTS.indexOf(e)}" tabindex="${e === ROVING ? "0" : "-1"}"${e.busy ? " data-busy" : ""}
                 title="${e.title} · ${fmt(e.min)} – ${fmt(e.min + e.dur)}"${e.busy ? "" : ` aria-haspopup="menu" aria-expanded="${abierto ? "true" : "false"}"`}
-                aria-label="${DIAS_LARGOS[i]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
+                aria-label="${DIAS_LARGOS[dia]} de septiembre, ${fmt(e.min)} a ${fmt(e.min + e.dur)}, ${e.title}${e.cat ? `, ${cat(e.cat).label}` : ""}${e.busy ? ", importado de Google" : ""}${e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""}">
                 <span class="lev-h">${fmt(e.min)} – ${fmt(e.min + e.dur)}</span>
                 <span class="lev-t">${e.title}</span>
                 ${e.cat && !e.busy ? `<span class="lev-c"><i style="background:${cat(e.cat).color}"></i>${cat(e.cat).label}</span>` : ""}
@@ -1210,12 +1223,13 @@ function moverEvento(i, deltaMin) {
   nudgeEvento(i);
 }
 
-// Ctrl+Alt+←/→: ±1 día, acotado a la ventana Lun–Vie.
+// Ctrl+Alt+←/→: ±1 día, acotado a la ventana VISIBLE (Lun–Dom, o Lun–Vie con el
+// fin de semana apagado). El paso alcanza el sábado y el domingo por defecto.
 function moverEventoDia(i, deltaDias) {
   const e = EVENTS[i];
   if (!e) return;
   const dia = e.day + deltaDias;
-  if (dia < 0 || dia >= DAYS.length) {
+  if (!diasVisibles().includes(dia)) {
     announce(`${e.title} ya está en el borde de la semana`);
     return;
   }
@@ -1335,8 +1349,10 @@ function renderMover() {
     const ok = pasoPermitido(Number(p));
     return `<button type="button" data-paso="${p}" aria-label="${label}" aria-disabled="${!ok}" ${ok ? "" : "disabled"}>${label}</button>`;
   }).join("");
-  // Los cinco destinos SON la ventana Lun-Vie: no hay destino fuera de rango que deshabilitar.
-  const dias = DAYS.map((d, i) => {
+  // Los destinos visibles SON la ventana (Lun–Dom, o Lun–Vie si el fin de semana
+  // está apagado): no hay destino fuera de rango que deshabilitar.
+  const dias = diasVisibles().map((i) => {
+    const d = DAYS[i];
     const on = i === MOVER.dia;
     return `<button type="button" data-dia="${i}" class="${on ? "on" : ""}" aria-pressed="${on}" aria-disabled="false" aria-label="${DIAS_LARGOS[i]} de septiembre">${d}</button>`;
   }).join("");
@@ -1479,8 +1495,9 @@ function renderDur() {
 
 function render() {
   const g = geom();
-  const visibles = EVENTS.filter((e) => !oculto(e));
-  const shown = EVENTS.filter((e) => !e.busy && !oculto(e));
+  const vd = diasVisibles();
+  const visibles = EVENTS.filter((e) => !oculto(e) && vd.includes(e.day));
+  const shown = EVENTS.filter((e) => !e.busy && !oculto(e) && vd.includes(e.day));
   const total = shown.length;
   const pendientes = shown.filter((e) => e.sync && e.sync !== "ok").length;
   const now = 15 * 60 + 42;
@@ -1519,6 +1536,14 @@ function render() {
         </button>`).join("")}
       </div>
       <div>
+        <h2 class="block-title">Semana</h2>
+        <button class="cal" data-weekend ${HIDDEN_WEEKEND ? "data-off" : ""} aria-pressed="${!HIDDEN_WEEKEND}">
+          <span class="dot" style="background:var(--fg-faint)"></span>
+          <span class="name">Fin de semana</span>
+          <span class="count">${EVENTS.filter((e) => e.day >= FIN_DE_SEMANA).length}</span>
+        </button>
+      </div>
+      <div>
         <h2 class="block-title">Buscador</h2>
         <input class="btn" style="width:100%;text-align:left;color:var(--fg-dim)" value="Buscar…  ⌘\u00a0K" readonly aria-label="Buscar reuniones" name="q" autocomplete="off">
       </div>
@@ -1526,7 +1551,7 @@ function render() {
 
     <main>
       <div class="topbar">
-        <h1 class="rangetitle">${VIEW === "mes" ? "Septiembre" : "15 – 19 de septiembre"}</h1>
+        <h1 class="rangetitle">${VIEW === "mes" ? "Septiembre" : `${DAYS[vd[0]].split(" ")[1]} – ${DAYS[vd[vd.length - 1]].split(" ")[1]} de septiembre`}</h1>
         <span class="rangecount">${VIEW === "mes" ? `${MES.dias} días` : windowChip} · ${total} reuniones${pendientes ? ` · ${pendientes} sin sincronizar` : ""}</span>
         <span class="right">
           <div class="seg" role="group" aria-label="Vista">
@@ -1544,15 +1569,15 @@ function render() {
           <button class="btn primary" data-nueva title="Nueva reunión en la hora actual (N)">Nueva reunión</button>
         </span>
       </div>
-      ${VIEW === "mes" ? renderMonth() : VIEW === "lista" ? renderList() : `<div class="gridwrap" tabindex="0" role="region" aria-label="Agenda de la semana del 15 al 19 de septiembre">
-        <div class="heads">
-          ${VARIANT === "flujo" ? '<div class="colhead"></div>' : '<div class="colhead"></div>'}
-          ${DAYS.map((d, i) => `<div class="colhead${i === 1 ? " today" : ""}">
-            <span class="dow">${d.split(" ")[0]}</span><span class="dom">${d.split(" ")[1]}</span></div>`).join("")}
+      ${VIEW === "mes" ? renderMonth() : VIEW === "lista" ? renderList() : `<div class="gridwrap" tabindex="0" role="region" aria-label="Agenda de la semana del ${DAYS[vd[0]].split(" ")[1]} al ${DAYS[vd[vd.length - 1]].split(" ")[1]} de septiembre">
+        <div class="heads" style="grid-template-columns:52px repeat(${vd.length}, 1fr)">
+          <div class="colhead"></div>
+          ${vd.map((i) => `<div class="colhead${i === 1 ? " today" : ""}${i >= FIN_DE_SEMANA ? " weekend" : ""}">
+            <span class="dow">${DAYS[i].split(" ")[0]}</span><span class="dom">${DAYS[i].split(" ")[1]}</span></div>`).join("")}
         </div>
-        <div class="days" id="grilla" tabindex="-1">
+        <div class="days" id="grilla" tabindex="-1" style="grid-template-columns:52px repeat(${vd.length}, 1fr)">
           ${gutter}
-          ${DAYS.map((_, i) => renderCol(i, g)).join("")}
+          ${vd.map((i) => renderCol(i, g)).join("")}
           ${bandOverlay(g)}
           ${visibles.length === 0 ? `<div class="grid-empty">
             <p class="ge-t">No hay reuniones para mostrar</p>
@@ -1573,7 +1598,7 @@ function render() {
           ${["L", "M", "M", "J", "V", "S", "D"].map((x) => `<span class="h">${x}</span>`).join("")}
           ${Array.from({ length: 35 }, (_, i) => {
             const d = i - 0;
-            const isRange = d >= 15 && d <= 19, isToday = d === 16, hasEv = d >= 15 && d <= 19 && d % 2 === 0;
+            const isRange = d >= 15 && d <= 21, isToday = d === 16, hasEv = d >= 15 && d <= 21 && d % 2 === 0;
             return `<span class="${isRange ? "inrange " : ""}${isToday ? "today " : ""}${hasEv ? "has-ev" : ""}">${d < 1 || d > 30 ? "" : d}</span>`;
           }).join("")}
         </div>
@@ -1936,6 +1961,13 @@ stage.addEventListener("click", (ev) => {
     const on = document.querySelector(".shell").getAttribute("data-mini") === "off";
     document.querySelector(".shell").setAttribute("data-mini", on ? "on" : "off");
     mt.setAttribute("aria-pressed", String(!on));
+    LAST_FIT = 0;
+    mount(current);
+    return;
+  }
+  const wk = ev.target.closest(".cal[data-weekend]");
+  if (wk) {
+    HIDDEN_WEEKEND = !HIDDEN_WEEKEND;
     LAST_FIT = 0;
     mount(current);
     return;

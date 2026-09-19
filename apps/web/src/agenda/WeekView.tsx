@@ -523,7 +523,12 @@ export default function WeekView({
   return (
     <>
       {hasAllDay ? (
-        <div className={styles.agxAllday} role="group" aria-label="Reuniones de todo el día">
+        <div
+          className={styles.agxAllday}
+          role="group"
+          aria-label="Reuniones de todo el día"
+          style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}
+        >
           <div className={styles.agxAlldayLab} aria-hidden="true">
             Todo el día
           </div>
@@ -543,7 +548,12 @@ export default function WeekView({
       ) : null}
 
       {hasTasks ? (
-        <div className={taskStyles.agxTasks} role="group" aria-label="Tareas de la semana">
+        <div
+          className={taskStyles.agxTasks}
+          role="group"
+          aria-label="Tareas de la semana"
+          style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}
+        >
           <div className={taskStyles.agxTasksLab} aria-hidden="true">
             Tareas
           </div>
@@ -589,12 +599,20 @@ export default function WeekView({
         }}
         onKeyDown={onGridKeyDown}
       >
-        <div className={styles.agxHeads} ref={headsRef}>
+        <div
+          className={styles.agxHeads}
+          ref={headsRef}
+          style={{ gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}
+        >
           <div className={styles.agxColhead} aria-hidden="true" />
           {days.map((date) => {
             const today = sameDay(date, now);
+            const weekend = weekdayIndex(date) >= 5;
             return (
-              <div className={`${styles.agxColhead}${today ? ` ${styles.today}` : ""}`} key={ymd(date)}>
+              <div
+                className={`${styles.agxColhead}${weekend ? ` ${styles.weekend}` : ""}${today ? ` ${styles.today}` : ""}`}
+                key={ymd(date)}
+              >
                 <span className={styles.agxDow}>{DOW_SHORT[weekdayIndex(date)]}</span>
                 <span className={styles.agxDom}>{date.getDate()}</span>
               </div>
@@ -602,7 +620,10 @@ export default function WeekView({
           })}
         </div>
 
-        <div className={styles.agxDays} style={{ height: gridH }}>
+        <div
+          className={styles.agxDays}
+          style={{ height: gridH, gridTemplateColumns: `52px repeat(${days.length}, 1fr)` }}
+        >
           <div className={styles.agxGutter} aria-hidden="true" style={{ height: gridH }}>
             {HOUR_LIST.map((h) => {
               const transform =
@@ -621,9 +642,10 @@ export default function WeekView({
 
           {days.map((date, dayIdx) => {
             const today = sameDay(date, now);
+            const weekend = weekdayIndex(date) >= 5;
             return (
               <div
-                className={`${styles.agxCol}${today ? ` ${styles.today}` : ""}`}
+                className={`${styles.agxCol}${weekend ? ` ${styles.weekend}` : ""}${today ? ` ${styles.today}` : ""}`}
                 key={ymd(date)}
                 data-day={dayIdx}
                 onPointerDown={(e) => onColPointerDown(e, dayIdx)}

@@ -114,14 +114,14 @@ try {
   assert("Amplio agranda la grilla", altoAmplio2 > altoCompacto, `${altoAmplio2} > ${altoCompacto}`);
 
   // ── 3. Datos reales: la grilla coincide con la API y trae categoría ──
-  // Rango de la ventana Semana = lunes..viernes de la semana en curso. El fin que
-  // usa la app es el sábado (fin exclusivo), igual que `rangeEnd` de Agenda.tsx.
+  // Rango de la ventana Semana = lunes..domingo de la semana en curso. El fin que
+  // usa la app es el lunes siguiente (fin exclusivo), igual que `rangeEnd` de Agenda.tsx.
   const semana = await page.evaluate(() => {
     const d = new Date();
     const lunes = new Date(d);
     lunes.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     const sabado = new Date(lunes);
-    sabado.setDate(lunes.getDate() + 5);
+    sabado.setDate(lunes.getDate() + 7);
     const ymd = (x) =>
       `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
     return { start: ymd(lunes), end: ymd(sabado) };
@@ -254,7 +254,7 @@ try {
     const lunes = new Date(d);
     lunes.setDate(d.getDate() - ((d.getDay() + 6) % 7));
     const sabado = new Date(lunes);
-    sabado.setDate(lunes.getDate() + 5);
+    sabado.setDate(lunes.getDate() + 7);
     const ymd = (x) =>
       `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
     return { start: ymd(lunes), end: ymd(sabado) };

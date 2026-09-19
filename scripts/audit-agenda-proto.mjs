@@ -48,13 +48,23 @@ for (const vp of VIEWPORTS) {
       // ahi el titulo completo NO puede entrar y ninguna referencia lo resuelve
       // (Google trunca, FullCalendar deja tapar hasta la mitad). Lo exigible es que
       // el titulo completo sea RECUPERABLE (atributo title / detalle al hacer click).
+      // Con la semana de siete dias hay mas columnas y menos ancho: los bloques
+      // comprimidos por ALTO (compact/tiny/densa) caen en el mismo caso —el titulo
+      // completo no entra en una linea a 1280— y su contrato es el mismo: recuperable.
       const angostos = new Set([...document.querySelectorAll(".ev[data-narrow]")]);
+      const comprimidos = new Set([
+        ...document.querySelectorAll(".ev[data-compact], .ev[data-tiny], .ev[data-densa]"),
+      ]);
       const recuperable = (e) => (e.getAttribute("title") || "").length > 0;
       const irrecuperables = [...angostos].filter((e) => !recuperable(e));
       if (irrecuperables.length) out.viol.push(`${irrecuperables.length} bloques angostos sin titulo recuperable`);
+      const comprimidosSinTitulo = [...comprimidos].filter((e) => !recuperable(e));
+      if (comprimidosSinTitulo.length) out.viol.push(`${comprimidosSinTitulo.length} bloques comprimidos sin titulo recuperable`);
 
-      // fuera de los angostos, el titulo debe ser identificable (menos de 10 caracteres visibles)
-      out.titlesUnreadable = info.filter((i) => !i.full && i.vis < 10 && !angostos.has(i.el)).map((i) => `${i.txt.slice(0, 18)}(${i.vis})`);
+      // fuera de los angostos/comprimidos, el titulo debe ser identificable (menos de 10 caracteres visibles)
+      out.titlesUnreadable = info
+        .filter((i) => !i.full && i.vis < 10 && !angostos.has(i.el) && !(comprimidos.has(i.el) && recuperable(i.el)))
+        .map((i) => `${i.txt.slice(0, 18)}(${i.vis})`);
       if (out.titlesUnreadable.length) out.viol.push(`titulos ilegibles: ${out.titlesUnreadable.length}/${out.events}`);
 
       // 2. tiempo ausente o no visible
@@ -316,8 +326,8 @@ for (const r of all) {
 console.log("════════ VISTA LISTA (alternativa accesible) ════════");
 {
   const v = [];
-  if (lista.secciones !== 5) v.push(`secciones ${lista.secciones} (esperado 5)`);
-  if (lista.conHeading !== 5) v.push(`secciones con heading ${lista.conHeading}/5`);
+  if (lista.secciones !== 7) v.push(`secciones ${lista.secciones} (esperado 7)`);
+  if (lista.conHeading !== 7) v.push(`secciones con heading ${lista.conHeading}/7`);
   if (lista.grilla) v.push("la grilla sigue en el DOM");
   if (lista.densidad) v.push("control de densidad visible en la lista");
   if (lista.nombresCompletos !== lista.items) v.push(`nombres accesibles completos ${lista.nombresCompletos}/${lista.items}`);
@@ -357,7 +367,7 @@ console.log("════════ VISTA MES (tabla nativa) ═════�
   const v = [];
   if (mes.falta) v.push("no renderiza la tabla");
   else {
-    if (mes.cols !== 5) v.push(`columnas ${mes.cols} (esperado 5)`);
+    if (mes.cols !== 7) v.push(`columnas ${mes.cols} (esperado 7)`);
     if (mes.celdasPorFila.some((c) => c !== mes.cols)) v.push(`celdas por fila ${mes.celdasPorFila.join("/")} != ${mes.cols} columnas`);
     if (mes.dia1EnColumna !== 0) v.push(`el dia 1 cae en la columna ${mes.dia1EnColumna} (deberia ser 0 = lunes)`);
     if (mes.hoy !== "16") v.push(`hoy marcado como ${mes.hoy}`);
@@ -1109,8 +1119,8 @@ await zp.close();
     if (mvAbierto.modal !== "false") v.push(`aria-modal ${mvAbierto.modal}`);
     if (!mvAbierto.etiquetado) v.push("sin titulo que lo nombre");
     if (JSON.stringify(mvAbierto.pasos) !== JSON.stringify(["-60", "-15", "+15", "+60"])) v.push(`pasos ${mvAbierto.pasos.join(",")}`);
-    if (mvAbierto.dias.length !== 5) v.push(`dias ${mvAbierto.dias.length} (esperado 5)`);
-    if (!mvAbierto.diasEnVentana) v.push("algún destino de día queda fuera de la ventana Lun-Vie o deshabilitado");
+    if (mvAbierto.dias.length !== 7) v.push(`dias ${mvAbierto.dias.length} (esperado 7)`);
+    if (!mvAbierto.diasEnVentana) v.push("algún destino de día queda fuera de la ventana Lun-Dom o deshabilitado");
     if (mvAbierto.diaActual !== antesMv.dia) v.push(`no marca el dia actual (${mvAbierto.diaActual} != ${antesMv.dia})`);
     if (!mvAbierto.horaReal) v.push("el destino no nombra el dia real de la semana");
     if (!mvAbierto.tamano) v.push("hay controles menores a 24x24");
@@ -2728,7 +2738,7 @@ await a4p.close();
     if (!campos.labelCat || !campos.labelDia || !campos.labelNotas) v.push("hay campos sin label asociada por for/id");
     if (JSON.stringify(campos.cats) !== JSON.stringify(campos.esperados)) v.push(`agenda no lista CATS: ${(campos.cats || []).join(",")}`);
     if (JSON.stringify(campos.catsLabel) !== JSON.stringify(campos.labels)) v.push(`agenda no usa los labels de CATS: ${(campos.catsLabel || []).join(",")}`);
-    if (JSON.stringify(campos.dias) !== JSON.stringify(["0", "1", "2", "3", "4"])) v.push(`dia no lista los 5 dias habiles: ${(campos.dias || []).join(",")}`);
+    if (JSON.stringify(campos.dias) !== JSON.stringify(["0", "1", "2", "3", "4", "5", "6"])) v.push(`dia no lista los 7 dias: ${(campos.dias || []).join(",")}`);
     if (JSON.stringify(campos.diasLabel) !== JSON.stringify(campos.diasFuente)) v.push(`dia no usa los labels de DAYS: ${(campos.diasLabel || []).join(",")}`);
     if (!campos.tamano) v.push("hay controles nuevos menores a 24x24");
     for (const [k, r] of [["agenda", campos.contrasteCat], ["día", campos.contrasteDia], ["notas", campos.contrasteNotas]]) {
@@ -2772,6 +2782,63 @@ await a4p.close();
   if (creadoCompleto.anuncio) v.push(`crear anuncio ademas de re-enfocar: "${creadoCompleto.anuncio}"`);
   const mejorContraste = Math.min(...[campos.contrasteCat, campos.contrasteDia, campos.contrasteNotas].map((r) => r ?? 99));
   console.log((v.length ? "  ✗ " : "  ✓ ") + `A11 panel completo · campos agenda/día/notas ${campos.hayCat && campos.hayDia && campos.hayNotas} labels ${campos.labelCat && campos.labelDia && campos.labelNotas} ≥24px ${campos.tamano} contraste ${mejorContraste}:1 · cat ${antesEdit.cat}→${trasEdit.cat} color ${trasEdit.color === trasEdit.colorEsperado} nombre trae "${trasEdit.label}" ${trasEdit.aria.includes(trasEdit.label)} · notas persistidas ${trasEdit.notes === "Llevar propuesta impresa"} fuera del nombre ${!trasEdit.aria.includes("Llevar propuesta impresa")} · día ${diaIns}→${trasDia2.day} grilla col ${trasDia2.colDia} Lista sección ${trasDiaLista.seccion} foco ${trasDia2.focoEnEl} · crear ${JSON.stringify(creadoCompleto.objeto)} forma ${JSON.stringify(creadoCompleto.claves) === JSON.stringify(creadoCompleto.clavesRef)} foco ${creadoCompleto.focoEnEl}`);
+  if (v.length) console.log("    violaciones: " + v.join(" | "));
+}
+// ── Fin de semana: siete columnas por defecto y toggle que lo esconde ──
+const wp = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await wp.goto(`${FILE}?v=3`, { waitUntil: "networkidle" });
+await wp.waitForTimeout(350);
+const semana7 = await wp.evaluate(() => {
+  const cols = [...document.querySelectorAll(".col")];
+  return {
+    cols: cols.length,
+    weekend: cols.filter((c) => c.classList.contains("weekend-col")).length,
+    weekendHeads: document.querySelectorAll(".colhead.weekend").length,
+    nombres: [...document.querySelectorAll(".colhead .dow")].map((e) => e.textContent.trim()),
+  };
+});
+const nudge0 = await wp.evaluate(() => {
+  const el = document.querySelector("#grilla .ev:not([data-busy])");
+  el.focus();
+  return Number(el.dataset.i);
+});
+for (let k = 0; k < 6; k++) {
+  await wp.keyboard.press("Control+Alt+ArrowRight");
+  await wp.waitForTimeout(120);
+}
+const nudgeDia = await wp.evaluate((i) => EVENTS[i]?.day, nudge0);
+await wp.locator(".cal[data-weekend]").click();
+await wp.waitForTimeout(300);
+const semana5 = await wp.evaluate(() => ({
+  cols: document.querySelectorAll(".col").length,
+  weekend: document.querySelectorAll(".col.weekend-col").length,
+  off: document.querySelector(".cal[data-weekend]").hasAttribute("data-off"),
+}));
+await wp.locator(".cal[data-weekend]").click();
+await wp.waitForTimeout(300);
+const semana7b = await wp.evaluate(() => ({
+  cols: document.querySelectorAll(".col").length,
+  pressed: document.querySelector(".cal[data-weekend]").getAttribute("aria-pressed"),
+}));
+await wp.locator('[data-view="mes"]').click();
+await wp.waitForTimeout(400);
+const mes7 = await wp.evaluate(() => document.querySelectorAll(".mes thead th").length);
+await wp.locator('[data-view="lista"]').click();
+await wp.waitForTimeout(400);
+const lista7 = await wp.evaluate(() => document.querySelectorAll(".ldia").length);
+await wp.close();
+{
+  const v = [];
+  if (semana7.cols !== 7) v.push(`semana por defecto ${semana7.cols} columnas (esperado 7)`);
+  if (semana7.weekend !== 2 || semana7.weekendHeads !== 2) v.push(`columnas de fin de semana ${semana7.weekend}/${semana7.weekendHeads} (esperado 2/2)`);
+  const nombres = semana7.nombres.join(",");
+  if (!nombres.includes("Sáb") || !nombres.includes("Dom")) v.push(`encabezados sin Sáb/Dom: ${nombres}`);
+  if (semana5.cols !== 5 || semana5.weekend !== 0 || !semana5.off) v.push(`el toggle no esconde el fin de semana: ${JSON.stringify(semana5)}`);
+  if (semana7b.cols !== 7 || semana7b.pressed !== "true") v.push(`el toggle no restaura: ${JSON.stringify(semana7b)}`);
+  if (mes7 !== 7) v.push(`mes por defecto ${mes7} columnas (esperado 7)`);
+  if (lista7 !== 7) v.push(`lista por defecto ${lista7} secciones (esperado 7)`);
+  if (nudgeDia < 6) v.push(`el nudge no llega al domingo: día ${nudgeDia} (esperado 6)`);
+  console.log((v.length ? "  ✗ " : "  ✓ ") + `fin de semana · semana ${semana7.cols} cols (${semana7.weekend} del finde) · toggle → ${semana5.cols}/${semana7b.cols} · mes ${mes7} · lista ${lista7} · nudge llega al día ${nudgeDia}`);
   if (v.length) console.log("    violaciones: " + v.join(" | "));
 }
 await browser.close();

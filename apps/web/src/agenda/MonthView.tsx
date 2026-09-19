@@ -5,23 +5,41 @@ import { categoryOf } from "./categories";
 import type { AgendaEvent } from "./types";
 import styles from "./MonthView.module.css";
 
-const WEEKDAY_COLS = ["lunes", "martes", "miércoles", "jueves", "viernes"];
+const WEEKDAY_COLS = [
+  "lunes",
+  "martes",
+  "miércoles",
+  "jueves",
+  "viernes",
+  "sábado",
+  "domingo",
+];
 
 interface MonthViewProps {
   anchor: Date;
   events: AgendaEvent[];
   now: Date;
   label: string;
+  /** El fin de semana se muestra por defecto; el toggle de la sidebar lo esconde. */
+  showWeekend: boolean;
   onShowList: () => void;
 }
 
 /**
  * Un mes ES dato tabular: tabla nativa (semanas como filas, días de semana como
- * <th scope="col">). Nada de role="grid". Se muestran sólo los días hábiles,
- * igual que la grilla. Las operaciones sobre eventos en Mes están fuera de
- * alcance: los chips nombran el evento, no ofrecen una acción.
+ * <th scope="col">). Nada de role="grid". Se muestran los siete días; con el
+ * toggle de la sidebar, sólo los hábiles. Las operaciones sobre eventos en Mes
+ * están fuera de alcance: los chips nombran el evento, no ofrecen una acción.
  */
-export default function MonthView({ anchor, events, now, label, onShowList }: MonthViewProps) {
+export default function MonthView({
+  anchor,
+  events,
+  now,
+  label,
+  showWeekend,
+  onShowList,
+}: MonthViewProps) {
+  const cols = showWeekend ? WEEKDAY_COLS : WEEKDAY_COLS.slice(0, 5);
   const rows = useMemo(() => {
     const year = anchor.getFullYear();
     const month = anchor.getMonth();
@@ -30,7 +48,7 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
     let cursor = startOfWeek(new Date(year, month, 1));
     while (cursor <= last) {
       const week: Array<Date | null> = [];
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < cols.length; i++) {
         const d = addDays(cursor, i);
         week.push(d.getMonth() === month ? d : null);
       }
@@ -38,7 +56,7 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
       cursor = addDays(cursor, 7);
     }
     return out;
-  }, [anchor]);
+  }, [anchor, cols.length]);
 
   const eventsOf = (date: Date) =>
     events
@@ -48,10 +66,12 @@ export default function MonthView({ anchor, events, now, label, onShowList }: Mo
   return (
     <div className={styles.agxMeswrap}>
       <table className={styles.agxMes}>
-        <caption className="sr-only">{label}. Se muestran los días de lunes a viernes.</caption>
+        <caption className="sr-only">
+          {label}. Se muestran los días de lunes a {showWeekend ? "domingo" : "viernes"}.
+        </caption>
         <thead>
           <tr>
-            {WEEKDAY_COLS.map((c) => (
+            {cols.map((c) => (
               <th scope="col" key={c}>
                 {c}
               </th>

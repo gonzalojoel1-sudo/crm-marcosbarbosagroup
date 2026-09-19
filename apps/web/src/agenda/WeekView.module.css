@@ -7,7 +7,7 @@
 }
 [data-agenda] .agx-heads {
   display: grid;
-  grid-template-columns: 52px repeat(5, 1fr);
+  grid-template-columns: 52px repeat(7, 1fr);
   position: sticky;
   top: 0;
   z-index: 4;
@@ -45,12 +45,15 @@
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
 }
+[data-agenda] .agx-colhead.weekend .agx-dom {
+  color: var(--fg-dim);
+}
 [data-agenda] .agx-colhead.today .agx-dom {
   color: var(--accent-2);
 }
 [data-agenda] .agx-days {
   display: grid;
-  grid-template-columns: 52px repeat(5, 1fr);
+  grid-template-columns: 52px repeat(7, 1fr);
   position: relative;
 }
 [data-agenda] .agx-gutter {
@@ -74,6 +77,9 @@
 }
 [data-agenda] .agx-col:last-child {
   border-right: 0;
+}
+[data-agenda] .agx-col.weekend {
+  background: var(--weekend-bg);
 }
 [data-agenda] .agx-col.today {
   background: rgba(244, 241, 234, 0.022);
@@ -333,7 +339,7 @@
 /* Fila de todo el día (all_day): franja fija arriba de la grilla. */
 [data-agenda] .agx-allday {
   display: grid;
-  grid-template-columns: 52px repeat(5, 1fr);
+  grid-template-columns: 52px repeat(7, 1fr);
   border-bottom: 1px solid var(--border);
   flex: none;
 }

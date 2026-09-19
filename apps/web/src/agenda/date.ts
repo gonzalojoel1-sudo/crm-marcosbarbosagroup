@@ -79,7 +79,7 @@ export function sameDay(a: Date, b: Date): boolean {
   );
 }
 
-/** 0 = lunes … 6 = domingo (la agenda es una semana Lun–Vie). */
+/** 0 = lunes … 6 = domingo (la agenda es una semana Lun–Dom). */
 export function weekdayIndex(d: Date): number {
   return (d.getDay() + 6) % 7;
 }

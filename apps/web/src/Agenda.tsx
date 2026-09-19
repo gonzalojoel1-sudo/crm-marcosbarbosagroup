@@ -13,6 +13,7 @@ import {
   sameDay,
   startOfDay,
   startOfWeek,
+  weekdayIndex,
   ymd,
 } from "./agenda/date";
 import { END_H, START_H } from "./agenda/geometry";
@@ -59,6 +60,10 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   const [hiddenOrigins, setHiddenOrigins] = useState<Set<string>>(() => new Set());
   // El botón Panel del encabezado pliega el mini-mes (arranca visible).
   const [miniOpen, setMiniOpen] = useState(true);
+  // El fin de semana se muestra SIEMPRE por defecto: una reunión de sábado o
+  // domingo es alcanzable. El toggle de la sidebar permite esconderlo (patrón de
+  // Agendas/Origen) sin que el default pierda eventos.
+  const [showWeekend, setShowWeekend] = useState(true);
   const [panel, setPanel] = useState<PanelContext | null>(null);
   const [menu, setMenu] = useState<{
     event: AgendaEvent;
@@ -102,7 +107,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   const rangeEnd =
     view === "mes"
       ? new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)
-      : addDays(weekStart, 5);
+      : addDays(weekStart, 7);
   const rangeKey = `${ymd(rangeStart)}|${ymd(rangeEnd)}`;
 
   useEffect(() => {
@@ -146,7 +151,17 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
     [data],
   );
 
-  const days = useMemo(() => Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)), [weekStart]);
+  // La semana es Lun–Dom; el toggle sólo recorta la lista de días que se DIBUJAN.
+  // La ventana que se le pide a la API sigue siendo de 7 días: así, al mostrar el
+  // fin de semana, sus eventos ya están cargados y no hay una re-lectura.
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart],
+  );
+  const days = useMemo(
+    () => (showWeekend ? weekDays : weekDays.slice(0, 5)),
+    [weekDays, showWeekend],
+  );
 
   // El predicado del prototipo (`index.html:620`): un evento se oculta por su
   // agenda; si es importado (sin agenda propia), por su origen. Lo importado de
@@ -213,17 +228,24 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
     [days, tasks],
   );
 
-  const weekLabel = `${days[0].getDate()} al ${days[4].getDate()} de ${MON_FULL[days[0].getMonth()]}`;
+  const weekLabel = `${days[0].getDate()} al ${days[days.length - 1].getDate()} de ${MON_FULL[days[0].getMonth()]}`;
   // El prototipo titula el Mes solo con el nombre del mes (`index.html:1525`).
   const title =
-    view === "mes" ? capitalize(MON_FULL[anchor.getMonth()]) : rangeTitle(days[0], days[4]);
+    view === "mes"
+      ? capitalize(MON_FULL[anchor.getMonth()])
+      : rangeTitle(days[0], days[days.length - 1]);
 
   // El prototipo cuenta como "reuniones" solo las que NO son importadas de
   // Google (`shown = EVENTS.filter(e => !e.busy && …)`, `index.html:1479-1480`);
   // las ocupadas no son reuniones de la agenda. El "· N sin sincronizar" mide si
   // nuestra escritura llegó a Google, estado que el modelo no expone: no se
-  // inventa (divergencia declarada en la spec §2/D5).
-  const n = visibleEvents.filter((e) => !e.busy).length;
+  // inventa (divergencia declarada en la spec §2/D5). El conteo respeta lo que
+  // se dibuja: con el fin de semana apagado no cuenta sus reuniones.
+  const shownEvents =
+    view === "mes"
+      ? visibleEvents.filter((e) => showWeekend || weekdayIndex(e.start) < 5)
+      : visibleEvents.filter((e) => days.some((d) => sameDay(d, e.start)));
+  const n = shownEvents.filter((e) => !e.busy).length;
   const windowChip = `${fmtMin(START_H * 60)} – ${fmtMin(END_H * 60)}`;
   const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
   const count =
@@ -737,6 +759,9 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
           hiddenOrigins={hiddenOrigins}
           onToggleCategory={toggleCategory}
           onToggleOrigin={toggleOrigin}
+          showWeekend={showWeekend}
+          weekendCount={events.filter((e) => weekdayIndex(e.start) >= 5).length}
+          onToggleWeekend={() => setShowWeekend((v) => !v)}
         />
 
         <div className={styles.agxMain}>
@@ -797,6 +822,7 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
                 events={visibleEvents}
                 now={now}
                 label={title}
+                showWeekend={showWeekend}
                 onShowList={() => setView("lista")}
               />
             )}
