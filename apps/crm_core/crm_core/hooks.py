@@ -12,7 +12,14 @@ app_email = "ops@marcosbarbosagroup.com"
 app_license = "proprietary"
 
 # Stubs: tareas reales llegan en T6 (scheduler) y T7 (webhooks).
-scheduler_events = {}
+scheduler_events = {
+    # S2: reintenta el push pendiente con backoff exponencial (lee `custom_dirty`).
+    "cron": {
+        "*/5 * * * *": ["crm_core.google_sync.reintentar_pendientes"],
+    },
+    # S2: reconciliación barata (duplicados por id de Google y tombstones sin propagar).
+    "daily_long": ["crm_core.google_sync.reconciliar"],
+}
 
 # El recálculo de saldos (paid_amount / credit_total / outstanding) es un punto único.
 # El camino confiable son los hooks del padre (CRMPago.on_update/after_insert/after_delete);

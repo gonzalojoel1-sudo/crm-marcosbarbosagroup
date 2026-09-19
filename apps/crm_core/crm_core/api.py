@@ -15,7 +15,7 @@ import re
 import frappe
 from frappe.utils import add_days, add_to_date, cint, get_datetime, getdate, nowdate
 
-from crm_core import billing
+from crm_core import billing, google_sync
 
 TASK_FIELDS = ["name", "title", "status", "priority", "due_date"]
 # La reunión vive en `Event`; `custom_crm_lead` es el vínculo con el contacto y
@@ -911,16 +911,39 @@ def insertar_evento_sin_sync(campos):
 
     Nuestros eventos se guardan con `sync_with_google_calendar=0` y sin
     `google_calendar`: los tres hooks nativos salen por su guard, así guardar no
-    puede tirar ni la reunión se pierde en silencio. El push propio (con
-    reintentos y estado visible) es otra fase. El update y el delete pasan por
-    `_neutralizar_sync_evento` / `_sacar_del_sync_antes_de_borrar`.
+    puede tirar ni la reunión se pierde en silencio. Después del commit se encola
+    NUESTRO push (`google_sync.push_event`, S2). Se salta durante migrate/install:
+    los backfills no son cambios del usuario.
     """
     campos = dict(campos)
     campos["sync_with_google_calendar"] = 0
     campos["pulled_from_google_calendar"] = 0
     campos.pop("google_calendar", None)
     campos.pop("google_calendar_event_id", None)
-    return frappe.get_doc({"doctype": "Event", **campos}).insert(ignore_permissions=True)
+    en_migracion = bool(
+        frappe.flags.get("in_migrate")
+        or frappe.flags.get("in_patch")
+        or frappe.flags.get("in_install")
+    )
+    if not en_migracion:
+        campos.update(_campos_sync_pendiente())
+    ev = frappe.get_doc({"doctype": "Event", **campos}).insert(ignore_permissions=True)
+    if not en_migracion:
+        google_sync.encolar_push(ev)
+    return ev
+
+
+def _campos_sync_pendiente():
+    """Valores iniciales del sync para una escritura local (si los campos existen)."""
+    if not frappe.get_meta("Event").get_field("custom_sync_estado"):
+        return {}
+    return {
+        "custom_sync_origin": "crm",
+        "custom_dirty": 1,
+        "custom_sync_estado": google_sync.ESTADO_PENDIENTE,
+        "custom_sync_intentos": 0,
+        "custom_tombstone": 0,
+    }
 
 
 def _neutralizar_sync_evento(doc):
@@ -945,6 +968,16 @@ def _neutralizar_sync_evento(doc):
     """
     doc.sync_with_google_calendar = 0
     doc.google_calendar = None
+    # Marca la edición local como pendiente de push. El pull (S3) usa el origen y
+    # el hash para no re-empujar su propio eco. Una reserva de la web (pulled) la
+    # manda Google: no se marca como pendiente de push.
+    if not cint(doc.get("pulled_from_google_calendar")) and frappe.get_meta("Event").get_field("custom_dirty"):
+        doc.custom_sync_origin = "crm"
+        doc.custom_dirty = 1
+        doc.custom_tombstone = 0
+        doc.custom_sync_estado = google_sync.ESTADO_PENDIENTE
+        doc.custom_sync_intentos = 0
+        doc.custom_sync_error = None
 
 
 def _sacar_del_sync_antes_de_borrar(name):
@@ -1086,6 +1119,9 @@ def update_meeting(name, starts_on, ends_on=None, categoria=None):
         doc.custom_crm_categoria = _categoria(categoria)
     _neutralizar_sync_evento(doc)
     doc.save(ignore_permissions=True)
+    # Una reserva de la web la manda Google (contrato §2): no se re-empuja.
+    if not cint(doc.get("pulled_from_google_calendar")):
+        google_sync.encolar_push(doc)
     return _event_dto(doc, _lead_de(doc))
 
 
@@ -1093,10 +1129,22 @@ def update_meeting(name, starts_on, ends_on=None, categoria=None):
 def delete_meeting(name):
     """Borra la reunión (`Event`). El lead (contacto/historial) NO se toca.
 
+    Si la reunión ya está en Google, se marca con `custom_tombstone` y se encola
+    un worker que **cancela en Google ANTES de borrar local** (S2). Borrar primero
+    y limpiar el link —lo que hacíamos— dejaba el evento vivo en Google y el
+    próximo pull completo lo re-insertaba (resurrección). Sin id remoto no hay
+    nada que cancelar: se borra local como siempre.
+
     Un `CRM Lead` es un contacto: borrarlo se lleva su historial y sus negocios.
     La reunión es un `Event` separado, así que borrarla no lo roza."""
     if not frappe.has_permission("Event", "delete", doc=name):
         frappe.throw("Sin permiso para eliminar esta reunión", frappe.PermissionError)
+
+    remote_id = (frappe.db.get_value("Event", name, "google_calendar_event_id") or "").strip()
+    if remote_id and google_sync.hay_cuenta_push():
+        google_sync.marcar_tombstone(name)
+        google_sync.encolar_borrado(name)
+        return {"ok": True, "pendiente": True}
 
     _sacar_del_sync_antes_de_borrar(name)
     frappe.delete_doc("Event", name, ignore_permissions=True)

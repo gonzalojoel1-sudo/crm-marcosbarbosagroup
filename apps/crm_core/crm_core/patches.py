@@ -37,6 +37,97 @@ CAMPOS_PERSONALIZADOS = {
             "default": "Trabajo",
             "insert_after": "custom_crm_lead",
         },
+        # S1 (sync con Google Calendar): estado por evento. La lista es la de la
+        # spec §4; `custom_sync_estado`/`custom_sync_error`/`custom_sync_intentos`
+        # se incluyen por si el sitio no los tenía (acá no existían en código).
+        # `create_custom_fields` es idempotente: actualiza, no duplica.
+        {
+            "fieldname": "custom_gcal_etag",
+            "label": "Google ETag",
+            "fieldtype": "Data",
+            "insert_after": "custom_crm_categoria",
+            "read_only": 1,
+        },
+        {
+            "fieldname": "custom_gcal_updated",
+            "label": "Google Updated",
+            "fieldtype": "Datetime",
+            "insert_after": "custom_gcal_etag",
+            "read_only": 1,
+        },
+        {
+            "fieldname": "custom_gcal_calendar_id",
+            "label": "Google Calendar Id (remoto)",
+            "fieldtype": "Data",
+            "insert_after": "custom_gcal_updated",
+            "read_only": 1,
+        },
+        {
+            "fieldname": "custom_sync_origin",
+            "label": "Origen del último cambio",
+            "fieldtype": "Select",
+            "options": "crm\ngoogle",
+            "insert_after": "custom_gcal_calendar_id",
+        },
+        {
+            "fieldname": "custom_last_synced_at",
+            "label": "Último sync",
+            "fieldtype": "Datetime",
+            "insert_after": "custom_sync_origin",
+            "read_only": 1,
+        },
+        {
+            "fieldname": "custom_last_synced_local_modified",
+            "label": "Modified local al último sync",
+            "fieldtype": "Datetime",
+            "insert_after": "custom_last_synced_at",
+            "read_only": 1,
+        },
+        {
+            "fieldname": "custom_dirty",
+            "label": "Pendiente de push",
+            "fieldtype": "Check",
+            "default": "0",
+            "insert_after": "custom_last_synced_local_modified",
+        },
+        {
+            "fieldname": "custom_content_hash",
+            "label": "Hash de contenido",
+            "fieldtype": "Data",
+            "insert_after": "custom_dirty",
+            "read_only": 1,
+        },
+        {
+            "fieldname": "custom_tombstone",
+            "label": "Marcado para borrar",
+            "fieldtype": "Check",
+            "default": "0",
+            "insert_after": "custom_content_hash",
+        },
+        {
+            # Debe coincidir con ESTADO_* en `crm_core/google_sync.py`.
+            "fieldname": "custom_sync_estado",
+            "label": "Estado de sync",
+            "fieldtype": "Select",
+            "options": "No aplica\nPendiente\nSincronizada\nFalló\nConflicto",
+            "default": "No aplica",
+            "insert_after": "custom_tombstone",
+        },
+        {
+            "fieldname": "custom_sync_error",
+            "label": "Error de sync",
+            "fieldtype": "Small Text",
+            "insert_after": "custom_sync_estado",
+            "read_only": 1,
+        },
+        {
+            "fieldname": "custom_sync_intentos",
+            "label": "Intentos de sync",
+            "fieldtype": "Int",
+            "default": "0",
+            "insert_after": "custom_sync_error",
+            "read_only": 1,
+        },
     ],
 }
 

@@ -15,3 +15,7 @@ crm_core.patches_f2
 # Categoría de la reunión: crea `Event.custom_crm_categoria` y backfillea el
 # default en los `Event` existentes. Entrada propia por el mismo motivo que F2.
 crm_core.patches_categoria
+# S1 (sync con Google Calendar): crea los Custom Fields de estado por evento y
+# backfillea el estado inicial. Entrada propia: los patches anteriores ya están
+# en `Patch Log` y no se re-ejecutan.
+crm_core.patches_gcal
