@@ -65,8 +65,8 @@ function jsonFixture<T>(info: TestInfo, rel: string): T {
  * de discusión, y el bundle del port ya se sirve inline (no desde blob), así que
  * la ruta intercepta.
  */
-async function mockApi(page: Page, info: TestInfo): Promise<void> {
-  const agenda = jsonFixture<Record<string, unknown>>(info, "apps/web/e2e/fixtures/agenda.json");
+async function mockApi(page: Page, info: TestInfo, fixture: string): Promise<void> {
+  const agenda = jsonFixture<Record<string, unknown>>(info, fixture);
   const handler = async (route: Route) => {
     const url = route.request().url();
     let message: unknown = {};
@@ -115,9 +115,22 @@ async function injectAppChrome(page: Page): Promise<void> {
   );
 }
 
-/** Deja la app con el fixture sembrado, el reloj congelado y las fuentes listas. */
-export async function loadApp(page: Page, info: TestInfo, view: ViewCase): Promise<void> {
-  await mockApi(page, info);
+/** Fixture por defecto: el que usa la comparación visual contra el prototipo. */
+export const FIXTURE_BASE = "apps/web/e2e/fixtures/agenda.json";
+
+/**
+ * Deja la app con el fixture sembrado, el reloj congelado y las fuentes listas.
+ * `fixture` permite sembrar otras formas de la semana (con tareas, con un
+ * evento de todo el día): el fixture por defecto no tiene ninguna de las dos, que
+ * es justo lo que dejó pasar la regresión del grid (ver agenda.layout.spec.ts).
+ */
+export async function loadApp(
+  page: Page,
+  info: TestInfo,
+  view: ViewCase,
+  fixture: string = FIXTURE_BASE,
+): Promise<void> {
+  await mockApi(page, info, fixture);
   // El chrome se oculta ANTES de montar, para que la agenda mida su alto real.
   await injectAppChrome(page);
   await page.clock.setFixedTime(FROZEN_TIME);

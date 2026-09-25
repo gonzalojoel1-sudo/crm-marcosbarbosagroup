@@ -1,4 +1,22 @@
 /* ── Semana ── */
+/* Raíz de la vista semanal. Es UNA sola caja apilada: la banda de todo el día,
+   la banda de tareas y la grilla van una debajo de otra, no una al lado de la
+   otra. Antes `WeekView` devolvía un fragmento y esas tres piezas terminaban
+   como hijas directas de `.agx-content`, que es `flex-direction: row` porque
+   ahí convive la vista con el `EventPanel` lateral. Con tareas en la semana, la
+   banda de tareas (`flex: none`, pistas `52px repeat(7, 1fr)`) medía su ancho
+   intrínseco —2322 px en producción, 7610 px en el fixture de regresión— y se
+   comía la fila: la grilla (`flex: 1`, base 0) quedaba en 0 px de ancho con
+   todos los bloques de reunión ya en el DOM, invisibles. `flex: 1` + `min-width`
+   y `min-height: 0` son los tres que hacen falta para que la caja ocupe la
+   columna y la grilla pueda scrollear adentro. */
+[data-agenda] .agx-week {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 [data-agenda] .agx-gridwrap {
   flex: 1;
   min-height: 0;

@@ -521,7 +521,7 @@ export default function WeekView({
       : "";
 
   return (
-    <>
+    <div className={styles.agxWeek}>
       {hasAllDay ? (
         <div
           className={styles.agxAllday}
@@ -775,6 +775,6 @@ export default function WeekView({
           ) : null}
         </div>
       ) : null}
-    </>
+    </div>
   );
 }

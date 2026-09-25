@@ -1,0 +1,207 @@
+{
+ "_fuente": "regresion 2026-09-25: agenda CON tareas y con un evento de todo el dia. El fixture base (agenda.json) tiene tasks:[] y ningun all_day, que es exactamente el caso donde WeekView devuelve un unico hijo y el bug queda oculto.",
+ "start": "2025-09-15",
+ "end": "2025-09-20",
+ "tasks": [
+  {
+   "name": "TASK-A",
+   "subject": "Preparar propuesta comercial para la Consultora",
+   "due_datetime": "2025-09-16 09:00:00",
+   "priority": "Alta"
+  },
+  {
+   "name": "TASK-B",
+   "subject": "Confirmar sede del ministerial",
+   "due_datetime": "2025-09-17 14:00:00",
+   "priority": "Media"
+  },
+  {
+   "name": "TASK-C",
+   "subject": "Un tarea con un asunto muy largo para forzar el ancho minimo del contenido de la celda y comprobar que la banda no puede empujar la grilla",
+   "due_datetime": "2025-09-18 11:00:00",
+   "priority": "Baja"
+  }
+ ],
+ "events": [
+  {
+   "name": "proto-00",
+   "subject": "Reunión de equipo",
+   "starts_on": "2025-09-15 08:30:00",
+   "ends_on": "2025-09-15 09:15:00",
+   "all_day": false,
+   "categoria": "Trabajo",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-01",
+   "subject": "Constructora Del Sur S.A.",
+   "starts_on": "2025-09-15 10:00:00",
+   "ends_on": "2025-09-15 11:00:00",
+   "all_day": false,
+   "categoria": "Consultora",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-02",
+   "subject": "Revisión de propuesta",
+   "starts_on": "2025-09-15 14:15:00",
+   "ends_on": "2025-09-15 15:00:00",
+   "all_day": false,
+   "categoria": "Software",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-03",
+   "subject": "Ocupado",
+   "starts_on": "2025-09-15 16:00:00",
+   "ends_on": "2025-09-15 17:30:00",
+   "all_day": false,
+   "categoria": "",
+   "origin": "Google",
+   "busy": true
+  },
+  {
+   "name": "proto-04",
+   "subject": "Llamada: Oscar Vera",
+   "starts_on": "2025-09-16 09:00:00",
+   "ends_on": "2025-09-16 09:30:00",
+   "all_day": false,
+   "categoria": "Consultora",
+   "origin": "Reserva web",
+   "busy": false
+  },
+  {
+   "name": "proto-05",
+   "subject": "Ministerial · Cuerpo de Cristo",
+   "starts_on": "2025-09-16 11:30:00",
+   "ends_on": "2025-09-16 12:30:00",
+   "all_day": false,
+   "categoria": "Ministerial",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-06",
+   "subject": "Block: trabajo profundo",
+   "starts_on": "2025-09-16 15:00:00",
+   "ends_on": "2025-09-16 17:00:00",
+   "all_day": false,
+   "categoria": "Personal",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-07",
+   "subject": "Reunión de socios",
+   "starts_on": "2025-09-16 09:00:00",
+   "ends_on": "2025-09-16 10:00:00",
+   "all_day": false,
+   "categoria": "Consultora",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-08",
+   "subject": "Llamada: Estudio Norte",
+   "starts_on": "2025-09-16 09:15:00",
+   "ends_on": "2025-09-16 10:00:00",
+   "all_day": false,
+   "categoria": "Ministerial",
+   "origin": "Reserva web",
+   "busy": false
+  },
+  {
+   "name": "proto-09",
+   "subject": "Cuerpo de Cristo",
+   "starts_on": "2025-09-17 08:00:00",
+   "ends_on": "2025-09-17 09:00:00",
+   "all_day": false,
+   "categoria": "Ministerial",
+   "origin": "Google",
+   "busy": true
+  },
+  {
+   "name": "proto-10",
+   "subject": "Almuerzo con Marcos",
+   "starts_on": "2025-09-17 12:30:00",
+   "ends_on": "2025-09-17 13:15:00",
+   "all_day": false,
+   "categoria": "Personal",
+   "origin": "Google",
+   "busy": true
+  },
+  {
+   "name": "proto-11",
+   "subject": "Jonatan · Plan 3",
+   "starts_on": "2025-09-17 17:00:00",
+   "ends_on": "2025-09-17 18:00:00",
+   "all_day": false,
+   "categoria": "Consultora",
+   "origin": "Reserva web",
+   "busy": false
+  },
+  {
+   "name": "proto-12",
+   "subject": "Seguimiento semanal",
+   "starts_on": "2025-09-18 10:00:00",
+   "ends_on": "2025-09-18 10:30:00",
+   "all_day": false,
+   "categoria": "Trabajo",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-13",
+   "subject": "Taller: Software y Apps",
+   "starts_on": "2025-09-18 13:15:00",
+   "ends_on": "2025-09-18 14:45:00",
+   "all_day": false,
+   "categoria": "Software",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-14",
+   "subject": "Fernando Bustos · Plan 1",
+   "starts_on": "2025-09-19 09:30:00",
+   "ends_on": "2025-09-19 10:15:00",
+   "all_day": false,
+   "categoria": "Consultora",
+   "origin": "Reserva web",
+   "busy": false
+  },
+  {
+   "name": "proto-15",
+   "subject": "Ministerio · Los 1000 Socios",
+   "starts_on": "2025-09-19 12:00:00",
+   "ends_on": "2025-09-19 13:00:00",
+   "all_day": false,
+   "categoria": "Ministerial",
+   "origin": "CRM",
+   "busy": false
+  },
+  {
+   "name": "proto-16",
+   "subject": "Legendarios · próximas fechas",
+   "starts_on": "2025-09-19 16:30:00",
+   "ends_on": "2025-09-19 17:30:00",
+   "all_day": false,
+   "categoria": "Ministerial",
+   "origin": "Google",
+   "busy": true
+  },
+  {
+   "name": "ALLOW-00",
+   "subject": "Congreso de software (todo el dia)",
+   "starts_on": "2025-09-17 00:00:00",
+   "ends_on": "2025-09-17 00:00:00",
+   "all_day": true,
+   "categoria": "Trabajo",
+   "origin": "CRM",
+   "busy": false
+  }
+ ]
+}
