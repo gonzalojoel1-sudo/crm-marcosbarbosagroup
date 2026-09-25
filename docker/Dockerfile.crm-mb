@@ -47,8 +47,10 @@ RUN printf '/home/frappe/frappe-bench/apps/crm_core\n' \
 
 # Smoke test with the bench venv python. Fails the build if the app is not
 # importable — never ship a broken image.
+# (Validates just the package + api module — doctypes are intentionally
+# archived in _archived_doctypes/ to avoid name collisions with FCRM built-ins.)
 RUN /home/frappe/frappe-bench/env/bin/python -c \
-    "import crm_core, crm_core.mbcrm.doctype.task.task as m; print('crm_core OK:', crm_core.__file__, m.Task)"
+    "import crm_core, crm_core.api; print('crm_core OK:', crm_core.__file__, getattr(crm_core, 'app_name', '?'))"
 
 USER frappe
 WORKDIR /home/frappe/frappe-bench
