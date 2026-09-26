@@ -937,22 +937,4 @@ main() {
   return 0
 }
 
-git_preflight() {
-  local dirty
-  # docs/deploy-log.md se commitea y este script le anexa una línea por deploy,
-  # así que queda sucio por diseño: excluirlo o el segundo deploy nunca pasa.
-  dirty="$(run_read git status --porcelain -- . ':!docs/deploy-log.md' 2>/dev/null || true)"
-  if [ -n "$dirty" ]; then
-    err "el working tree tiene cambios sin commitear; no se puede saber qué se despliega:"
-    printf '%s\n' "$dirty" >&2
-    err "commitealos o stashéalos, y reintentá."
-    if [ "$DRY_RUN" = 1 ]; then
-      warn "dry-run: sigo igual (esto abortaría el deploy real)"
-      return 0
-    fi
-    return 1
-  fi
-  ok "árbol de trabajo limpio (docs/deploy-log.md excluido a propósito)"
-}
-
 main "$@"
