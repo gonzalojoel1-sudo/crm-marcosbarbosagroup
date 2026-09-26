@@ -79,11 +79,17 @@
 [data-agenda] .agx-lev:hover {
   background: var(--surface-2);
 }
-/* Importado de Google: de solo lectura (`index.html:320`). La sombra `inset` del
-   prototipo no está permitida por D1; se usa borde con el mismo token. */
+/* Importado de Google: de solo lectura (`index.html:320`). El borde es el
+   `box-shadow: inset` del prototipo (`index.html:329`), NO un `border`: un borde
+   de 1 px en las cuatro sides suma 2 px de alto y 2 px de ancho a la fila, y como
+   el ancho de la lista es shrink-to-fit (lo fija la fila más ancha del día) eso
+   corría TODAS las filas del día. La razón del recorte —"la sombra inset del
+   prototipo no está permitida por D1"— era falsa: `.stylelintrc.cjs` lista
+   `inset 0 0 0 1px var(--border)` entre las sombras sin token, así que la sombra
+   del prototipo siempre estuvo permitida. */
 [data-agenda] .agx-lev.busy {
   background: transparent;
-  border: 1px solid var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
   cursor: default;
 }
 [data-agenda] .agx-lev-h {
@@ -111,9 +117,14 @@
   flex: none;
 }
 [data-agenda] .agx-lev-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+  /* 8×8 con radio 3, que es el `.lev-c i` del prototipo (`index.html:328`). La
+     app tenía 7×7 redondeado (copiado del punto del Mes, `.mev-d`, que sí es de
+     7): un píxel menos en el punto acortaba 1 px el chip de categoría, y como el
+     ancho de la lista es shrink-to-fit, acortaba 1 px la fila y TODAS las filas
+     del día. */
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
   flex: none;
 }
 [data-agenda] .agx-lvy {
@@ -122,15 +133,21 @@
   color: var(--fg-faint);
 }
 /* "Nueva reunión" por día: objetivo de puntero ≥24×24 (SC 2.5.8). */
+/* El botón "Nueva reunión" de cada día es un `.btn` del prototipo
+   (`index.html:312` + `index.html:889`) con el único extra de
+   `.ldia-nueva { min-height: 24px }` (`index.html:315`). La app lo había hecho con
+   `padding: 5px 10px`, `font-size: 12px` y `color: var(--fg-dim)`: 5.2 px más
+   angosto y 0.74 px más bajo que el del prototipo, y como el alto de la sección lo
+   fija este botón, ese 0.74 se acumulaba en cada día de la lista. */
 [data-agenda] .agx-ldia-nueva {
   min-height: 24px;
-  padding: 5px 10px;
+  padding: 5px 11px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  color: var(--fg-dim);
+  color: var(--fg);
   font: inherit;
-  font-size: 12px;
+  font-size: 12.5px;
   cursor: pointer;
 }
 [data-agenda] .agx-ldia-nueva:hover {
@@ -146,4 +163,16 @@
   [data-agenda] .agx-ldia-h {
     position: static;
   }
+}
+
+/* La pastilla "sin sincronizar" de la fila de la Lista (`index.html:331` y
+   `index.html:907`). No es decorativa: es lo que hace que una reunión que no
+   llegó a Google se distinga de una que sí dentro de la fila. El verde sale de un
+   tono propio (no de `--ok`) porque `--ok` sobre `--surface` da 3.5:1 y este da
+   5.2:1, que es lo que pide el contraste de texto normal. */
+[data-agenda] .agx-lev-p {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #1f9a7e;
+  flex: none;
 }

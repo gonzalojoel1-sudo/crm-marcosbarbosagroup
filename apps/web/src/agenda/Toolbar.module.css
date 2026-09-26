@@ -1,6 +1,11 @@
 [data-agenda] .agx-bar {
   display: flex;
-  align-items: center;
+  /* `baseline` y NO `center`: es lo que declara el `.topbar` del prototipo
+     (`index.html:100`). La diferencia son 2.05 px de alto      (35.39 contra 33.34), y
+     no son cosméticos: la barra separa el padding del shell del `avail` del que
+     se deriva el alto de hora, así que `center` bajaba todo el contenido 2 px y
+     estiraba la grilla un 0.13 % por hora. Lo mide `agenda.fidelity.spec.ts`. */
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 10px;
@@ -9,7 +14,12 @@
 [data-agenda] .agx-bar-left {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  /* 12 px, no 10: es el `gap` del `.topbar` del prototipo (`index.html:100`). Con
+     10 el conteo arrancaba 2 px antes y la comparación visual lo marcaba. El
+     agrupador en sí (`.agx-bar-left`) es una diferencia estructural aceptable: el
+     prototipo deja el título y el conteo como hijos sueltos de la barra y la app
+     los agrupa para poderles dar `align-items: baseline` en bloque. */
+  gap: 12px;
   min-width: 0;
 }
 [data-agenda] .agx-title {
@@ -38,7 +48,6 @@
   flex: none;
 }
 [data-agenda] .agx-seg,
-[data-agenda] .agx-zoom,
 [data-agenda] .agx-pager {
   display: inline-flex;
   gap: 2px;
@@ -47,8 +56,21 @@
   border-radius: 8px;
   padding: 2px;
 }
+/* El control de densidad NO es un clon del selector de vistas. El prototipo los
+   dibuja al revés (`index.html:275-280`): el grupo va sobre `--surface-2` y SIN
+   borde, los botones son de 11 px con `padding: 3px 7px`, y el activo se rellena
+   con `--surface` (no con `--surface-2`). La app lo había armado con los estilos
+   del `.seg`, y eso lo dejaba 25.6 px más ancho —empujando "Hoy" y "Nueva
+   reunión"— y con los colores del activo invertidos. */
+[data-agenda] .agx-zoom {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 2px;
+}
 [data-agenda] .agx-seg button,
-[data-agenda] .agx-zoom button {
+[data-agenda] .agx-pager-btn {
   background: none;
   border: 0;
   color: var(--fg-dim);
@@ -59,9 +81,24 @@
   cursor: pointer;
   min-height: 24px;
 }
-[data-agenda] .agx-seg button.on,
-[data-agenda] .agx-zoom button.on {
+[data-agenda] .agx-zoom button {
+  background: none;
+  border: 0;
+  color: var(--fg-dim);
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 24px;
+}
+[data-agenda] .agx-seg button.on {
   background: var(--surface-2);
+  color: var(--fg);
+}
+[data-agenda] .agx-zoom button.on {
+  background: var(--surface);
   color: var(--fg);
 }
 [data-agenda] .agx-pager-btn {
@@ -80,10 +117,14 @@
   color: var(--fg);
   background: var(--surface-2);
 }
+/* `color: var(--fg)`, NO `--fg-dim`: es el `.btn` del prototipo (`index.html:111`),
+   que no tiene override de color (a diferencia de `.zoomctl button`). Lo mismo
+   para el toggle del panel. Con `--fg-dim` el texto de "Hoy", "Nueva reunión" y
+   "Panel" salía atenuado y la comparación visual lo marcaba. */
 [data-agenda] .agx-today {
   background: var(--surface);
   border: 1px solid var(--border);
-  color: var(--fg-dim);
+  color: var(--fg);
   font: inherit;
   font-size: 12.5px;
   padding: 5px 11px;
@@ -101,7 +142,7 @@
 [data-agenda] .agx-panel-toggle {
   background: var(--surface);
   border: 1px solid var(--border);
-  color: var(--fg-dim);
+  color: var(--fg);
   font: inherit;
   font-size: 12.5px;
   padding: 5px 11px;

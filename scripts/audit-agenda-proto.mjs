@@ -1,4 +1,10 @@
 // Instrumentación del prototipo: mide INVARIANTES y reporta violaciones.
+//
+// OJO, lo que este script NO puede hacer: cargar la app. Mide el PROTOTIPO
+// contra invariantes, así que un drift entre la app y el diseño le es invisible por
+// definición. Para eso están `apps/web/e2e/agenda.visual.spec.ts` (la app contra el
+// golden) y `agenda.fidelity.spec.ts` (la app contra el prototipo, medida y con
+// nombre). Este script sirve para auditar el diseño, no para verificar la app.
 // No arregla nada. Solo evidencia. Uso: node scripts/audit-agenda-proto.mjs
 import { chromium } from "playwright";
 import { pathToFileURL } from "node:url";

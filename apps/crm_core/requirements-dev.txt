@@ -1,0 +1,10 @@
+# Dependencias de la suite OFFLINE (`pytest` pelado, la que corre `npm run test` y
+# el job `python` de CI). Se fijan minor para que el runner sea reproducible.
+#
+# Lo que NO está acá y por qué: `frappe`. Los 8 tests de `crm_core/tests/` (la
+# convención de app de Frappe, que corren con `bench run-tests`) lo necesitan, y
+# `pytest.ini` los deja afuera con `testpaths = tests`. Instalar frappe en un
+# runner sin sitio no los haría pasar: sólo los haría colectar y fallar después,
+# contra un sitio que no existe.
+pytest>=8,<10
+requests>=2.31,<3

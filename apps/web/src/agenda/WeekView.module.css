@@ -18,9 +18,21 @@
   flex-direction: column;
 }
 [data-agenda] .agx-gridwrap {
+  position: relative;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  /* `display: flex; flex-direction: column` es del `.gridwrap` del prototipo
+     (`index.html:128`) y faltaba. Sin él, el `flex: 1` de `.agx-heads` y de
+     `.agx-days` era INERTE: la caja de los días crecía hasta el alto de su
+     contenido (938 px) en vez de encogerse al alto disponible (713 px) con el
+     contenido desbordando. Como el ancla a "ahora" queda CLAMPADA al scroll
+     máximo, esa diferencia de 8 px de contenido se convertía en ~10 px de
+     desplazamiento de todo el grid. `overflow-x: hidden` también faltaba: con
+     `overflow: auto` las dos ejes scrollean y aparece una barra horizontal. */
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
 }
 [data-agenda] .agx-heads {
@@ -73,6 +85,14 @@
   display: grid;
   grid-template-columns: 52px repeat(7, 1fr);
   position: relative;
+  /* `flex: 1; min-height: 0` es del `.days` del prototipo (`index.html:139`) y
+     faltaba acá. Sin esto la caja crecía hasta el alto del contenido (938 px) en
+     vez de encogerse al alto disponible (713 px) con el contenido desbordando: la
+     diferencia de 8 px en el contenido scrolleable se convierte, porque el ancla
+     a "ahora" queda CLAMPADA al scroll máximo, en un desplazamiento de ~10 px de
+     todo el grid. */
+  flex: 1;
+  min-height: 0;
 }
 [data-agenda] .agx-gutter {
   position: sticky;
@@ -432,4 +452,26 @@
 [data-agenda] .agx-empty-btn:hover {
   background: var(--accent-2);
   border-color: var(--accent-2);
+}
+
+/* Punto de sincronización con Google (`index.html:174-177`): 7×7 px, radio
+   completo, 5 px de margen a la izquierda del título. Los tres colores salen de
+   tokens (`--ok`, `--danger`) salvo el "pendiente", que es un `oklch` del
+   prototipo sin token propio. El punto SÓLO existe cuando el estado no es "ok"
+   (lo decide WeekView.tsx, igual que el prototipo). */
+[data-agenda] .agx-ev .agx-sync {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-left: 5px;
+}
+[data-agenda] .agx-ev .agx-sync[data-sync="ok"] {
+  background: var(--ok);
+}
+[data-agenda] .agx-ev .agx-sync[data-sync="pend"] {
+  background: oklch(0.76 0.115 72);
+}
+[data-agenda] .agx-ev .agx-sync[data-sync="fail"] {
+  background: var(--danger);
 }

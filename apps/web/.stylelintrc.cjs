@@ -3,12 +3,16 @@
 // del prototipo YA define un token. Los `px` en sí son legítimos: los tokens son px.
 //
 // EXCEPCIONES (el prototipo NO define token para ellas; están listadas en la spec,
-// D1): #fff, #141417, los rgba de grilla/sombra/hover, los radios
+// D1): #fff, #141417, #1f9a7e, los rgba de grilla/sombra/hover, los radios
 // 3/4/5/6/7/8/9/10/14px, 50% y 999px, y las sombras bespoke del bloque y del foco.
 // No hay excepciones ocultas: lo que no esté acá falla.
 
-// Hex del prototipo sin token (`--display`/paleta no cubren blanco puro ni #141417).
-const HEX_SIN_TOKEN = "/#(?!(?:fff|141417)\\b)[0-9a-f]{3,8}\\b/i";
+// Hex del prototipo sin token (`--display`/paleta no cubren blanco puro ni
+// #141417). `#1f9a7e` es el verde de la pastilla "sin sincronizar" de la Lista:
+// el prototipo lo elige a mano y lo justifica en `index.html:330` — `--ok` sobre
+// `--surface` da 3.5:1 y ese tono da 5.2:1, que es lo que pide el contraste de
+// texto normal. Por eso NO es `--ok` y no puede tokenizarse como tal.
+const HEX_SIN_TOKEN = "/#(?!(?:fff|141417|1f9a7e)\\b)[0-9a-f]{3,8}\\b/i";
 // Colores-función del prototipo sin token. El lookahead deja pasar exactamente
 // estos argumentos; cualquier otro rgb()/rgba()/hsl()/hsla() falla.
 const RGB_SIN_TOKEN = [

@@ -2,8 +2,11 @@
 // Autosuficiente: crea su negocio con ítems, verifica y lo borra.
 // Requiere TOKEN="api_key:api_secret" de Administrator.
 import { chromium } from "playwright";
+import { sinProduccion } from "./lib/no-prod.mjs";
 
-const BASE = "https://crm.marcosbarbosagroup.com";
+// Crea un presupuesto con ítems para poder ver el PDF: el default era producción.
+const BASE = process.env.BASE || "https://crm-test.marcosbarbosagroup.com";
+sinProduccion(BASE, { script: "e2e-pdf-viewer.mjs", queHace: "crear un presupuesto de prueba" });
 const TOKEN = process.env.TOKEN;
 if (!TOKEN) throw new Error("Falta TOKEN=api_key:api_secret");
 

@@ -3,7 +3,6 @@ import { api, type DealDTO, type LeadDTO } from "./api";
 import { leadSourceLabel, stageLabel } from "./labels";
 import {
   IconCalendar,
-  IconChevronRight,
   IconPlus,
   IconReceipt,
   IconTarget,

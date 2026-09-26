@@ -889,7 +889,7 @@ function renderList() {
       return `<section class="ldia" aria-labelledby="${id}"${dia === 1 ? ' data-today=""' : ""}>
         <h3 class="ldia-h" id="${id}">
           <span class="ldia-n">${DIAS_LARGOS[dia]} de septiembre</span>
-          <span class="ldia-c">${evs.length ? `${evs.length} reunión${evs.length > 1 ? "es" : ""}` : "sin reuniones"}</span>
+          <span class="ldia-c">${evs.length ? `${evs.length} ${evs.length > 1 ? "reuniones" : "reunión"}` : "sin reuniones"}</span>
         </h3>
         <div class="ldia-cuerpo">
           <button class="ldia-nueva btn" data-nueva-dia="${dia}">Nueva reunión</button>

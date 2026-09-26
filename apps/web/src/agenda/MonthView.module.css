@@ -79,7 +79,10 @@
 }
 [data-agenda] .agx-mev-h {
   font-family: var(--mono);
-  font-size: 11px;
+  /* 10.5 px, no 11: es el valor del `.mev-h` del prototipo (`index.html:303`). Con
+     11 la hora ocupaba medio píxel más y empujaba el título del chip, que es lo que
+     se veía en la comparación visual. */
+  font-size: 10.5px;
   color: var(--fg-dim);
   flex: none;
 }

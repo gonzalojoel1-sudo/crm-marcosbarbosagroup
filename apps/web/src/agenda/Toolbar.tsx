@@ -87,6 +87,15 @@ export default function Toolbar({
             ))}
           </div>
         ) : null}
+        {/* EXCEPCIÓN CONOCIDA DE FIDELIDAD (2026-09-26): este pager NO existe en
+            el prototipo. `grep -c "pager\|chevron" prototypes/agenda/index.html`
+            da 0: el prototipo no tiene forma de cambiar de período salvo los
+            atajos de teclado. Se conserva porque es una mejora deliberada — con
+            teclado alcanza, con puntero no — y la lista de excepciones del spec de
+            fidelidad lo nombra explícitamente en vez de dejarlo romper en silêncio.
+            Si algún día se saca, el bloque de excepciones de
+            `e2e/agenda.fidelity.spec.ts` (`EXCEPCIONES`) queda con una entrada de
+            más y hay que borrarla ahí también. */}
         <div className={styles.agxPager}>
           <button type="button" className={styles.agxPagerBtn} aria-label="Período anterior" onClick={onPrev}>
             <IconChevronLeft />

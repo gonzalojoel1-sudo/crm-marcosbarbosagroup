@@ -106,7 +106,17 @@ export default function MonthView({
                           <span
                             className={styles.agxMevD}
                             style={{
-                              background: e.busy ? "var(--fg-faint)" : categoryOf(e.category).color,
+                              // El prototipo decide el gris por si el evento TIENE
+                              // categoría, no por si viene de Google:
+                              // `e.cat ? cat(e.cat).color : "var(--fg-faint)"`
+                              // (`index.html:862`). Importado de Google y CON
+                              // categoría es una combinación real (3 de los 4
+                              // `busy` del prototipo la tienen), y con la condición
+                              // en `busy` esos tres puntos salían grises. No lo
+                              // escondía la fixture: antes les ponía `categoria:""`
+                              // a los cuatro, que es lo que el prototipo hace sólo
+                              // con uno.
+                              background: e.category ? categoryOf(e.category).color : "var(--fg-faint)",
                             }}
                             aria-hidden="true"
                           />
