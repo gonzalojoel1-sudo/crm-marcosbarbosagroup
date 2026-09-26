@@ -1,77 +1,53 @@
 #!/usr/bin/env bash
-# build-crm-mb-18.sh — build crm-mb:18 on the VPS host.
+# build-crm-mb-18.sh — RETIRADO. Delegá en scripts/deploy-crm.sh.
 #
-# Why a script: ensures idempotent rollback tags are present BEFORE we replace
-# anything. Run from the repo root on the VPS host (/opt/crm-marcosbarbosagroup).
+# Por qué se borró el contenido (esto es el aviso, no un script que hace nada):
 #
-# Requires: docker installed on host. Repo mounted there. Branch checked out.
+#   El script anterior construía `crm-mb:18` SIN pasar `BASE`, así que el
+#   `ARG BASE=crm-mb:54` default del Dockerfile se usaba: una imagen que NO
+#   existe. Después imprimía unos "next steps" que decían:
+#
+#       sed -i 's|image: crm-mb:17|image: crm-mb:18|g' compose.yaml
+#       docker compose up -d
+#
+#   Producción corre DOCKER SWARM (servicios crm_backend, crm_websocket,
+#   crm_worker, crm_scheduler, crm_frontend), no compose. Si alguien seguía
+#   esos pasos, los 6 servicios del compose pasaban a una imagen inexistente:
+#   caída total del sitio. El comando estaba además documentado como válido en
+#   docs/deploy-log.md, o sea que la receta iba a fallar en producción.
+#
+#   Además: sin `--update-order start-first` y sin rollback transaccional, un
+#   fallo a mitad dejaba el stack mixto (ver el incidente de crm_worker).
+#
+# Lo único que hay que usar es:
+#
+#   bash scripts/deploy-crm.sh <tag> [--migrate]
+#
+# que (a) construye con BASE = la imagen que está CORRIENDO, (b) pasa preflight
+# (disco, salud real del sitio, réplicas, updates pausados), (c) actualiza los 5
+# servicios con start-first, (d) verifica ping 200/pong + la imagen realmente
+# corriendo, (e) corre clear-cache, y (f) si algo falla revierte SOLO los
+# servicios que tocó a la imagen buena persistida.
+#
+# Para NO desplegar (solo compilar y quedarse con la imagen local) no hay script
+# hoy. Si lo necesitás, se agrega con un flag --build-only al deploy script;
+# NO lo improvises con `docker build` pelado: la base tiene que ser la imagen
+# viva (Dokploy poda las que no usa).
+set -Eeuo pipefail
 
-set -euo pipefail
+cat >&2 <<'AVISO'
+════════════════════════════════════════════════════════════════════════
+ docker/build-crm-mb-18.sh ESTÁ RETIRADO. No lo ejecutes.
+ Este script antes pedía `docker compose up -d` + un `sed` de compose.yaml.
+ Producción corre SWARM, no compose: esos pasos mandaban los servicios a una
+ imagen inexistente (caída total).
+ Delegando en scripts/deploy-crm.sh, que sí es el camino soportado.
+════════════════════════════════════════════════════════════════════════
+AVISO
 
-if [[ "$(id -u)" -ne 0 ]]; then
-    echo "must run as root" >&2; exit 1
-fi
-if [[ ! -f compose.yaml ]]; then
-    echo "must run from repo root (compose.yaml missing)" >&2; exit 1
-fi
-
-# Rollback tag — REGARDLESS of whether we proceed
-if ! docker inspect crm-mb:17-pre-crm-core >/dev/null 2>&1; then
-    echo "[1/3] Tagging crm-mb:17 → crm-mb:17-pre-crm-core (rollback anchor)"
-    docker tag crm-mb:17 crm-mb:17-pre-crm-core
-else
-    echo "[1/3] crm-mb:17-pre-crm-core already exists (skip)"
-fi
-
-echo "[2/3] Building crm-mb:18 with crm_core baked"
-docker build \
-    -f docker/Dockerfile.crm-mb \
-    -t crm-mb:18 \
-    .
-
-echo "[3/3] Done. Images now present:"
-docker images | grep -E '^crm-mb ' | sort -k2
-
-cat <<'EOF'
-
-[Next steps, by hand — DO NOT proceed without explicit user OK]
-  # 1) Verify image
-  docker run --rm crm-mb:18 bash -lc "ls /home/frappe/frappe-bench/apps/crm_core | head"
-  docker run --rm crm-mb:18 bash -lc "cd /home/frappe/frappe-bench/apps/crm_core && git log --oneline"
-
-  # 2) Update compose.yaml image tags (6 services)
-  sed -i 's|image: crm-mb:17|image: crm-mb:18|g' /opt/crm-marcosbarbosagroup/compose.yaml
-
-  # 3) Redeploy via docker compose up -d (or Dokploy UI)
-  cd /opt/crm-marcosbarbosagroup && docker compose pull backend 2>/dev/null || true
-  docker compose up -d
-  docker compose ps
-
-  # 4) Create crm-test site (FIRST — never install on prod without testing here)
-  docker exec $(docker ps -qf name=crm_backend.1) bash -lc \
-    "bench new-site crm.marcosbarbosagroup.com.test \
-       --mariadb-user-host-login-scope='%' \
-       --admin-password ${1:-TestAdmin123-PLACEHOLDER} \
-       --no-mariadb-socket"
-  # ↓ Will fail on the prod hostname. Use:
-  docker exec $(docker ps -qf name=crm_backend.1) bash -lc \
-    "bench new-site crm-test \
-       --mariadb-user-host-login-scope='%' \
-       --admin-password ${1:-TestAdmin123-PLACEHOLDER}"
-
-  # 5) Install crm_core on crm-test (NOT prod yet)
-  docker exec $(docker ps -qf name=crm_backend.1) bash -lc \
-    "bench --site crm-test install-app crm_core && bench --site crm-test migrate"
-
-  # 6) Run smoke tests from inside backend
-  docker exec $(docker ps -qf name=crm_backend.1) bash -lc \
-    "cd apps/crm_core && pip install --user -q pytest && \
-     FRAPPE_TEST_BASE=http://localhost:8000/api/method/login \
-     FRAPPE_TEST_ADMIN_PW='<password>' \
-     python3 -m pytest tests/test_rest_smoke.py -v"
-
-  # 7) ONLY if step 6 is GREEN, install on prod
-  docker exec $(docker ps -qf name=crm_backend.1) bash -lc \
-    "bench --site crm.marcosbarbosagroup.com install-app crm_core && \
-     bench --site crm.marcosbarbosagroup.com migrate"
-EOF
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEPLOY="$SCRIPT_DIR/../scripts/deploy-crm.sh"
+[ -f "$DEPLOY" ] || { echo "no encuentro $DEPLOY" >&2; exit 1; }
+TAG="${1:-}"
+shift || true
+exec bash "$DEPLOY" "$TAG" "$@"

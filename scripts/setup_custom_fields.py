@@ -1,5 +1,13 @@
 """Campos personalizados que este proyecto necesita en DocTypes de otros apps.
 
+⚠️  ESTE SCRIPT ES UN SEGUNDO CAMINO AL MISMO SCHEMA. Lo canónico es
+    `crm_core.patches` (apps/crm_core/crm_core/patches.py), que corre con
+    `bench migrate` en el deploy (`scripts/deploy-crm.sh <tag> --migrate`) y en
+    Patch Log. Este archivo hace lo mismo a mano, fuera de Patch Log: si se usa
+    en un sitio, el `bench migrate` de ese sitio puede no volver a correr el
+    patch (ya quedó registrado) y los dos caminos se desincronizan. Para testear,
+    preferí `deploy-crm.sh <tag> --migrate` contra el ambiente de test.
+
 `CRM Lead` y `Event` viven en apps que este proyecto no owns, así que sus campos
 se agregan como Custom Fields — el mismo mecanismo con el que ya viven
 `custom_meeting_datetime`, `custom_event_id` y `custom_descripcion` en el sitio.

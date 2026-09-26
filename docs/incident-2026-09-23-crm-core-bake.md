@@ -169,3 +169,26 @@ docker exec $(docker ps -qf name=crm_backend.1) bash -c \
 # 3. ¿/hoy disponible?
 curl -sk https://crm.marcosbarbosagroup.com/hoy -o /dev/null -w "HTTP %{http_code}\n"
 ```
+
+---
+
+## Actualización 2026-09-26 — los "next steps" de este documento NO se usan más
+
+Este incidente quedó cerrado, pero los comandos que quedaron escritos acá tienen
+dos problemas que ya se corrigieron en otro lado. Si los estás por copiar,
+pará:
+
+1. **`docker/build-crm-mb-18.sh` está RETIRADO** (ver el archivo, que ahora solo
+   delega). La receta que imprimía —`sed -i 's|crm-mb:18|crm-mb:19|g'
+   compose.yaml` + `docker compose up -d`— **mandaría los servicios a una caída
+   total**: producción corre **Docker Swarm**, no compose, y el script tampoco
+   pasaba `BASE` al build (caía al default `crm-mb:54`, que no existe).
+2. **`curl .../hoy` no prueba nada.** Sin sesión devuelve **301 a /login**
+   siempre. Para verificar que el sitio está sano:
+   `curl -sS --max-time 10 -o /dev/null -w '%{http_code}\n' https://crm.marcosbarbosagroup.com/api/method/ping`
+   tiene que dar **200** (body `{"message":"pong"}`).
+
+El camino soportado es `scripts/deploy-crm.sh <tag> [--migrate]`, con preflight,
+`--update-order start-first`, verificación de la imagen realmente corriendo y
+rollback transaccional. Detalle en `docs/runbook-crm-core.md` → "Deploy" y
+"Rollback y recuperación".

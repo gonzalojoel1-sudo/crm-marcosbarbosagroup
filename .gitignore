@@ -1,7 +1,22 @@
 # env
 .env
-.env.local
+.env.*
+!.env.example
 *.log
+
+# secretos / credenciales — NUNCA al repo
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+credentials.json
+token.json
+rclone.conf
+apps/web/.auth.json
+
+# estado del deploy (imagen buena persistida + lock)
+.deploy/
 
 # Node / monorepo
 node_modules/
