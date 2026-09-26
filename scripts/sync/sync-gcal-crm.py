@@ -28,6 +28,13 @@
 # corridas), retry con backoff en 429/5xx (hubo 116 HTTP 500), escritura atómica
 # del estado, y el offset de zona se parsea en vez de truncarse.
 #
+# NOTA sobre `fields=` en las queries del REST de Frappe: v15 hace
+# `json.loads()` del parámetro (apps/frappe/frappe/api/v1.py:13), así que
+# `fields=name` NO sirve y responde 500 con un JSONDecodeError que no dice nada
+# del sync. Tiene que ir el array JSON-encoded: `fields=["name"]`. Lo encontró el
+# dry-run de la v3, no un test: las tres queries se construyen con urllib, así que
+# no hay forma de testearlas sin pegarle al CRM.
+
 # La lógica que decide qué hacer con un evento NO está acá: vive en
 # `gcal_sync_lib.py`, que es pura y testeable.
 import datetime
@@ -133,7 +140,7 @@ class Crm:
         r = api(
             "GET",
             f"{self.base}/api/resource/Event?filters={urllib.parse.quote(filtros)}"
-            f"&fields=name&limit_page_length=1",
+            f"&fields={urllib.parse.quote(json.dumps(['name']))}&limit_page_length=1",
             headers=self.auth,
         )
         return r["data"][0]["name"] if r.get("data") else None
@@ -143,7 +150,7 @@ class Crm:
         r = api(
             "GET",
             f"{self.base}/api/resource/CRM%20Lead?filters={urllib.parse.quote(filtros)}"
-            f"&fields=name&limit_page_length=1",
+            f"&fields={urllib.parse.quote(json.dumps(['name']))}&limit_page_length=1",
             headers=self.auth,
         )
         return r["data"][0]["name"] if r.get("data") else None
@@ -158,7 +165,8 @@ class Crm:
             "GET",
             f"{self.base}/api/resource/Event"
             f"?filters={urllib.parse.quote(json.dumps([['google_calendar_event_id', 'like', 'serie:%']]))}"
-            f"&fields=google_calendar_event_id&limit_page_length=0",
+            f"&fields={urllib.parse.quote(json.dumps(['google_calendar_event_id']))}"
+            f"&limit_page_length=0",
             headers=self.auth,
         )
         return {d.get("google_calendar_event_id") for d in (r.get("data") or [])}
