@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { VIEWS, loadPrototype } from "./helpers/visual";
+import { VIEWS, cajaEstable, loadPrototype } from "./helpers/visual";
 
 /**
  * La GOLDEN sale del prototipo, no de la app: es el diseño aprobado (D3).
@@ -47,8 +47,9 @@ test.describe("golden del prototipo (autoridad del diseno)", () => {
         await loadPrototype(page, testInfo, view);
         const el = page.locator(r.sel);
         expect(await el.count(), `el prototipo no tiene "${r.sel}"`).toBe(1);
-        const caja = await el.boundingBox();
-        if (!caja) throw new Error(`"${r.sel}" no tiene caja`);
+        // La caja tiene que estar QUIETA: si se mueve un subpíxel entre medir y
+        // capturar, el recorte sale corrido y el diff marca píxeles que no cambiaron.
+        const caja = await cajaEstable(el);
         await expect(page).toHaveScreenshot(r.nombre, {
           clip: {
             x: caja.x,

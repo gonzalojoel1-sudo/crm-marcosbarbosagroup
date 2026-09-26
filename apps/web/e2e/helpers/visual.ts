@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { expect, type Page, type Route, type TestInfo } from "@playwright/test";
+import { expect, type Locator, type Page, type Route, type TestInfo } from "@playwright/test";
 import { NEGOCIO_CON_PRESUPUESTO, DETALLE_NEGOCIO } from "./fixtures-negocio";
 
 /**
@@ -286,6 +286,81 @@ async function mockApi(page: Page, info: TestInfo, fixture: string): Promise<Moc
   };
 }
 
+/**
+ * Espera a que las fuentes de marca estén DISPONIBLES, no a que terminen de
+ * cargar.
+ *
+ * `document.fonts.ready` resuelve cuando terminan las cargas que están EN CURSO.
+ * Si el `@font-face` todavía no fue pedido —porque el elemento que lo usa aún no
+ * se pintó, o la hoja de estilos del shell sigue parseando— resuelve al instante
+ * y la captura sale con la tipografía de fallback. Ahí está la causa de que los
+ * goldens fueran intermitentes: `agenda.golden · mes` y `· semana-side` fallaban
+ * una de cada cuatro corridas sin que nada hubiera cambiado.
+ *
+ * `document.fonts.check()` sí obliga: pregunta si la familia puede renderizar el
+ * texto de muestra. Se hace desde el lado del test con `waitForFunction` para no
+ * depender de timers dentro de la página (algunos de estos tests congelan el reloj).
+ */
+const FAMILIAS_MARCA = ["Fraunces", '"JetBrains Mono"', "Outfit"];
+
+export async function esperarFuentes(page: Page): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  try {
+    await page.waitForFunction(
+      (familias: string[]) => familias.every((f) => document.fonts.check(`16px ${f}`)),
+      FAMILIAS_MARCA,
+      { timeout: 15_000 },
+    );
+  } catch {
+    // Si las fuentes no llegan (red caída), avisar en vez de comparar en silencio
+    // contra el fallback: el diff después no dice nada de por qué.
+    const faltan = await page.evaluate(
+      (familias: string[]) => familias.filter((f) => !document.fonts.check(`16px ${f}`)),
+      FAMILIAS_MARCA,
+    );
+    throw new Error(
+      `las fuentes de marca no cargaron: ${faltan.join(", ")}. ` +
+        `La captura compararía la tipografía de fallback contra la del golden.`,
+    );
+  }
+}
+
+/**
+ * La caja de un elemento, pero sólo cuando se dejó de mover.
+ *
+ * Los goldens por región recortan con el `boundingBox()` del elemento. Si entre
+ * esa medición y la captura la caja se mueve un subpíxel —por una fuente que
+ * termina de asentar, un scroll que se corrige— el recorte sale desplazado y el
+ * diff marca píxeles que no cambiaron de diseño. Pasaba con
+ * `agenda-semana-side.png`, una de cada seis corridas.
+ *
+ * Acá se mide hasta que dos lecturas seguidas coincidan (con tolerancia de
+ * subpíxel). Si no se estabiliza, se lanza con las dos últimas cajas en el
+ * mensaje: un recorte que se mueve es un dato, no algo que haya que adivinar.
+ */
+export async function cajaEstable(
+  el: Locator,
+  intentos = 20,
+): Promise<{ x: number; y: number; width: number; height: number }> {
+  let previa: { x: number; y: number; width: number; height: number } | null = null;
+  for (let i = 0; i < intentos; i++) {
+    const caja = await el.boundingBox();
+    if (!caja) throw new Error("el elemento no tiene caja");
+    if (
+      previa &&
+      Math.abs(previa.x - caja.x) < 0.5 &&
+      Math.abs(previa.y - caja.y) < 0.5 &&
+      Math.abs(previa.width - caja.width) < 0.5 &&
+      Math.abs(previa.height - caja.height) < 0.5
+    ) {
+      return caja;
+    }
+    previa = caja;
+    await el.page().waitForTimeout(100);
+  }
+  throw new Error(`la caja no se estabilizó; última medida: ${JSON.stringify(previa)}`);
+}
+
 /** Deja el prototipo listo para capturar (chrome apagado, fuentes cargadas). */
 export async function loadPrototype(page: Page, info: TestInfo, view: ViewCase): Promise<void> {
   await page.clock.setFixedTime(FROZEN_TIME);
@@ -293,7 +368,7 @@ export async function loadPrototype(page: Page, info: TestInfo, view: ViewCase):
   await page.waitForSelector(".shell");
   // Las fuentes son el punto de todo este plan: una captura antes de que carguen
   // compararía el fallback, no el diseño.
-  await page.evaluate(() => document.fonts.ready);
+  await esperarFuentes(page);
   await page.addStyleTag({ content: PROTO_CHROME_CSS });
   await page.waitForTimeout(600);
 }
@@ -354,7 +429,7 @@ export async function loadApp(
   await page.clock.setFixedTime(FROZEN_TIME);
   await page.goto(`/assets/crm_core/web/?view=${view.id}`);
   await page.waitForSelector("[data-agenda]");
-  await page.evaluate(() => document.fonts.ready);
+  await esperarFuentes(page);
   // Deja asentar el scroll a "ahora" y la medición de alto de hora.
   await page.waitForTimeout(800);
   return api;
