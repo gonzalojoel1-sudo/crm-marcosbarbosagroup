@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { expect, type Page, type Route, type TestInfo } from "@playwright/test";
+import { NEGOCIO_CON_PRESUPUESTO, DETALLE_NEGOCIO } from "./fixtures-negocio";
 
 /**
  * "Ahora" del prototipo: `NOW_MIN = 15*60+42` (=15:42) y la semana Lun 15–Vie 19
@@ -90,11 +91,16 @@ export type RespuestaMock =
   | { ok: true; message: unknown }
   | { ok: false; status: number; body: string };
 
+export type LlamadaMock = { metodo: string; body: Record<string, unknown> };
+
 export type MockApi = {
   /** Cambia la respuesta de un método conocido (para exercitar un path de error). */
   set(method: string, r: RespuestaMock): void;
   /** Los métodos que el backend pidió y el mock no conoce. */
   readonly desconocido: string[];
+  /** Toda llamada POST, en orden, con el body que la app mandó. Permite afirmar
+   *  sobre lo que SALIÓ hacia el backend, no solo sobre lo que se ve en pantalla. */
+  readonly llamadas: LlamadaMock[];
 };
 
 /** Respuesta por defecto de cada método conocido. Los de escritura devuelven lo
@@ -114,6 +120,32 @@ const RESPUESTAS_POR_DEFECTO: Record<string, RespuestaMock> = {
   "crm_core.api.delete_meeting": { ok: true, message: { ok: true } },
   "frappe.client.set_value": { ok: true, message: { name: "" } },
   "frappe.client.get_value": { ok: true, message: { description: "" } },
+
+  // ── Negocios y presupuestos ──
+  // El mock de la agenda no conocía ninguno de estos, así que la pestaña
+  // Presupuesto del Negocio era inalcanzable para un test. Se siembra UN negocio
+  // con presupuesto en borrador, que es el estado en el que se edita.
+  "crm_core.api.get_deals": {
+    ok: true,
+    message: {
+      deals: [NEGOCIO_CON_PRESUPUESTO],
+      stages: ["Analisis", "Estrategia", "Implementacion", "Won", "Lost"],
+      leads: [],
+      verticals: ["Consultora Estrategica", "Software"],
+    },
+  },
+  "crm_core.api.get_deal": { ok: true, message: DETALLE_NEGOCIO },
+  "crm_core.api.save_quote": {
+    ok: true,
+    message: { name: "P-2026-00001", version: 1, status: "Borrador" },
+  },
+  "crm_core.api.send_quote": { ok: true, message: { ok: true, status: "Enviado" } },
+  "crm_core.api.accept_quote": { ok: true, message: { ok: true, status: "Aceptado" } },
+  "crm_core.api.reject_quote": { ok: true, message: { ok: true, status: "Rechazado" } },
+  "crm_core.api.new_quote_version": {
+    ok: true,
+    message: { name: "P-2026-00002", version: 2 },
+  },
 };
 
 /**
@@ -129,6 +161,7 @@ async function mockApi(page: Page, info: TestInfo, fixture: string): Promise<Moc
     ...Object.entries(RESPUESTAS_POR_DEFECTO),
   ]);
   const desconocido: string[] = [];
+  const llamadas: LlamadaMock[] = [];
 
   // La agenda vive en memoria y las escrituras la MODIFICAN, como el backend. Sin
   // esto los tests de comportamiento no pueden afirmar nada sobre el resultado de
@@ -194,7 +227,9 @@ async function mockApi(page: Page, info: TestInfo, fixture: string): Promise<Moc
         return { ok: true, message: { ok: true } };
       }
       case "frappe.client.set_value":
-        return { ok: true, message: { name: b.doctype ?? "" } };
+        // El body real es {doctype, name, fieldname, value} y lo que el caller
+        // necesita de vuelta es el `name` del documento, no el doctype.
+        return { ok: true, message: { name: (b.name as string) ?? "" } };
       default:
         return null;
     }
@@ -221,15 +256,21 @@ async function mockApi(page: Page, info: TestInfo, fixture: string): Promise<Moc
     // memoria; si el test la sobreescribió (para probar un error), gana el override.
     const sobreescrito = r !== RESPUESTAS_POR_DEFECTO[metodo];
     let message = r.message;
-    if (!sobreescrito && route.request().method() === "POST") {
+    if (route.request().method() === "POST") {
       let body: Record<string, unknown> = {};
       try {
         body = (route.request().postDataJSON() ?? {}) as Record<string, unknown>;
       } catch {
         body = {};
       }
-      const aplicado = aplicar(metodo, body);
-      if (aplicado) message = aplicado.message;
+      llamadas.push({ metodo, body });
+      if (!sobreescrito) {
+        const aplicado = aplicar(metodo, body);
+        // `aplicar` devuelve `RespuestaMock | null`, que es una unión: la
+        // comprobación de verdad no la angosta a la variante `ok`. Sin este
+        // `in`, TypeScript no puede garantizar que exista `.message`.
+        if (aplicado && aplicado.ok) message = aplicado.message;
+      }
     }
     await route.fulfill({
       status: 200,
@@ -241,6 +282,7 @@ async function mockApi(page: Page, info: TestInfo, fixture: string): Promise<Moc
   return {
     set: (method, respuesta) => void tabla.set(method, respuesta),
     desconocido,
+    llamadas,
   };
 }
 
@@ -297,10 +339,18 @@ export async function loadApp(
   info: TestInfo,
   view: ViewCase,
   fixture: string = FIXTURE_BASE,
+  opciones: { chrome?: boolean } = {},
 ): Promise<MockApi> {
   const api = await mockApi(page, info, fixture);
   // El chrome se oculta ANTES de montar, para que la agenda mida su alto real.
-  await injectAppChrome(page);
+  //
+  // `chrome: false` lo saltea, y hace falta: `APP_INIT_CSS` deja el nav con
+  // `visibility: hidden`, así que con el chrome puesto los botones de la barra
+  // ("Negocios") no son accionables y un test que navegue por la app no puede
+  // hacer clic. La ocultación existe para comparar el subárbol de la agenda
+  // contra el prototipo; un test de comportamiento no compite contra píxeles y
+  // quiere la app entera.
+  if (opciones.chrome !== false) await injectAppChrome(page);
   await page.clock.setFixedTime(FROZEN_TIME);
   await page.goto(`/assets/crm_core/web/?view=${view.id}`);
   await page.waitForSelector("[data-agenda]");

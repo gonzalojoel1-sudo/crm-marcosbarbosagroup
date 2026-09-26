@@ -73,6 +73,10 @@ export type BillingType = "Único" | "Mensual" | "Trimestral" | "Anual";
 export type QuoteStatus = "Borrador" | "Enviado" | "Aceptado" | "Rechazado" | "Vencido" | "Anulado";
 export type IvaMode = "sumar" | "incluido" | "exento";
 
+/** Moneda del presupuesto. El backend acepta cualquiera del DocType `Currency` de
+ *  Frappe; la UI ofrece estas dos porque son las que el PDF rotula. */
+export type QuoteCurrency = "ARS" | "USD";
+
 export interface QuoteItemDTO {
   description: string;
   billing_type: BillingType;

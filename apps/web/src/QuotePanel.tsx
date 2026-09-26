@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { type BillingType, type IvaMode, type QuoteDTO } from "./api";
+import { type BillingType, type IvaMode, type QuoteCurrency, type QuoteDTO } from "./api";
 import { IconPlus, IconReceipt, IconTrash } from "./icons";
+import { MONEDAS, fmtQuoteMoney } from "./quote-money";
 
 const BILLING_TYPES: BillingType[] = ["Único", "Mensual", "Trimestral", "Anual"];
 const IVA_MODES: IvaMode[] = ["sumar", "incluido", "exento"];
@@ -18,8 +19,9 @@ export type EditableKey = "description" | "billing_type" | "qty" | "rate" | "dis
 
 export const EMPTY_ROW: Row = { description: "", billing_type: "Único", qty: "1", rate: "", discount: "" };
 
-const money = (v: number) =>
-  "$" + v.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// El símbolo y los rótulos de la moneda viven en `quote-money.ts`: ver el
+// comentario de ese archivo para por qué no están acá.
+const money = fmtQuoteMoney;
 
 const num = (v: string) => {
   const n = parseFloat(String(v).replace(",", "."));
@@ -56,6 +58,8 @@ export interface QuotePanelProps {
   onDelRow: (i: number) => void;
   onIvaChange: (m: IvaMode) => void;
   onVerticalChange: (v: string) => void;
+  currency: QuoteCurrency;
+  onCurrencyChange: (c: QuoteCurrency) => void;
   onClearError: () => void;
   onView: () => void;
   onSave: () => void;
@@ -82,6 +86,8 @@ export default function QuotePanel({
   onDelRow,
   onIvaChange,
   onVerticalChange,
+  currency: moneda,
+  onCurrencyChange,
   onClearError,
   onView,
   onSave,
@@ -201,6 +207,7 @@ export default function QuotePanel({
                   value={r.description}
                   onChange={(e) => onRowChange(i, "description", e.target.value)}
                   placeholder="Servicio o producto"
+                  aria-label={`Descripción del ítem ${i + 1}`}
                   disabled={!editable}
                 />
                 <select
@@ -219,6 +226,7 @@ export default function QuotePanel({
                   value={r.qty}
                   onChange={(e) => onRowChange(i, "qty", e.target.value)}
                   inputMode="decimal"
+                  aria-label={`Cantidad del ítem ${i + 1}`}
                   disabled={!editable}
                 />
                 <input
@@ -226,6 +234,7 @@ export default function QuotePanel({
                   onChange={(e) => onRowChange(i, "rate", e.target.value)}
                   placeholder="0"
                   inputMode="decimal"
+                  aria-label={`Precio del ítem ${i + 1}`}
                   disabled={!editable}
                 />
                 <input
@@ -233,10 +242,11 @@ export default function QuotePanel({
                   onChange={(e) => onRowChange(i, "discount", e.target.value)}
                   placeholder="0"
                   inputMode="decimal"
+                  aria-label={`Descuento del ítem ${i + 1}`}
                   disabled={!editable}
                 />
                 <span className="quote-amt">
-                  {money(editable ? rowNet(r) : (r.net_amount ?? rowNet(r)))}
+                  {money(editable ? rowNet(r) : (r.net_amount ?? rowNet(r)), moneda)}
                 </span>
                 <button
                   className="icon-btn danger"
@@ -273,6 +283,20 @@ export default function QuotePanel({
                 </button>
               ))}
             </div>
+            <span className="quote-iva-lbl quote-vert-lbl">Moneda</span>
+            <select
+              className="quote-vert"
+              value={moneda}
+              onChange={(e) => onCurrencyChange(e.target.value as QuoteCurrency)}
+              disabled={!editable}
+              aria-label="Moneda"
+            >
+              {MONEDAS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
             <span className="quote-iva-lbl quote-vert-lbl">Vertical</span>
             <select
               className="quote-vert"
@@ -289,23 +313,37 @@ export default function QuotePanel({
               ))}
             </select>
           </div>
+          {/* Un presupuesto en USD a un cliente del exterior no lleva IVA
+              argentino. NO se cambia solo: el IVA es plata e impuestos, y
+              decidirlo por la persona es peor que avisarle. El aviso ofrece el
+              atajo y el segmented control de arriba sigue siendo la fuente. */}
+          {moneda === "USD" && ivaMode !== "exento" && editable ? (
+            <p className="quote-fx-note" role="status">
+              En dólares el IVA argentino suele no aplicar (cliente del exterior,
+              exportación de servicios). Revisá el modo:{" "}
+              <button type="button" className="quote-fx-btn" onClick={() => onIvaChange("exento")}>
+                pasarlo a Exento
+              </button>
+              .
+            </p>
+          ) : null}
           {quote && totals ? (
             <div className="quote-sum">
               {totals.recurring_net > 0 ? (
                 <div className="qs-block rec">
                   <div className="qs-row">
                     <span>Abono mensual (neto)</span>
-                    <span>{money(totals.recurring_net)}</span>
+                    <span>{money(totals.recurring_net, moneda)}</span>
                   </div>
                   {quote.iva_mode !== "exento" ? (
                     <div className="qs-row">
                       <span>IVA 21%{quote.iva_mode === "incluido" ? " (incluido)" : ""}</span>
-                      <span>{money(totals.recurring_iva)}</span>
+                      <span>{money(totals.recurring_iva, moneda)}</span>
                     </div>
                   ) : null}
                   <div className="qs-total">
                     <span>Abono mensual</span>
-                    <strong>{money(totals.recurring_gross)}</strong>
+                    <strong>{money(totals.recurring_gross, moneda)}</strong>
                   </div>
                   {quote.recurring_summary ? (
                     <div className="qs-sub">{quote.recurring_summary}</div>
@@ -316,23 +354,23 @@ export default function QuotePanel({
                 <div className="qs-block once">
                   <div className="qs-row">
                     <span>Inversión inicial (neto)</span>
-                    <span>{money(totals.one_time_net)}</span>
+                    <span>{money(totals.one_time_net, moneda)}</span>
                   </div>
                   {quote.iva_mode !== "exento" ? (
                     <div className="qs-row">
                       <span>IVA 21%{quote.iva_mode === "incluido" ? " (incluido)" : ""}</span>
-                      <span>{money(totals.one_time_iva)}</span>
+                      <span>{money(totals.one_time_iva, moneda)}</span>
                     </div>
                   ) : null}
                   <div className="qs-total">
                     <span>Inversión inicial</span>
-                    <strong>{money(totals.one_time_gross)}</strong>
+                    <strong>{money(totals.one_time_gross, moneda)}</strong>
                   </div>
                 </div>
               ) : null}
               {totals.discount > 0 ? (
                 <div className="quote-discount">
-                  Descuentos aplicados (sobre ambos totales): {money(totals.discount)}
+                  Descuentos aplicados (sobre ambos totales): {money(totals.discount, moneda)}
                 </div>
               ) : null}
             </div>

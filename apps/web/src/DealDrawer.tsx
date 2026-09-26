@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, type DealDetail, type DealInput, type IvaMode, type QuoteDTO } from "./api";
+import {
+  api,
+  type DealDetail,
+  type DealInput,
+  type IvaMode,
+  type QuoteCurrency,
+  type QuoteDTO,
+} from "./api";
 import PdfViewer from "./PdfViewer";
 import QuotePanel, { EMPTY_ROW, itemsFromRows, type EditableKey, type Row } from "./QuotePanel";
 import { stageLabel } from "./labels";
@@ -50,6 +57,7 @@ export default function DealDrawer({
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [ivaMode, setIvaMode] = useState<IvaMode>("sumar");
+  const [currency, setCurrency] = useState<QuoteCurrency>("ARS");
   const [viewer, setViewer] = useState(false);
   const firstRef = useRef<HTMLInputElement>(null);
 
@@ -113,6 +121,8 @@ export default function DealDrawer({
       );
       setIvaMode(q.iva_mode);
       setVertical(q.vertical || "");
+      // `currency` viene del DocType Currency como texto; solo ofrecemos ARS y USD.
+      setCurrency(q.currency === "USD" ? "USD" : "ARS");
     } else {
       setRows([{ ...EMPTY_ROW }]);
       setVertical("");
@@ -135,7 +145,7 @@ export default function DealDrawer({
   const canSaveDetalle = Boolean(dealName) || Boolean(title.trim());
 
   const persistQuote = () =>
-    api.saveQuote(dealName as string, itemsFromRows(filledRows), { ivaMode, vertical });
+    api.saveQuote(dealName as string, itemsFromRows(filledRows), { ivaMode, vertical, currency });
 
   async function saveDetalle() {
     if (!canSaveDetalle || saving) return;
@@ -437,6 +447,8 @@ export default function DealDrawer({
             onAddRow={addRow}
             onDelRow={delRow}
             onIvaChange={setIvaMode}
+            currency={currency}
+            onCurrencyChange={setCurrency}
             onVerticalChange={setVertical}
             onClearError={() => setError(null)}
             onView={viewQuote}
