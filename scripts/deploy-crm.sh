@@ -606,14 +606,19 @@ try:
     rows = frappe.db.sql(
         "SHOW COLUMNS FROM `tabEvent` LIKE %s", ("custom_crm_categoria",)
     )
+    # OJO: `Custom Field` NO tiene columna `disabled` en Frappe v15. Pedirla
+    # levanta un OperationalError (1054), el `frappe.get_all` no devuelve nada y
+    # este check concluía que el schema estaba mal SIEMPRE: bloqueaba todo deploy
+    # con --migrate. La señal de "el campo está vivo" es que el registro exista
+    # (un Custom Field deshabilitado no existe; se borra).
     cfs = frappe.get_all(
         "Custom Field",
         filters={"dt": "Event", "fieldname": "custom_crm_categoria"},
-        fields=["name", "disabled"],
+        fields=["name"],
         ignore_permissions=True,
     )
     col = "si" if rows else "no"
-    cf = "si" if (cfs and not cfs[0].get("disabled")) else "no"
+    cf = "si" if cfs else "no"
     print("MIGRATE_CHECK columna=%s custom_field=%s" % (col, cf))
 finally:
     frappe.destroy()
