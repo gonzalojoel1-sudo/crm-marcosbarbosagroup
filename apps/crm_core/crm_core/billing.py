@@ -25,6 +25,20 @@ INTERVAL_MONTHS = {
 
 INTERVAL_LABELS = {1: "Mensual", 3: "Trimestral", 12: "Anual"}
 
+# Símbolo por moneda. Vive acá y no duplicado en `documents.py` ni en el front:
+# el PDF, la API y la pantalla tienen que decir lo mismo, y tres copias de un
+# `if currency == "USD"` es la forma segura de que dejen de coincidir.
+SYMBOLS = {"USD": "US$", "ARS": "$"}
+
+
+def symbol_for(currency) -> str:
+    """Símbolo de una moneda. Desconocida o vacía -> el del peso.
+
+    El default NO es un error: los importes del resto del documento ya salen con
+    el del peso, y un símbolo raro en una sola línea desincroniza la lectura.
+    """
+    return SYMBOLS.get((currency or "").strip(), "$")
+
 
 def dec(value) -> Decimal:
     """Decimal seguro. Acepta None y ''; nunca pasa por float."""
@@ -104,18 +118,28 @@ def _apply_iva(net: Decimal, iva_mode: str, iva_rate: Decimal) -> tuple:
     return iva, money(net + iva)
 
 
-def _summary(by_interval: dict, iva_mode: str, iva_rate: Decimal) -> str:
-    """Agrupa el abono por intervalo para mostrar. Nunca suma intervalos distintos."""
+def _summary(by_interval: dict, symbol: str = "$") -> str:
+    """Agrupa el abono por intervalo para mostrar. Nunca suma intervalos distintos.
+
+    El símbolo va explícito: con el default de `fmt_money` la leyenda del abono
+    salía con "$" aunque el presupuesto fuera en dólares, al lado de importes que
+    sí decían "US$".
+    """
     parts = []
     for months in (1, 3, 12):
         total = by_interval.get(months)
         if not total:
             continue
-        parts.append(f"{INTERVAL_LABELS[months]} {fmt_money(total)}")
+        parts.append(f"{INTERVAL_LABELS[months]} {fmt_money(total, symbol)}")
     return " · ".join(parts)
 
 
-def quote_totals(items, iva_mode: str = "sumar", iva_rate: Decimal = IVA_RATE) -> dict:
+def quote_totals(
+    items,
+    iva_mode: str = "sumar",
+    iva_rate: Decimal = IVA_RATE,
+    symbol: str = "$",
+) -> dict:
     """Totales de un presupuesto a partir de sus ítems.
 
     items: iterable de dicts con qty, rate, discount_percentage, billing_type.
@@ -158,7 +182,7 @@ def quote_totals(items, iva_mode: str = "sumar", iva_rate: Decimal = IVA_RATE) -
         "total_recurring_monthly_gross": monthly_gross,
         "total_recurring_gross": recurring_gross,
         "discount_total": money(discount_total),
-        "recurring_summary": _summary(by_interval, iva_mode, iva_rate),
+        "recurring_summary": _summary(by_interval, symbol),
         "has_one_time": one_time > 0,
         "has_recurring": recurring > 0,
     }

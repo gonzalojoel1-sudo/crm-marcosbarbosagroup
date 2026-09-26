@@ -7,6 +7,7 @@ from crm_core.billing import (
     line_amounts,
     money,
     quote_totals,
+    symbol_for,
 )
 
 
@@ -129,3 +130,37 @@ def test_presupuesto_mixto_separa_las_dos_bases_de_tiempo():
     assert t["total_one_time"] == Decimal("850000.00")
     assert t["total_recurring_monthly"] == Decimal("210000.00")
     assert t["has_one_time"] and t["has_recurring"]
+
+
+# ── El símbolo del resumen del abono ────────────────────────────────────────
+# Regresión del 2026-09-26: en el PDF de un presupuesto en USD, todos los
+# importes salían con "US$" menos la leyenda del abono, que decía "Mensual $
+# 225.000,00" pelado. Causa: `_summary` llamaba `fmt_money(total)` sin pasar el
+# símbolo, y el default de `fmt_money` es "$". Se vio mirando el PDF, no los
+# tests: los tests de totales pasaban porque comparan números, no el texto.
+
+
+def test_symbol_for_mapea_las_monedas_del_presupuesto():
+    assert symbol_for("USD") == "US$"
+    assert symbol_for("ARS") == "$"
+    # Una moneda desconocida no debe inventar un símbolo raro: el default es el
+    # del peso, que es lo que hacía el resto del documento.
+    assert symbol_for("") == "$"
+    assert symbol_for(None) == "$"
+
+
+def test_el_resumen_del_abono_usa_el_simbolo_de_la_moneda():
+    t = quote_totals([item(1, "250000", 0, "Mensual")], symbol=symbol_for("USD"))
+    assert t["recurring_summary"] == "Mensual US$ 250.000,00"
+
+    t_ars = quote_totals([item(1, "250000", 0, "Mensual")], symbol=symbol_for("ARS"))
+    assert t_ars["recurring_summary"] == "Mensual $ 250.000,00"
+
+
+def test_el_resumen_agrupa_varios_intervalos_con_el_simbolo():
+    t = quote_totals(
+        [item(1, "100000", 0, "Mensual"), item(1, "300000", 0, "Trimestral")],
+        symbol=symbol_for("USD"),
+    )
+    # Los intervalos NO se suman entre sí: cada uno con su conversions y su signo.
+    assert t["recurring_summary"] == "Mensual US$ 100.000,00 · Trimestral US$ 300.000,00"

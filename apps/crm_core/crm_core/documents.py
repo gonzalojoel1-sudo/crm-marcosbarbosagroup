@@ -48,7 +48,7 @@ def quote_context(presupuesto_name):
         frappe.throw("El presupuesto no tiene ítems cargados.")
 
     currency = p.currency or "ARS"
-    symbol = "US$" if currency == "USD" else "$"
+    symbol = billing.symbol_for(currency)
 
     rows = []
     for it in items:
@@ -177,7 +177,7 @@ def invoice_context(factura_name):
         frappe.throw("La factura no tiene ítems cargados.")
 
     currency = f.currency or "ARS"
-    symbol = "US$" if currency == "USD" else "$"
+    symbol = billing.symbol_for(currency)
 
     org_name, direccion = "", ""
     if f.organization:

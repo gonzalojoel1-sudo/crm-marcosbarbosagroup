@@ -44,6 +44,7 @@ class CRMPresupuesto(Document):
                 for it in (self.items or [])
             ],
             iva_mode=self.iva_mode or "sumar",
+            symbol=billing.symbol_for(self.currency),
         )
         for key in TOTAL_FIELDS:
             setattr(self, key, totals[key])
