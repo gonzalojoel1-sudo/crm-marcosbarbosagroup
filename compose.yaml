@@ -1,8 +1,25 @@
 # CRM Grupo Marcos Barbosa - Frappe CRM tuneado CX23 (4GB)
 # Basado en frappe_docker compose.yaml - spec docs/spec.md
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# ESTE ARCHIVO NO ES LA FUENTE DE VERDAD DEL DEPLOY.
+#
+# Producción corre en Docker SWARM, y ahí los servicios se llaman `crm_backend`,
+# `crm_frontend`, etc. (con prefijo del stack). Los de acá se llaman `backend`,
+# `crm_frontend`… sin prefijo. Correr `docker stack deploy -c compose.yaml`
+# sobre este archivo NO actualiza el stack real: crea servicios NUEVOS con
+# nombres distintos, y deja los viejos sirviendo tráfico con la imagen vieja.
+# Ese fue el modo de falla de un deploy anterior.
+#
+# Para desplegar: `bash scripts/deploy-crm.sh <tag> [--migrate]` (ver
+# docs/runbook-crm-core.md). Ese script es el único camino soportado.
+#
+# Acá queda solo como documentación de la topología deseada y para levantar un
+# stack local/standalone. Si lo vas a usar de verdad, actualizá el tag vos.
+# ─────────────────────────────────────────────────────────────────────────────
 services:
   backend:
-    image: crm-mb:18
+    image: crm-mb:20
     restart: unless-stopped
     command:
       - /home/frappe/frappe-bench/env/bin/gunicorn
@@ -29,7 +46,7 @@ services:
       - crm-net
 
   websocket:
-    image: crm-mb:18
+    image: crm-mb:20
     restart: unless-stopped
     command:
       - node
@@ -46,7 +63,7 @@ services:
       - dokploy-network
 
   worker:
-    image: crm-mb:18
+    image: crm-mb:20
     restart: unless-stopped
     command: bench worker --queue short,default,long
     volumes:
@@ -60,7 +77,7 @@ services:
       - crm-net
 
   scheduler:
-    image: crm-mb:18
+    image: crm-mb:20
     restart: unless-stopped
     command: bench schedule
     volumes:
@@ -74,7 +91,7 @@ services:
       - crm-net
 
   frontend:
-    image: crm-mb:18
+    image: crm-mb:20
     restart: unless-stopped
     command: nginx-entrypoint.sh
     environment:
@@ -96,7 +113,7 @@ services:
       - "8080"
 
   configurator:
-    image: crm-mb:18
+    image: crm-mb:20
     restart: "no"
     entrypoint: >
       bash -c
