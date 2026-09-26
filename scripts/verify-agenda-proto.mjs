@@ -1,4 +1,8 @@
 // Verifica el prototipo de la agenda: variantes + EL CONTROL (picker).
+//
+// OJO, lo que este script NO puede hacer: cargar la app. Verifica el PROTOTIPO
+// (variantes y el control de variantes), así que no dice nada sobre si la app se
+// le parece. Eso es `apps/web/e2e/agenda.fidelity.spec.ts`.
 // Uso: VARIANT=bloque node scripts/verify-agenda-proto.mjs
 import { chromium } from "playwright";
 import { pathToFileURL } from "node:url";

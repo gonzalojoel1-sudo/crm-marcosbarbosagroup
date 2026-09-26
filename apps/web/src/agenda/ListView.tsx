@@ -185,7 +185,9 @@ export default function ListView({
                             // Un importado no tiene agenda real (su categoría es el
                             // default fabricado): no se nombra.
                             e.busy ? undefined : e.category,
-                          )}${e.busy ? ", importado de Google" : ""}`}
+                          )}${e.busy ? ", importado de Google" : ""}${
+                            e.sync && e.sync !== "ok" ? ", sin sincronizar" : ""
+                          }`}
                         >
                           <span className={styles.agxLevH}>{time}</span>
                           <span className={styles.agxLevT}>{e.subject}</span>
@@ -200,6 +202,15 @@ export default function ListView({
                               />
                               {categoryOf(e.category).label}
                             </span>
+                          ) : null}
+                          {/* La pastilla "sin sincronizar" (`index.html:907`), que
+                              faltaba. Sin ella la fila de una reunión que no llegó
+                              a Google era idéntica a la de una que sí, y el ancho
+                              de la fila (que es shrink-to-fit: lo fija la fila más
+                              ancha del día) quedaba 81 px más corto que el del
+                              prototipo. */}
+                          {e.sync && e.sync !== "ok" ? (
+                            <span className={styles.agxLevP}>sin sincronizar</span>
                           ) : null}
                         </button>
                       </li>

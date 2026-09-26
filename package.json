@@ -14,7 +14,9 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "fidelity": "turbo run fidelity",
-    "test": "turbo run test"
+    "test": "turbo run test && npm run test:python",
+    "test:python": "cd apps/crm_core && python3 -m pytest -q",
+    "test:visual": "npm --prefix apps/web run test:visual"
   },
   "devDependencies": {
     "playwright": "^1.63.0",

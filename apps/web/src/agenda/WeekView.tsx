@@ -704,14 +704,37 @@ export default function WeekView({
                         // Un importado no tiene agenda real: su categoría es el
                         // default fabricado, así que no se nombra (prototipo).
                         p.event.busy ? undefined : p.event.category,
-                      )}${p.event.busy ? ", ocupado, importado de Google" : ""}`}
+                      )}${p.event.busy ? ", ocupado, importado de Google" : ""}${
+                        p.event.sync && p.event.sync !== "ok" ? ", sin sincronizar" : ""
+                      }`}
                     >
                       <span className={styles.agxEvIn}>
                         <span className={styles.agxEvM}>
                           {fmtMin(p.startMin)}
                           <span className={styles.to}> – {fmtMin(p.endMin)}</span>
                         </span>
-                        <span className={styles.agxEvT}>{p.event.subject}</span>
+                        <span className={styles.agxEvT}>
+                          {p.event.subject}
+                          {/* El punto de sincronización del prototipo
+                              (`index.html:787-789`): 7×7 px de radio, con el color
+                              según el estado. Sólo se dibuja cuando NO está
+                              "ok", que es lo que hace el prototipo
+                              (`e.sync && e.sync !== "ok"`). Antes faltaba: sin él
+                              una reunión que no llegó a Google era idéntica a una
+                              que sí, que es justo lo que el contador de la barra
+                              avisa y el bloque no. */}
+                          {p.event.sync && p.event.sync !== "ok" ? (
+                            <span
+                              className={styles.agxSync}
+                              data-sync={p.event.sync}
+                              title={
+                                p.event.sync === "pend"
+                                  ? "Sin sincronizar con Google"
+                                  : "Falló la sincronización"
+                              }
+                            />
+                          ) : null}
+                        </span>
                       </span>
                       {p.event.busy ? null : (
                         <span className={styles.agxGrip} data-grip aria-hidden="true" />

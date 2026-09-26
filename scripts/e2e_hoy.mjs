@@ -1,10 +1,15 @@
 // E2E de /hoy con navegador real (render en cliente de React).
 // Uso: KEY=... SEC=... node scripts/e2e_hoy.mjs
 import { chromium } from "playwright";
+import { sinProduccion } from "./lib/no-prod.mjs";
 
 const KEY = process.env.KEY;
 const SEC = process.env.SEC;
-const URL = process.env.URL || "https://crm.marcosbarbosagroup.com/hoy";
+// El default era producción, que es exactamente el default que hace que un
+// `node scripts/e2e_hoy.mjs` sin pensar escriba en el CRM de un cliente. El guard
+// lo rechaza salvo que se pase `ALLOW_PROD=1` a propósito.
+const URL = process.env.URL || "https://crm-test.marcosbarbosagroup.com/hoy";
+sinProduccion(URL, { script: "e2e_hoy.mjs", queHace: "crear una reunión de prueba" });
 
 const browser = await chromium.launch();
 const context = await browser.newContext({

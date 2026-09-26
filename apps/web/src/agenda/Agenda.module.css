@@ -12,6 +12,16 @@
   z-index: 1;
   max-width: 1320px;
   margin: 0 auto;
+  /* El token `--bg` (tokens.css:6) está DECLARADO pero hasta 2026-09-26 no lo
+     aplicaba nadie: la raíz era transparente y se veía el fondo del shell del CRM
+     (rgb 12,12,14) en vez de `--bg` (rgb 16,15,13). El prototipo lo aplica en
+     `body{background:var(--bg)}` (`index.html:47`), que es la única superficie que
+     la agenda pinta "detrás de todo". Sin esto, la agenda se veía sobre el fondo
+     equivocado y la comparación visual NO lo cazaba: la distancia YIQ entre los
+     dos colores es 5.3 contra un umbral de 1408.6, o sea invisible por dos órdenes
+     de magnitud. Lo cubre `agenda.fidelity.spec.ts` con un assert de estilo
+     computado, no una captura. */
+  background: var(--bg);
   /* Padding del shell del prototipo (`index.html:66`): 14 arriba / 16 abajo. La
      geometría vertical define el alto de hora derivado (fitHourHeight); con
      12/12 el grid ganaba ~8 px y el scroll a "ahora" caía corrido. */

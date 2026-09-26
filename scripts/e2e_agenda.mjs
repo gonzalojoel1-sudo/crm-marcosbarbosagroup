@@ -10,10 +10,14 @@
 // Crea UNA reunión de prueba por la UI, la verifica y la borra (con limpieza por
 // API como red en `finally`): nunca deja datos de prueba.
 import { chromium } from "playwright";
+import { sinProduccion } from "./lib/no-prod.mjs";
 
 const KEY = process.env.KEY;
 const SEC = process.env.SEC;
-const URL = process.env.URL || "https://crm.marcosbarbosagroup.com/hoy";
+// El default era producción y este script CREA una reunión por la UI. Ahora el
+// default es el sitio de pruebas y producción hay que pedirla explícitamente.
+const URL = process.env.URL || "https://crm-test.marcosbarbosagroup.com/hoy";
+sinProduccion(URL, { script: "e2e_agenda.mjs", queHace: "crear una reunión de prueba" });
 if (!KEY || !SEC) {
   console.error("faltan KEY/SEC (API key temporal de Administrator)");
   process.exit(2);

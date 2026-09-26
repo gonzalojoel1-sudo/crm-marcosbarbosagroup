@@ -6,10 +6,38 @@ on:
   pull_request:
     branches: [main]
 
+# 2026-09-26. Este workflow era decorativo: el paso de tests llevaba
+# `continue-on-error: true` y el paso final era `echo "CI OK"` con
+# `if: always()`, o sea que el job quedaba verde aunque typecheck y lint ya
+# hubieran fallado. Los tres cambios que importan:
+#
+#   · `npm run test` ahora corre tests de verdad —20 de Playwright (proyecto
+#     `hermetico`) y 131 de pytest— y BLOQUEA. Se fue `continue-on-error` y se fue
+#     el `echo` de "CI OK".
+#   · Se agrega eslint para TS/React, que el repo no tenía: 26 archivos .tsx/.ts y
+#     ~2.900 líneas sin un solo linter. `npm run lint` ahora corre stylelint, el
+#     chequeo de fidelidad y eslint.
+#   · Se agrega el job de Python, que no existía.
+#
+# Lo que sigue SIN estar en CI, a propósito y por razones concretas:
+#
+#   · La comparación visual contra el golden (proyecto `visual` de Playwright). Las
+#     tres fuentes de marca se sirven de fonts.googleapis.com por red y el
+#     `snapshotPathTemplate` no lleva la plataforma: en ubuntu el golden de darwin
+#     no valdría. La nota larga está en `playwright.config.ts` y el spec de
+#     fidelidad tiene un test que avisa con un mensaje útil si se corre en otra
+#     plataforma.
+#
+#   · Los 8 tests que necesitan un Frappe real (`apps/crm_core/crm_core/tests/`,
+#     la convención de Frappe: corren con `bench run-tests`). `pytest.ini` los deja
+#     afuera con `testpaths = tests` a propósito, y en un `pytest` pelado no
+#     colectan: fallan con `ModuleNotFoundError: No module named 'frappe'`. No hay
+#     sitio Frappe en este runner, así que no hay forma de correrlos; lo que CI sí
+#     verifica es que no se pudran, y que suoku seguir compilando.
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -30,14 +58,68 @@ jobs:
       - name: Typecheck (turbo)
         run: npm run typecheck
 
-      - name: Lint (turbo)
+      - name: "Lint (turbo: stylelint + fidelidad + eslint)"
         run: npm run lint
 
-      - name: Test (turbo)
-        run: npm run test
-        continue-on-error: true   # tests arrive in T4+
+      - name: Build the web app
+        # Los tests de Playwright corren contra el bundle construido (`preview`
+        # sirve `dist`), así que el build es un paso con nombre propio: si se cae,
+        # tiene que ser visible que se cayó el build y no un test.
+        run: npm --prefix apps/web run build:test
 
-      - name: Status
-        if: always()
+      - name: Install Chromium (Playwright)
+        run: npx playwright install --with-deps chromium
+
+      - name: Test (turbo + pytest)
+        # BLOQUEA. Antes llevaba `continue-on-error: true`, que hacía que este paso
+        # no pudiera poner el job en rojo.
+        run: npm run test
+
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/crm_core/requirements-dev.txt
+
+      - name: Install (pytest)
+        run: pip install -r apps/crm_core/requirements-dev.txt
+
+      - name: Pytest (crm_core)
+        # `-q` y nada de `|| true`: el job tiene que quedar verde de verdad.
+        working-directory: apps/crm_core
+        run: python -m pytest -q -rs
+
+      - name: Ninguna red de tests quedó muda
+        # El modo de falla que ya pasó y que este paso evita: `parametrize` sobre
+        # una lista VACÍA genera cero casos y pytest los reporta como `skipped`,
+        # indistinguible de "no hay nada que testear". Pasó de verdad: los tests de
+        # validación de DocType no corren desde el 25/9 porque el glob apuntaba a
+        # `doctype/` después de que 03a268a moviera los 18 DocTypes a
+        # `_archived_doctypes/`. Cuatro tests en `skipped` y un `pytest -q` verde.
+        #
+        # El gate es QUIRÚRGICO y no "cero skips": falla sólo si algún skip es por
+        # "empty parameter set", que es la forma que toma una red muda. Un skip
+        # opt-in con motivo escrito (un test que necesita un sitio Frappe) no
+        # rompe el job.
+        working-directory: apps/crm_core
         run: |
-          echo "CI OK"
+          salida=$(python -m pytest -q -rs 2>&1)
+          echo "$salida" | grep '^SKIPPED' || true
+          if echo "$salida" | grep -qi 'empty parameter set'; then
+            echo "::error::un parametrize quedó sin casos (empty parameter set): la red de tests está muda"
+            exit 1
+          fi
+
+      - name: Los tests de Frappe siguen siendo Python válido
+        # Los 8 archivos de `crm_core/tests/` no colectan sin `frappe` (por diseño:
+        # son tests de app, corren con `bench run-tests`). Lo que sí tiene que
+        # quedar verde es que no se pudran: un error de sintaxis ahí no lo ve
+        # nadie hasta que alguien levanta un sitio.
+        working-directory: apps/crm_core
+        run: python -m compileall -q crm_core/tests

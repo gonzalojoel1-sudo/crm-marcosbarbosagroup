@@ -28,6 +28,13 @@ process.chdir(ROOT);
 const ESTATICO = process.argv.includes("--static");
 
 let fallos = 0;
+// La fixture base (la que se compara contra el golden) y la de la regresión de
+// tareas. Las dos spejean EVENTS: la segunda agrega `tasks` y un `all_day`, que
+// el prototipo no tiene, y por eso se verifica sólo su parte de `events`.
+const FIXTURES_AGENDA = [
+  "apps/web/e2e/fixtures/agenda.json",
+  "apps/web/e2e/fixtures/agenda-tareas.json",
+];
 // Todo por el mismo stream para que el orden de las secciones se vea bien al pipear.
 const log = (s) => process.stdout.write(s + "\n");
 const mal = (msg) => {
@@ -418,6 +425,41 @@ if (!ESTATICO) {
           .join("\n"),
     );
   }
+}
+
+// (h) la fixture de los E2E es el ESPEJO del arreglo `EVENTS` del prototipo.
+// Antes esto era una afirmación en el campo `_fuente` del JSON, y era falsa: la
+// fixture no traía `sync` ni `sub`, que son parte del dato del prototipo. Con
+// `sync` ausente, el contador de "sin sincronizar" que el prototipo imprime no se
+// podía ni testear. Acá la afirmación se verifica: se extrae `EVENTS` del HTML
+// del prototipo (no de una copia) y se compara campo por campo contra la fixture.
+// Corre en `--static`, o sea que CI lo ve sin navegador ni golden.
+seccion("(h) la fixture de E2E espeja el arreglo EVENTS del prototipo");
+try {
+  const { esperadoDesdeRepo, ordenarFixture, diferencias, clavesDe, extraerEvents } =
+    await import("./lib/proto-events.mjs");
+  const esperado = esperadoDesdeRepo(ROOT);
+  for (const rel of FIXTURES_AGENDA) {
+    const fx = JSON.parse(readFileSync(resolve(ROOT, rel), "utf8"));
+    const diffs = diferencias(esperado, ordenarFixture(fx), clavesDe(fx._extiende));
+    if (diffs.length) {
+      mal(`${rel} no refleja el prototipo (${diffs.length} diferencia(s)):`);
+      for (const d of diffs.slice(0, 12)) log("      " + d);
+      if (diffs.length > 12) log(`      … y ${diffs.length - 12} más`);
+    } else {
+      bien(`${rel}: las ${esperado.length} reuniones del prototipo coinciden campo por campo`);
+    }
+  }
+  // `notes` no tiene campo en el DTO: si el prototipo empieza a usarlo, el mirror
+  // dejaría de ser completo y hay que decidir dónde se dibuja.
+  const conNotes = extraerEvents(readFileSync(resolve(ROOT, "prototypes/agenda/index.html"), "utf8")).filter(
+    (e) => e.notes,
+  );
+  if (conNotes.length)
+    mal(`${conNotes.length} evento(s) del prototipo tienen \`notes\`: el DTO no tiene ese campo, el mirror es incompleto`);
+  else bien("ningún evento del prototipo usa `notes` (el DTO no tiene ese campo)");
+} catch (e) {
+  mal("no pude verificar la fixture contra el prototipo:\n" + String(e.message || e).split("\n").map((l) => "      " + l).join("\n"));
 }
 
 log(

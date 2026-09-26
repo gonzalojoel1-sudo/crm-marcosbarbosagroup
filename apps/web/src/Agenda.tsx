@@ -103,11 +103,20 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
   }, []);
 
   const weekStart = useMemo(() => startOfWeek(anchor), [anchor]);
-  const rangeStart = view === "mes" ? new Date(anchor.getFullYear(), anchor.getMonth(), 1) : weekStart;
-  const rangeEnd =
-    view === "mes"
-      ? new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)
-      : addDays(weekStart, 7);
+  // `rangeStart`/`rangeEnd` van en `useMemo` y no como `new Date(...)` suelto: son
+  // dependencias de `handleSaved` (un `useCallback`) y de los efectos que releen la
+  // ventana. Sin el memo eran dos objetos NUEVOS en cada render, así que el callback
+  // se re-creaba siempre. `rangeKey` ya existía como versión string estable; lo que
+  // cambia acá es que las fechas en sí también lo son.
+  const rangeStart = useMemo(
+    () => (view === "mes" ? new Date(anchor.getFullYear(), anchor.getMonth(), 1) : weekStart),
+    [view, anchor, weekStart],
+  );
+  const rangeEnd = useMemo(
+    () =>
+      view === "mes" ? new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1) : addDays(weekStart, 7),
+    [view, anchor, weekStart],
+  );
   const rangeKey = `${ymd(rangeStart)}|${ymd(rangeEnd)}`;
 
   useEffect(() => {
@@ -147,6 +156,8 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
         category: e.categoria,
         origin: e.origin,
         busy: e.busy,
+        sync: e.sync ?? null,
+        sub: e.sub ?? null,
       })),
     [data],
   );
@@ -236,22 +247,29 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
       : rangeTitle(days[0], days[days.length - 1]);
 
   // El prototipo cuenta como "reuniones" solo las que NO son importadas de
-  // Google (`shown = EVENTS.filter(e => !e.busy && …)`, `index.html:1479-1480`);
-  // las ocupadas no son reuniones de la agenda. El "· N sin sincronizar" mide si
-  // nuestra escritura llegó a Google, estado que el modelo no expone: no se
-  // inventa (divergencia declarada en la spec §2/D5). El conteo respeta lo que
-  // se dibuja: con el fin de semana apagado no cuenta sus reuniones.
+  // Google (`shown = EVENTS.filter(e => !e.busy && …)`, `index.html:1500-1501`);
+  // las ocupadas no son reuniones de la agenda. El conteo respeta lo que se
+  // dibuja: con el fin de semana apagado no cuenta sus reuniones.
   const shownEvents =
     view === "mes"
       ? visibleEvents.filter((e) => showWeekend || weekdayIndex(e.start) < 5)
       : visibleEvents.filter((e) => days.some((d) => sameDay(d, e.start)));
-  const n = shownEvents.filter((e) => !e.busy).length;
+  const meetings = shownEvents.filter((e) => !e.busy);
+  const n = meetings.length;
+  // "· N sin sincronizar" (`index.html:1502,1555`): las reuniones cuya escritura
+  // NO llegó a Google. Sale de `custom_sync_estado`, un campo real del modelo que
+  // `get_agenda` traduce en `_sync_del_dto` (api.py) — no se inventa. Cuenta sobre
+  // las MISMAS reuniones que el total (las ocupadas no se sincronizan: las push
+  // ellas), y `sync === null` no cuenta: null es "no hay nada que sincronizar"
+  // (lo importado de Google, o un `Event` anterior al Custom Field), no "pendiente".
+  const sinSincronizar = meetings.filter((e) => e.sync && e.sync !== "ok").length;
   const windowChip = `${fmtMin(START_H * 60)} – ${fmtMin(END_H * 60)}`;
   const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  const pendientes = sinSincronizar ? ` · ${sinSincronizar} sin sincronizar` : "";
   const count =
     view === "mes"
-      ? `${daysInMonth} días · ${n} ${n === 1 ? "reunión" : "reuniones"}`
-      : `${windowChip} · ${n} ${n === 1 ? "reunión" : "reuniones"}`;
+      ? `${daysInMonth} días · ${n} ${n === 1 ? "reunión" : "reuniones"}${pendientes}`
+      : `${windowChip} · ${n} ${n === 1 ? "reunión" : "reuniones"}${pendientes}`;
 
   function move(delta: number) {
     if (view === "mes") setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() + delta, 1));
@@ -695,6 +713,14 @@ export default function Agenda(_props: { onOpenMeeting: (name: string) => void }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
+    // Las tres que faltan (`crearDesdeBoton`, `editarDe`, `nudge`) son funciones
+    // sueltas declaradas en el cuerpo del componente, así que eslint las pide como
+    // deps pero incluirlas re-registraría el listener en cada render. No hay stale
+    // closure posible: las tres sólo leen `days` (ya es dep), `openPanel` (un
+    // `useCallback` con `[]`, estable) y helpers puros de módulo (`durDe`,
+    // `minutesOfDay`, `sameDay`). Lo que de verdad tiene que re-registrarse —los
+    // eventos y la ventana— ya está.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events, days, rangeKey]);
 
   // Guardar cierra el ciclo: persiste, re-lee la ventana y deja el foco en el

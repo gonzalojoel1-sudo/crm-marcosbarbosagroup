@@ -1,6 +1,9 @@
 import { chromium } from "playwright";
+import { sinProduccion } from "./lib/no-prod.mjs";
 const KEY = process.env.KEY, SEC = process.env.SEC;
-const URL = process.env.URL || "https://crm.marcosbarbosagroup.com/hoy";
+// Crea un lead: el default era producción.
+const URL = process.env.URL || "https://crm-test.marcosbarbosagroup.com/hoy";
+sinProduccion(URL, { script: "e2e-newlead.mjs", queHace: "crear un lead de prueba" });
 const browser = await chromium.launch();
 const ctx = await browser.newContext({
   extraHTTPHeaders: { Authorization: `token ${KEY}:${SEC}` },

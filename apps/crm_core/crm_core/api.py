@@ -31,6 +31,10 @@ EVENT_FIELDS = [
     # Campo NATIVO de `Event` (Google Calendar sync): 1 si el evento se importó de
     # Google. Es la señal real del origen "Google" y de "de solo lectura".
     "pulled_from_google_calendar",
+    # Estado de NUESTRO push a Google (`google_sync.py`). Es un dato real del
+    # modelo, no uno inventado para la UI: sin él el "N sin sincronizar" del
+    # prototipo sería imposible de calcular.
+    "custom_sync_estado",
 ]
 # Las cinco categorías de la agenda. Son una decisión de producto (la paleta y los
 # filtros del prototipo), no datos del usuario: por eso el Custom Field es un
@@ -108,6 +112,35 @@ def _categoria_del_dto(valor):
     return cat if cat in CATEGORIAS else CATEGORIA_DEFAULT
 
 
+# `custom_sync_estado` (los valores del Custom Field, ver `google_sync.py`) al
+# vocabulario de tres estados que la UI dibuja. El prototipo llama a este campo
+# `sync` y usa "ok" | "pend" | "fail" | null; lo que NO corresponde es None.
+# Un `Event` importado de Google no tiene nada que sincronizar (nació en Google):
+# por eso lo importado nunca cuenta como pendiente.
+SINCRONIZADO = {"Sincronizada"}
+PENDIENTE = {"Pendiente"}
+FALLIDO = {"Falló", "Conflicto"}
+
+
+def _sync_del_dto(estado, busy):
+    """Traduce `custom_sync_estado` al vocabulario de la UI, o None si no aplica.
+
+    `None` NO es "sincronizado": es "no hay nada que sincronizar" (lo importado de
+    Google, o un `Event` de antes del Custom Field). La UI cuenta sólo lo que tiene
+    estado y no es "ok", así que un `None` no infla el contador.
+    """
+    if busy:
+        return None
+    e = (estado or "").strip()
+    if e in SINCRONIZADO:
+        return "ok"
+    if e in PENDIENTE:
+        return "pend"
+    if e in FALLIDO:
+        return "fail"
+    return None
+
+
 def _event_dto(r, lead=None):
     """DTO de una reunión sobre `Event`.
 
@@ -115,6 +148,10 @@ def _event_dto(r, lead=None):
     a inicio + 1 h (el fallback que el modelo viejo fabricaba siempre). `all_day`
     viaja en el DTO para que un evento de todo el día (los importa Google) no se
     dibuje como una reunión de 00:00.
+
+    `sync` es el estado de NUESTRO push a Google (`custom_sync_estado`), no una
+    etiqueta inventada: sin él el "N sin sincronizar" del prototipo no se puede
+    calcular. Ver `_sync_del_dto` para el mapeo y por qué lo importado es None.
     """
     starts = get_datetime(r.get("starts_on"))
     ends = get_datetime(r.get("ends_on")) if r.get("ends_on") else add_to_date(starts, hours=1)
@@ -135,6 +172,7 @@ def _event_dto(r, lead=None):
         "categoria": _categoria_del_dto(r.get("custom_crm_categoria")),
         "origin": "Google" if busy else "CRM",
         "busy": busy,
+        "sync": _sync_del_dto(r.get("custom_sync_estado"), busy),
         "starts_on": str(starts),
         "ends_on": str(ends),
     }
@@ -150,6 +188,8 @@ def _eventos_en_ventana(filters):
         fields.remove("custom_crm_lead")
     if not frappe.get_meta("Event").get_field("custom_crm_categoria"):
         fields.remove("custom_crm_categoria")
+    if not frappe.get_meta("Event").get_field("custom_sync_estado"):
+        fields.remove("custom_sync_estado")
     rows = frappe.get_all(
         "Event",
         filters=filters,

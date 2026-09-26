@@ -7,10 +7,16 @@
     "dev": "vite",
     "preview": "vite preview",
     "build": "npm run lint && vite build && node gen-shell.mjs && node ../../scripts/check-agenda-fidelity.mjs --static",
-    "lint": "stylelint \"src/agenda/**/*.module.css\" && node ../../scripts/check-agenda-fidelity.mjs --static",
+    "build:test": "vite build && node gen-shell.mjs",
+    "lint": "npm run lint:css && npm run lint:ts",
+    "lint:css": "stylelint \"src/agenda/**/*.module.css\" && node ../../scripts/check-agenda-fidelity.mjs --static",
+    "lint:ts": "eslint src e2e --ext .ts,.tsx",
+    "test": "npm run build:test && playwright test --config ../../playwright.config.ts --project=hermetico",
+    "test:visual": "npm run build:test && playwright test --config ../../playwright.config.ts --project=visual",
+    "test:all": "npm run build:test && playwright test --config ../../playwright.config.ts",
     "fidelity": "node ../../scripts/check-agenda-fidelity.mjs",
-    "fidelity:visual": "vite build && playwright test --config ../../playwright.config.ts agenda.visual.spec.ts",
-    "fidelity:visual:golden": "vite build && playwright test --config ../../playwright.config.ts agenda.golden.spec.ts --update-snapshots",
+    "fidelity:visual": "vite build && playwright test --config ../../playwright.config.ts --project=visual",
+    "fidelity:visual:golden": "vite build && playwright test --config ../../playwright.config.ts --project=visual agenda.golden.spec.ts --update-snapshots",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -22,8 +28,13 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "globals": "^17.12.0",
     "stylelint": "^16.26.1",
     "typescript": "^5.6.3",
+    "typescript-eslint": "^8.70.1",
     "vite": "^5.4.11"
   }
 }

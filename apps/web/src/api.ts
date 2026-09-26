@@ -26,6 +26,14 @@ export interface EventDTO {
   origin: string;
   // `true` = importado de Google: de solo lectura (no se edita, mueve ni borra).
   busy: boolean;
+  // Estado de NUESTRO push a Google, ya traducido al vocabulario de la UI por
+  // `_sync_del_dto`. `null` = no hay nada que sincronizar (lo importado de Google,
+  // o un `Event` anterior al Custom Field); NO significa "sincronizado".
+  sync?: "ok" | "pend" | "fail" | null;
+  // Subtítulo del prototipo. El DTO todavía NO lo expone (ver Agenda.tsx): está
+  // en la fixture para que el espejo con `EVENTS` sea completo, y el tipo lo
+  // declara para que agregar el endpoint sea cambiar una línea, no tres.
+  sub?: string | null;
   who?: string;
   email?: string;
 }

@@ -1,5 +1,15 @@
 export type AgendaView = "semana" | "lista" | "mes";
 
+/**
+ * Estado de la escritura en Google Calendar, en el vocabulario de tres estados
+ * del prototipo (`index.html:561`). Viene de `custom_sync_estado` por
+ * `_sync_del_dto` (api.py): "ok" = llegó, "pend" = en cola, "fail" = no llegó.
+ * `null` NO es "sincronizado": es "no hay nada que sincronizar" (lo importado de
+ * Google, o un `Event` anterior al Custom Field). La UI cuenta sólo lo que tiene
+ * estado y no es "ok".
+ */
+export type SyncEstado = "ok" | "pend" | "fail" | null;
+
 // Reunión ya normalizada: fechas naive en la zona del sitio (nunca toISOString).
 export interface AgendaEvent {
   name: string;
@@ -14,6 +24,12 @@ export interface AgendaEvent {
   origin?: string;
   // Importado de Google ⇒ de solo lectura: no abre menú, no se arrastra ni edita.
   busy?: boolean;
+  // Estado del push a Google. Opcional porque un backend anterior a este campo no
+  // lo manda, y en ese caso el conteo "sin sincronizar" es 0 en vez de inventar.
+  sync?: SyncEstado;
+  // Subtítulo del prototipo (`sub` en `EVENTS`). Opcional: el DTO no lo expone
+  // todavía; está en la fixture para que el espejo con el prototipo sea completo.
+  sub?: string | null;
 }
 
 // Tarea ya normalizada. `due` es el vencimiento (nunca una duración): una tarea
